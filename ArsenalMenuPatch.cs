@@ -1,6 +1,5 @@
 using HarmonyLib;
 using StardewValley;
-using StardewValley.Menus;
 using SwordAndSorcerySMAPI;
 
 namespace SnsAndroidFix;
@@ -12,15 +11,20 @@ public class ArsenalMenuPatch
     {
         var invMenu = Traverse.Create(__instance)
             .Field("invMenu")
-            .GetValue<InventoryMenu>();
+            .GetValue();
 
         if (invMenu == null) return;
 
-        if (invMenu.xPositionOnScreen < 0)
-            invMenu.xPositionOnScreen = 0;
+        var traverse = Traverse.Create(invMenu);
+
+        int x = traverse.Field("xPositionOnScreen").GetValue<int>();
+        int y = traverse.Field("yPositionOnScreen").GetValue<int>();
+
+        if (x < 0)
+            traverse.Field("xPositionOnScreen").SetValue(0);
 
         int maxY = Game1.uiViewport.Height - 280;
-        if (invMenu.yPositionOnScreen > maxY)
-            invMenu.yPositionOnScreen = maxY;
+        if (y > maxY)
+            traverse.Field("yPositionOnScreen").SetValue(maxY);
     }
 }
