@@ -12,10 +12,13 @@ public class ArsenalMenuPatch
     {
         if (___invMenu == null) return;
 
+        // แก้ X ไม่ให้ออกนอกจอ
+        if (___invMenu.xPositionOnScreen < 0)
+            ___invMenu.xPositionOnScreen = 0;
+
+        // แก้ Y ไม่ให้ตกนอกจอ
         int maxY = Game1.uiViewport.Height - 280;
         if (___invMenu.yPositionOnScreen > maxY)
-        {
             ___invMenu.yPositionOnScreen = maxY;
-        }
     }
 }
