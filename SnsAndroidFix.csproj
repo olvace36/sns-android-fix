@@ -8,19 +8,19 @@
 
   <ItemGroup>
     <Reference Include="StardewModdingAPI">
-      <HintPath>libs/StardewModdingAPI.dll</HintPath>
+      <HintPath>StardewModdingAPI.dll</HintPath>
     </Reference>
     <Reference Include="StardewValley">
-      <HintPath>libs/StardewValley.dll</HintPath>
+      <HintPath>StardewValley.dll</HintPath>
     </Reference>
     <Reference Include="MonoGame.Framework">
-      <HintPath>libs/MonoGame.Framework.dll</HintPath>
+      <HintPath>MonoGame.Framework.dll</HintPath>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>libs/0Harmony.dll</HintPath>
+      <HintPath>0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="SwordAndSorcerySMAPI">
-      <HintPath>libs/SwordAndSorcerySMAPI.dll</HintPath>
+      <HintPath>SwordAndSorcerySMAPI.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>
