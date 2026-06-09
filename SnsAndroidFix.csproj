@@ -22,5 +22,11 @@
     <Reference Include="SwordAndSorcerySMAPI">
       <HintPath>SwordAndSorcerySMAPI.dll</HintPath>
     </Reference>
+    <Reference Include="SMAPI.Toolkit.CoreInterfaces">
+      <HintPath>SMAPI.Toolkit.CoreInterfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="xTile">
+      <HintPath>xTile.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>
