@@ -20,4 +20,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SnsAndroidFix
-          path: bin/Debug/net6.0/SnsAndroidFix.dll
+          path: bin/Debug/net9.0/SnsAndroidFix.dll
