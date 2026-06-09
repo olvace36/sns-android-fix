@@ -11,7 +11,8 @@
       <HintPath>StardewModdingAPI.dll</HintPath>
     </Reference>
     <Reference Include="StardewValley">
-      <HintPath>StardewValley.dll</HintPath>
+     <HintPath>StardewValley.dll</HintPath>
+     <Aliases>global</Aliases>
     </Reference>
     <Reference Include="MonoGame.Framework">
       <HintPath>MonoGame.Framework.dll</HintPath>
