@@ -1,0 +1,9 @@
+{
+  "Name": "SNS Android Fix",
+  "Author": "You",
+  "Version": "1.0.0",
+  "Description": "Fixes ArsenalMenu inventory panel on Android",
+  "UniqueID": "You.SnsAndroidFix",
+  "EntryDll": "SnsAndroidFix.dll",
+  "MinimumApiVersion": "4.0.0"
+}
