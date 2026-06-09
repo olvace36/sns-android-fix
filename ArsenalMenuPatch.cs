@@ -1,6 +1,7 @@
 using HarmonyLib;
 using StardewValley;
 using StardewValley.Menus;
+using SwordAndSorcerySMAPI;
 
 namespace SnsAndroidFix;
 
