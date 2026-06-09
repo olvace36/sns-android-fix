@@ -1,3 +1,4 @@
+using System.Reflection;
 using HarmonyLib;
 using StardewValley;
 using SwordAndSorcerySMAPI;
@@ -9,22 +10,29 @@ public class ArsenalMenuPatch
 {
     static void Postfix(ArsenalMenu __instance)
     {
-        var invMenu = Traverse.Create(__instance)
-            .Field("invMenu")
-            .GetValue();
+        var field = typeof(ArsenalMenu).GetField("invMenu", 
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        if (field == null) return;
 
+        var invMenu = field.GetValue(__instance);
         if (invMenu == null) return;
 
-        var traverse = Traverse.Create(invMenu);
+        var type = invMenu.GetType();
 
-        int x = traverse.Field("xPositionOnScreen").GetValue<int>();
-        int y = traverse.Field("yPositionOnScreen").GetValue<int>();
+        var xField = type.GetField("xPositionOnScreen");
+        var yField = type.GetField("yPositionOnScreen");
 
-        if (x < 0)
-            traverse.Field("xPositionOnScreen").SetValue(0);
+        if (xField != null)
+        {
+            int x = (int)xField.GetValue(invMenu);
+            if (x < 0) xField.SetValue(invMenu, 0);
+        }
 
-        int maxY = Game1.uiViewport.Height - 280;
-        if (y > maxY)
-            traverse.Field("yPositionOnScreen").SetValue(maxY);
+        if (yField != null)
+        {
+            int y = (int)yField.GetValue(invMenu);
+            int maxY = Game1.uiViewport.Height - 280;
+            if (y > maxY) yField.SetValue(invMenu, maxY);
+        }
     }
 }
