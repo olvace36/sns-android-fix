@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>SnsAndroidFix</AssemblyName>
+    <RootNamespace>SnsAndroidFix</RootNamespace>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="StardewModdingAPI">
+      <HintPath>libs/StardewModdingAPI.dll</HintPath>
+    </Reference>
+    <Reference Include="StardewValley">
+      <HintPath>libs/StardewValley.dll</HintPath>
+    </Reference>
+    <Reference Include="MonoGame.Framework">
+      <HintPath>libs/MonoGame.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>libs/0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="SwordAndSorcerySMAPI">
+      <HintPath>libs/SwordAndSorcerySMAPI.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
