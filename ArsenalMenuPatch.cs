@@ -125,26 +125,25 @@ public class ArsenalMenuDrawPatch
     }
 }
 
+
 [HarmonyPatch(typeof(ArsenalMenu), "receiveLeftClick")]
 public class ArsenalMenuClickPatch
 {
-    static bool Prefix(ArsenalMenu __instance, int x, int y, bool playSound = true)
+    static void Postfix(ArsenalMenu __instance, int x, int y, bool playSound = true)
     {
         var field = typeof(ArsenalMenu).GetField("invMenu",
             BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field == null) return true;
+        if (field == null) return;
 
-        var invMenu = field.GetValue(__instance) as InventoryMenu;
-        if (invMenu == null) return true;
+        var invMenu = field.GetValue(__instance);
+        if (invMenu == null) return;
 
-        // ใช้ heldItem แทน CursorSlotItem เหมือน ForgeMenu
-        var heldField = typeof(IClickableMenu).GetField("heldItem",
+        var type = invMenu.GetType();
+        var receiveClick = type.GetMethod("receiveLeftClick",
             BindingFlags.Public | BindingFlags.Instance);
-        Item heldItem = heldField?.GetValue(__instance) as Item;
+        receiveClick?.Invoke(invMenu, new object[] { x, y, playSound });
 
-        Item result = invMenu.leftClick(x, y, heldItem, playSound);
-        heldField?.SetValue(__instance, result);
-
-        return false; // ไม่ให้ original method ทำงาน
+        // reset CursorSlotItem ที่ถูก set โดย original method
+        Game1.player.CursorSlotItem = null;
     }
 }
