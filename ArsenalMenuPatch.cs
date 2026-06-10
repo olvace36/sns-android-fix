@@ -21,14 +21,17 @@ public class ArsenalMenuPatch
         if (invMenu == null) return;
 
         var type = invMenu.GetType();
-        int x = (int)(type.GetField("xPositionOnScreen")?.GetValue(invMenu) ?? 0);
+        var moveMethod = type.GetMethod("movePosition",
+            BindingFlags.Public | BindingFlags.Instance);
+
         int y = (int)(type.GetField("yPositionOnScreen")?.GetValue(invMenu) ?? 0);
 
-        Monitor?.Log($"invMenu before: X={x}, Y={y}", LogLevel.Info);
+        // reset Y เป็น 0 ก่อน แล้ว set ใหม่ (เหมือน ForgeMenu)
+        moveMethod?.Invoke(invMenu, new object[] { 0, -y });
 
-        int newY = (Game1.uiViewport.Height - 280) / 2 + 100;
-        type.GetField("yPositionOnScreen")?.SetValue(invMenu, newY);
+        int newY = Game1.uiViewport.Height / 2 + 50;
+        moveMethod?.Invoke(invMenu, new object[] { 0, newY });
 
-        Monitor?.Log($"invMenu after: X={x}, Y={newY}", LogLevel.Info);
+        Monitor?.Log($"invMenu moved to Y={newY}", LogLevel.Info);
     }
 }
