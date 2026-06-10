@@ -34,10 +34,7 @@ public class ArsenalMenuPatch
         int cols = capacity / rows;
         int hGap = 4;
         int verticalGap = 4;
-
-        // คำนวณ squareSide ให้พอดีกับ menu (menu กว้าง ~700px)
-        int menuWidth = 700 + IClickableMenu.borderWidth * 2;
-        int newSq = (menuWidth - hGap * (cols - 1)) / cols;
+        int newSq = 80;
 
         int menuY = Game1.uiViewport.Height / 2 - 150 - 100 - IClickableMenu.borderWidth;
         int menuH = 300 + IClickableMenu.borderWidth * 2;
@@ -54,8 +51,8 @@ public class ArsenalMenuPatch
         type.GetField("yOffset")?.SetValue(invMenu, 0);
 
         // ปิดถังขยะและปุ่มจัดของ
-        type.GetField("showTrash")?.SetValue(invMenu, false);
-        type.GetField("showOrganizeButton")?.SetValue(invMenu, false);
+        type.GetField("showTrash", BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
+        type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.Instance)?.SetValue(invMenu, false);
 
         // rebuild slots
         var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
