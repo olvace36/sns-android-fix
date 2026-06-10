@@ -32,7 +32,7 @@ public class ArsenalMenuPatch
         {
             int viewH = Game1.uiViewport.Height;
             int viewW = Game1.uiViewport.Width;
-            int newSq = Math.Min((int)(90f * ((float)viewH / 360f)), (int)(90f * ((float)viewW / 1280f)));
+            int newSq = 64;
             type.GetField("squareSide")?.SetValue(invMenu, newSq);
             type.GetField("scaleFactor")?.SetValue(invMenu, (float)newSq / 64f);
             Monitor?.Log($"fixed squareSide={newSq}", LogLevel.Info);
