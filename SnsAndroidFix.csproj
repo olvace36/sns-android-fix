@@ -29,5 +29,8 @@
     <Reference Include="xTile">
       <HintPath>xTile.dll</HintPath>
     </Reference>
+    <Reference Include="SpaceCore">
+      <HintPath>SpaceCore.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>
