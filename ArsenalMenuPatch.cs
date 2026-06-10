@@ -39,7 +39,11 @@ public class ArsenalMenuPatch
         int menuY = Game1.uiViewport.Height / 2 - 150 - 100 - IClickableMenu.borderWidth;
         int menuH = 300 + IClickableMenu.borderWidth * 2;
         int menuX = Game1.uiViewport.Width / 2 - 350 - IClickableMenu.borderWidth;
-        int startX = menuX;
+        int menuWidth = 700 + IClickableMenu.borderWidth * 2;
+
+        // คำนวณ startX ให้กึ่งกลางพอดีกับ menu
+        int totalWidth = cols * (newSq + hGap) - hGap;
+        int startX = menuX + (menuWidth - totalWidth) / 2;
         int startY = menuY + menuH + 8;
 
         type.GetField("squareSide")?.SetValue(invMenu, newSq);
@@ -69,6 +73,6 @@ public class ArsenalMenuPatch
             }
         }
 
-        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}", LogLevel.Info);
+        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}, totalWidth={totalWidth}, menuWidth={menuWidth}", LogLevel.Info);
     }
 }
