@@ -24,6 +24,7 @@ public class ArsenalMenuPatch
         var type = invMenu.GetType();
 
         var actualInventory = type.GetField("actualInventory")?.GetValue(invMenu);
+        Monitor?.Log($"actualInventory type: {actualInventory?.GetType()?.FullName ?? "null"}", LogLevel.Info);
         int count = (actualInventory as IList)?.Count ?? -1;
         Monitor?.Log($"inventory count: {count}", LogLevel.Info);
 
