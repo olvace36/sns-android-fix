@@ -41,7 +41,6 @@ public class ArsenalMenuPatch
         int menuX = Game1.uiViewport.Width / 2 - 350 - IClickableMenu.borderWidth;
         int menuWidth = 700 + IClickableMenu.borderWidth * 2;
 
-        // คำนวณ startX ให้กึ่งกลางพอดีกับ menu
         int totalWidth = cols * (newSq + hGap) - hGap;
         int startX = menuX + (menuWidth - totalWidth) / 2;
         int startY = menuY + menuH + 8;
@@ -53,6 +52,9 @@ public class ArsenalMenuPatch
         type.GetField("xOffset")?.SetValue(invMenu, 0);
         type.GetField("yOffset")?.SetValue(invMenu, 0);
         type.GetField("hGap")?.SetValue(invMenu, hGap);
+
+        // เปิด drawSlots
+        type.GetField("drawSlots", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, true);
 
         // ซ่อนถังขยะและปุ่มจัดของ
         type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
