@@ -29,30 +29,30 @@ public class ArsenalMenuPatch
         int sq = (int)(type.GetField("squareSide")?.GetValue(invMenu) ?? 0);
         if (sq != 0) return;
 
+        int newSq = 80;
+        int hGap = 8;
+        int verticalGap = 8;
         int rows = 3;
         int capacity = 36;
         int cols = capacity / rows;
-        int hGap = 4;
-        int verticalGap = 4;
-        int newSq = 80;
 
         int menuY = Game1.uiViewport.Height / 2 - 150 - 100 - IClickableMenu.borderWidth;
         int menuH = 300 + IClickableMenu.borderWidth * 2;
         int menuX = Game1.uiViewport.Width / 2 - 350 - IClickableMenu.borderWidth;
-        int startY = menuY + menuH + 8;
         int startX = menuX;
+        int startY = menuY + menuH + 8;
 
         type.GetField("squareSide")?.SetValue(invMenu, newSq);
         type.GetField("scaleFactor")?.SetValue(invMenu, (float)newSq / 64f);
         type.GetField("yPositionOnScreen")?.SetValue(invMenu, startY);
         type.GetField("xPositionOnScreen")?.SetValue(invMenu, startX);
-        type.GetField("hGap")?.SetValue(invMenu, hGap);
         type.GetField("xOffset")?.SetValue(invMenu, 0);
         type.GetField("yOffset")?.SetValue(invMenu, 0);
+        type.GetField("hGap")?.SetValue(invMenu, hGap);
 
-        // ปิดถังขยะและปุ่มจัดของ
-        type.GetField("showTrash", BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
-        type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.Instance)?.SetValue(invMenu, false);
+        // ซ่อนถังขยะและปุ่มจัดของ
+        type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
+        type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
 
         // rebuild slots
         var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
@@ -69,6 +69,6 @@ public class ArsenalMenuPatch
             }
         }
 
-        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}, menuX={menuX}", LogLevel.Info);
+        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}", LogLevel.Info);
     }
 }
