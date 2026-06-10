@@ -37,7 +37,7 @@ public class ArsenalMenuPatch
             .GetField("height", BindingFlags.Public | BindingFlags.Instance)
             ?.GetValue(__instance) ?? 300);
 
-        int newY = Game1.uiViewport.Height / 2 - menuHeight / 2 + menuHeight + 20;
+        int newY = Game1.uiViewport.Height - 280;
         moveMethod?.Invoke(invMenu, new object[] { 0, -y });
         moveMethod?.Invoke(invMenu, new object[] { 0, newY });
 
