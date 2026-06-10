@@ -37,10 +37,10 @@ public class ArsenalMenuPatch
         int capacity = 36;
         int cols = capacity / rows;
 
-        int menuY = Game1.uiViewport.Height / 2 - 150 - 100 - IClickableMenu.borderWidth;
-        int menuH = 300 + IClickableMenu.borderWidth * 2;
         int menuX = Game1.uiViewport.Width / 2 - 350 - IClickableMenu.borderWidth;
         int menuWidth = 700 + IClickableMenu.borderWidth * 2;
+        int menuY = Game1.uiViewport.Height / 2 - 150 - 100 - IClickableMenu.borderWidth;
+        int menuH = 300 + IClickableMenu.borderWidth * 2;
 
         int totalWidth = cols * (newSq + hGap) - hGap;
         int startX = menuX + (menuWidth - totalWidth) / 2;
@@ -60,6 +60,15 @@ public class ArsenalMenuPatch
         type.GetField("drawSlots", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, true);
         type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
         type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
+
+        // เพิ่มปุ่ม X
+        int closeX = menuX + menuWidth - 16;
+        int closeY = menuY - 16;
+        __instance.upperRightCloseButton = new ClickableTextureComponent(
+            new Rectangle(closeX, closeY, 48, 48),
+            Game1.mouseCursors,
+            new Rectangle(337, 494, 12, 12),
+            4f);
 
         var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
         if (inventorySlots != null)
