@@ -158,3 +158,16 @@ public class ArsenalMenuClickPatch
         }
     }
 }
+
+[HarmonyPatch(typeof(ArsenalMenu), "cleanupBeforeExit")]
+public class ArsenalMenuCleanupPatch
+{
+    static void Postfix(ArsenalMenu __instance)
+    {
+        if (Game1.player.CursorSlotItem != null)
+        {
+            Game1.player.addItemToInventory(Game1.player.CursorSlotItem);
+            Game1.player.CursorSlotItem = null;
+        }
+    }
+}
