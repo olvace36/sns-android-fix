@@ -105,4 +105,4 @@ public class ArsenalMenuDrawPatch
         type.GetField("xPositionOnScreen", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             ?.SetValue(invMenu, startX);
     }
-}}
+}
