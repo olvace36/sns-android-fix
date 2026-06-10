@@ -37,13 +37,15 @@ public class ArsenalMenuPatch
         int capacity = 36;
         int cols = capacity / rows;
 
+        int menuY = Game1.uiViewport.Height / 2 - 150 - 100 - IClickableMenu.borderWidth;
+        int menuH = 300 + IClickableMenu.borderWidth * 2;
         int menuX = Game1.uiViewport.Width / 2 - 350 - IClickableMenu.borderWidth;
         int menuWidth = 700 + IClickableMenu.borderWidth * 2;
 
         int totalWidth = cols * (newSq + hGap) - hGap;
-        int totalHeight = rows * (newSq + verticalGap) - verticalGap + 32;
         int startX = menuX + (menuWidth - totalWidth) / 2;
-        int startY = Game1.uiViewport.Height - totalHeight - 8;
+        int startY = menuY + menuH + 8;
+        int totalHeight = Game1.uiViewport.Height - startY - 4;
 
         type.GetField("squareSide")?.SetValue(invMenu, newSq);
         type.GetField("scaleFactor")?.SetValue(invMenu, (float)newSq / 64f);
@@ -93,15 +95,16 @@ public class ArsenalMenuDrawPatch
 
         int newSq = 80;
         int hGap = 8;
-        int verticalGap = 8;
         int cols = 12;
-        int rows = 3;
         int totalWidth = cols * (newSq + hGap) - hGap;
-        int totalHeight = rows * (newSq + verticalGap) - verticalGap + 32;
 
         int startX = (int)(type.GetField("xPositionOnScreen",
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             ?.GetValue(invMenu) ?? 0);
+        int startY = (int)(type.GetField("yPositionOnScreen",
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(invMenu) ?? 0);
+        int totalHeight = Game1.uiViewport.Height - startY - 4;
 
         type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             ?.SetValue(invMenu, totalWidth);
