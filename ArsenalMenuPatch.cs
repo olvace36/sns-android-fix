@@ -24,8 +24,8 @@ public class ArsenalMenuPatch
         var type = invMenu.GetType();
 
         var actualInventory = type.GetField("actualInventory")?.GetValue(invMenu);
-        Monitor?.Log($"actualInventory type: {actualInventory?.GetType()?.FullName ?? "null"}", LogLevel.Info);
-        int count = (actualInventory as IList)?.Count ?? -1;
+        var invType = actualInventory?.GetType();
+        int count = (int)(invType?.GetProperty("Count")?.GetValue(actualInventory) ?? -1);
         Monitor?.Log($"inventory count: {count}", LogLevel.Info);
 
         var moveMethod = type.GetMethod("movePosition",
