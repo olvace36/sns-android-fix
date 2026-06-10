@@ -34,7 +34,6 @@ public class ArsenalMenuPatch
 
         type.GetField("yPositionOnScreen")?.SetValue(invMenu, newY);
 
-        // ขยับ slot bounds
         var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
         if (inventorySlots != null)
         {
@@ -49,8 +48,11 @@ public class ArsenalMenuPatch
             var newFadeRect = new Rectangle(
                 0, newY, Game1.uiViewport.Width, Game1.uiViewport.Height - newY + 1);
             fadeRectField.SetValue(invMenu, newFadeRect);
-            Monitor?.Log($"fadeRect updated to Y={newY}", LogLevel.Info);
         }
+
+        // log slot[0] bounds
+        if (inventorySlots != null && inventorySlots.Count > 0)
+            Monitor?.Log($"slot[0] bounds: X={inventorySlots[0].bounds.X}, Y={inventorySlots[0].bounds.Y}", LogLevel.Info);
 
         Monitor?.Log($"menuY={menuY}, menuH={menuH}, oldY={oldY}, newY={newY}, diff={diff}, slots={inventorySlots?.Count}", LogLevel.Info);
     }
