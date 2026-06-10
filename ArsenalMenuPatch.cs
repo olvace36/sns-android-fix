@@ -1,8 +1,9 @@
-using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using StardewModdingAPI;
 using StardewValley;
+using StardewValley.Menus;
 using SwordAndSorcerySMAPI;
 
 namespace SnsAndroidFix;
@@ -23,24 +24,23 @@ public class ArsenalMenuPatch
 
         var type = invMenu.GetType();
 
-        // log inventory count
-        var actualInventory = type.GetField("actualInventory")?.GetValue(invMenu);
-        var invType = actualInventory?.GetType();
-        int count = (int)(invType?.GetProperty("Count")?.GetValue(actualInventory) ?? -1);
-        Monitor?.Log($"inventory count: {count}", LogLevel.Info);
+        int oldY = (int)(type.GetField("yPositionOnScreen")?.GetValue(invMenu) ?? 0);
 
-        var moveMethod = type.GetMethod("movePosition",
-            BindingFlags.Public | BindingFlags.Instance);
+        // คำนวณจาก menu จริง
+        int menuY = Game1.uiViewport.Height / 2 - 150 - 100 - IClickableMenu.borderWidth;
+        int menuH = 300 + IClickableMenu.borderWidth * 2;
+        int newY = menuY + menuH + 8;
+        int diff = newY - oldY;
 
-        int y = (int)(type.GetField("yPositionOnScreen")?.GetValue(invMenu) ?? 0);
-        int menuHeight = (int)(typeof(ArsenalMenu)
-            .GetField("height", BindingFlags.Public | BindingFlags.Instance)
-            ?.GetValue(__instance) ?? 300);
+        type.GetField("yPositionOnScreen")?.SetValue(invMenu, newY);
 
-        int newY = Game1.uiViewport.Height - 280;
-        moveMethod?.Invoke(invMenu, new object[] { 0, -y });
-        moveMethod?.Invoke(invMenu, new object[] { 0, newY });
+        var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
+        if (inventorySlots != null)
+        {
+            foreach (var slot in inventorySlots)
+                slot.bounds.Y += diff;
+        }
 
-        Monitor?.Log($"menuHeight={menuHeight}, newY={newY}", LogLevel.Info);
+        Monitor?.Log($"menuY={menuY}, menuH={menuH}, oldY={oldY}, newY={newY}, diff={diff}, slots={inventorySlots?.Count}", LogLevel.Info);
     }
 }
