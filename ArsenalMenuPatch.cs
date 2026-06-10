@@ -41,16 +41,15 @@ public class ArsenalMenuPatch
                 slot.bounds.Y += diff;
         }
 
-        // update fadeRect
+        // reset fadeRect ให้ครอบคลุมทั้งจอ
         var fadeRectField = type.GetField("fadeRect", BindingFlags.NonPublic | BindingFlags.Instance);
         if (fadeRectField != null)
         {
-            var newFadeRect = new Rectangle(
-                0, newY, Game1.uiViewport.Width, Game1.uiViewport.Height - newY + 1);
+            var newFadeRect = new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height);
             fadeRectField.SetValue(invMenu, newFadeRect);
+            Monitor?.Log("fadeRect set to full screen", LogLevel.Info);
         }
 
-        // log slot[0] bounds
         if (inventorySlots != null && inventorySlots.Count > 0)
             Monitor?.Log($"slot[0] bounds: X={inventorySlots[0].bounds.X}, Y={inventorySlots[0].bounds.Y}", LogLevel.Info);
 
