@@ -37,15 +37,13 @@ public class ArsenalMenuPatch
         int capacity = 36;
         int cols = capacity / rows;
 
-        int menuY = Game1.uiViewport.Height / 2 - 150 - 100 - IClickableMenu.borderWidth;
-        int menuH = 300 + IClickableMenu.borderWidth * 2;
         int menuX = Game1.uiViewport.Width / 2 - 350 - IClickableMenu.borderWidth;
         int menuWidth = 700 + IClickableMenu.borderWidth * 2;
 
         int totalWidth = cols * (newSq + hGap) - hGap;
         int totalHeight = rows * (newSq + verticalGap) - verticalGap + 32;
         int startX = menuX + (menuWidth - totalWidth) / 2;
-        int startY = menuY + menuH + 8;
+        int startY = Game1.uiViewport.Height - totalHeight - 8;
 
         type.GetField("squareSide")?.SetValue(invMenu, newSq);
         type.GetField("scaleFactor")?.SetValue(invMenu, (float)newSq / 64f);
