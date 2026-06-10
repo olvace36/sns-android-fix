@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Reflection;
 using HarmonyLib;
 using StardewModdingAPI;
@@ -21,12 +22,17 @@ public class ArsenalMenuPatch
         if (invMenu == null) return;
 
         var type = invMenu.GetType();
+
+        // log inventory count
+        var actualInventory = type.GetProperty("actualInventory")?.GetValue(invMenu);
+        int count = (actualInventory as IList)?.Count ?? -1;
+        Monitor?.Log($"inventory count: {count}", LogLevel.Info);
+
         var moveMethod = type.GetMethod("movePosition",
             BindingFlags.Public | BindingFlags.Instance);
 
         int y = (int)(type.GetField("yPositionOnScreen")?.GetValue(invMenu) ?? 0);
 
-        // reset Y เป็น 0 ก่อน แล้ว set ใหม่ (เหมือน ForgeMenu)
         moveMethod?.Invoke(invMenu, new object[] { 0, -y });
 
         int newY = Game1.uiViewport.Height / 2 + 50;
