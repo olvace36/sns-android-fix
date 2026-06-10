@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
@@ -49,18 +50,15 @@ public class ArsenalMenuPatch
         type.GetField("scaleFactor")?.SetValue(invMenu, (float)newSq / 64f);
         type.GetField("yPositionOnScreen")?.SetValue(invMenu, startY);
         type.GetField("xPositionOnScreen")?.SetValue(invMenu, startX);
+        type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, menuWidth);
         type.GetField("xOffset")?.SetValue(invMenu, 0);
         type.GetField("yOffset")?.SetValue(invMenu, 0);
         type.GetField("hGap")?.SetValue(invMenu, hGap);
 
-        // เปิด drawSlots
         type.GetField("drawSlots", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, true);
-
-        // ซ่อนถังขยะและปุ่มจัดของ
         type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
         type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
 
-        // rebuild slots
         var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
         if (inventorySlots != null)
         {
@@ -75,6 +73,30 @@ public class ArsenalMenuPatch
             }
         }
 
-        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}, totalWidth={totalWidth}, menuWidth={menuWidth}", LogLevel.Info);
+        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}, menuWidth={menuWidth}", LogLevel.Info);
+    }
+}
+
+[HarmonyPatch(typeof(ArsenalMenu), "draw", new[] { typeof(SpriteBatch) })]
+public class ArsenalMenuDrawPatch
+{
+    static void Prefix(ArsenalMenu __instance)
+    {
+        var field = typeof(ArsenalMenu).GetField("invMenu",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        if (field == null) return;
+
+        var invMenu = field.GetValue(__instance);
+        if (invMenu == null) return;
+
+        var type = invMenu.GetType();
+
+        int menuX = Game1.uiViewport.Width / 2 - 350 - IClickableMenu.borderWidth;
+        int menuWidth = 700 + IClickableMenu.borderWidth * 2;
+
+        type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.SetValue(invMenu, menuWidth);
+        type.GetField("xPositionOnScreen", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.SetValue(invMenu, menuX);
     }
 }
