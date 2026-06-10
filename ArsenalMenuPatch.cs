@@ -45,7 +45,7 @@ public class ArsenalMenuPatch
         int totalWidth = cols * (newSq + hGap) - hGap;
         int startX = menuX + (menuWidth - totalWidth) / 2;
         int startY = menuY + menuH + 8;
-        int totalHeight = Game1.uiViewport.Height - startY - 16;
+        int totalHeight = Game1.uiViewport.Height - startY - 48;
 
         type.GetField("squareSide")?.SetValue(invMenu, newSq);
         type.GetField("scaleFactor")?.SetValue(invMenu, (float)newSq / 64f);
@@ -104,7 +104,7 @@ public class ArsenalMenuDrawPatch
         int startY = (int)(type.GetField("yPositionOnScreen",
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             ?.GetValue(invMenu) ?? 0);
-        int totalHeight = Game1.uiViewport.Height - startY - 16;
+        int totalHeight = Game1.uiViewport.Height - startY - 48;
 
         type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             ?.SetValue(invMenu, totalWidth);
