@@ -50,7 +50,7 @@ public class ArsenalMenuPatch
         type.GetField("scaleFactor")?.SetValue(invMenu, (float)newSq / 64f);
         type.GetField("yPositionOnScreen")?.SetValue(invMenu, startY);
         type.GetField("xPositionOnScreen")?.SetValue(invMenu, startX);
-        type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, menuWidth);
+        type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, totalWidth);
         type.GetField("xOffset")?.SetValue(invMenu, 0);
         type.GetField("yOffset")?.SetValue(invMenu, 0);
         type.GetField("hGap")?.SetValue(invMenu, hGap);
@@ -73,7 +73,7 @@ public class ArsenalMenuPatch
             }
         }
 
-        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}, menuWidth={menuWidth}", LogLevel.Info);
+        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}, totalWidth={totalWidth}", LogLevel.Info);
     }
 }
 
@@ -91,12 +91,18 @@ public class ArsenalMenuDrawPatch
 
         var type = invMenu.GetType();
 
-        int menuX = Game1.uiViewport.Width / 2 - 350 - IClickableMenu.borderWidth;
-        int menuWidth = 700 + IClickableMenu.borderWidth * 2;
+        int newSq = 80;
+        int hGap = 8;
+        int cols = 12;
+        int totalWidth = cols * (newSq + hGap) - hGap;
+
+        int startX = (int)(type.GetField("xPositionOnScreen",
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(invMenu) ?? 0);
 
         type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.SetValue(invMenu, menuWidth);
+            ?.SetValue(invMenu, totalWidth);
         type.GetField("xPositionOnScreen", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.SetValue(invMenu, menuX);
+            ?.SetValue(invMenu, startX);
     }
-}
+}}
