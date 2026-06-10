@@ -23,6 +23,7 @@ public class ArsenalMenuPatch
 
         var type = invMenu.GetType();
 
+        // log inventory count
         var actualInventory = type.GetField("actualInventory")?.GetValue(invMenu);
         var invType = actualInventory?.GetType();
         int count = (int)(invType?.GetProperty("Count")?.GetValue(actualInventory) ?? -1);
@@ -32,11 +33,14 @@ public class ArsenalMenuPatch
             BindingFlags.Public | BindingFlags.Instance);
 
         int y = (int)(type.GetField("yPositionOnScreen")?.GetValue(invMenu) ?? 0);
-        moveMethod?.Invoke(invMenu, new object[] { 0, -y });
+        int menuHeight = (int)(typeof(ArsenalMenu)
+            .GetField("height", BindingFlags.Public | BindingFlags.Instance)
+            ?.GetValue(__instance) ?? 300);
 
-        int newY = Game1.uiViewport.Height / 2 + 50;
+        int newY = Game1.uiViewport.Height / 2 - menuHeight / 2 + menuHeight + 20;
+        moveMethod?.Invoke(invMenu, new object[] { 0, -y });
         moveMethod?.Invoke(invMenu, new object[] { 0, newY });
 
-        Monitor?.Log($"invMenu moved to Y={newY}", LogLevel.Info);
+        Monitor?.Log($"menuHeight={menuHeight}, newY={newY}", LogLevel.Info);
     }
 }
