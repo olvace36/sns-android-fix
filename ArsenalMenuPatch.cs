@@ -43,6 +43,7 @@ public class ArsenalMenuPatch
         int menuWidth = 700 + IClickableMenu.borderWidth * 2;
 
         int totalWidth = cols * (newSq + hGap) - hGap;
+        int totalHeight = rows * (newSq + verticalGap) - verticalGap + 32;
         int startX = menuX + (menuWidth - totalWidth) / 2;
         int startY = menuY + menuH + 8;
 
@@ -51,6 +52,7 @@ public class ArsenalMenuPatch
         type.GetField("yPositionOnScreen")?.SetValue(invMenu, startY);
         type.GetField("xPositionOnScreen")?.SetValue(invMenu, startX);
         type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, totalWidth);
+        type.GetField("height", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, totalHeight);
         type.GetField("xOffset")?.SetValue(invMenu, 0);
         type.GetField("yOffset")?.SetValue(invMenu, 0);
         type.GetField("hGap")?.SetValue(invMenu, hGap);
@@ -73,7 +75,7 @@ public class ArsenalMenuPatch
             }
         }
 
-        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}, totalWidth={totalWidth}", LogLevel.Info);
+        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}, totalWidth={totalWidth}, totalHeight={totalHeight}", LogLevel.Info);
     }
 }
 
@@ -93,8 +95,11 @@ public class ArsenalMenuDrawPatch
 
         int newSq = 80;
         int hGap = 8;
+        int verticalGap = 8;
         int cols = 12;
+        int rows = 3;
         int totalWidth = cols * (newSq + hGap) - hGap;
+        int totalHeight = rows * (newSq + verticalGap) - verticalGap + 32;
 
         int startX = (int)(type.GetField("xPositionOnScreen",
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
@@ -102,6 +107,8 @@ public class ArsenalMenuDrawPatch
 
         type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             ?.SetValue(invMenu, totalWidth);
+        type.GetField("height", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.SetValue(invMenu, totalHeight);
         type.GetField("xPositionOnScreen", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             ?.SetValue(invMenu, startX);
     }
