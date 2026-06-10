@@ -61,18 +61,15 @@ public class ArsenalMenuPatch
         type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
         type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
 
-        // เพิ่มปุ่ม X
-    int closeX = menuX + menuWidth - 8;
-    int closeY = menuY - 16;
-      var closeButton = new ClickableTextureComponent(
-          new Rectangle(closeX, closeY, 60, 60),
-          Game1.mouseCursors,
-          new Rectangle(337, 494, 12, 12),
-          4f);
-        
-typeof(IClickableMenu).GetField("upperRightCloseButton",
-    BindingFlags.Public | BindingFlags.Instance)
-    ?.SetValue(__instance, closeButton);
+// เพิ่มปุ่ม X เหมือน IClickableMenu
+        var closeButton = new ClickableTextureComponent(
+            new Rectangle(Game1.uiViewport.Width - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
+            Game1.mobileSpriteSheet,
+            new Rectangle(62, 0, 17, 17),
+            4f, true);
+        typeof(IClickableMenu).GetField("upperRightCloseButton",
+            BindingFlags.Public | BindingFlags.Instance)
+            ?.SetValue(__instance, closeButton);
 
         var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
         if (inventorySlots != null)
