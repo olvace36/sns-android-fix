@@ -23,12 +23,19 @@ public class ArsenalMenuPatch
 
         var type = invMenu.GetType();
 
-        // log ชื่อ properties ทั้งหมด
-        foreach (var prop in type.GetProperties())
-            Monitor?.Log($"prop: {prop.Name}", LogLevel.Info);
+        var actualInventory = type.GetField("actualInventory")?.GetValue(invMenu);
+        int count = (actualInventory as IList)?.Count ?? -1;
+        Monitor?.Log($"inventory count: {count}", LogLevel.Info);
 
-        // log ชื่อ fields ทั้งหมด
-        foreach (var f in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
-            Monitor?.Log($"field: {f.Name}", LogLevel.Info);
+        var moveMethod = type.GetMethod("movePosition",
+            BindingFlags.Public | BindingFlags.Instance);
+
+        int y = (int)(type.GetField("yPositionOnScreen")?.GetValue(invMenu) ?? 0);
+        moveMethod?.Invoke(invMenu, new object[] { 0, -y });
+
+        int newY = Game1.uiViewport.Height / 2 + 50;
+        moveMethod?.Invoke(invMenu, new object[] { 0, newY });
+
+        Monitor?.Log($"invMenu moved to Y={newY}", LogLevel.Info);
     }
 }
