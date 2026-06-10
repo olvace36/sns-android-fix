@@ -125,25 +125,36 @@ public class ArsenalMenuDrawPatch
     }
 }
 
-
 [HarmonyPatch(typeof(ArsenalMenu), "receiveLeftClick")]
 public class ArsenalMenuClickPatch
 {
-    static void Postfix(ArsenalMenu __instance, int x, int y, bool playSound = true)
+    static void Prefix(ArsenalMenu __instance, int x, int y, ref Item __state)
+    {
+        // เซฟ CursorSlotItem ก่อน
+        __state = Game1.player.CursorSlotItem;
+    }
+
+    static void Postfix(ArsenalMenu __instance, int x, int y, Item __state)
     {
         var field = typeof(ArsenalMenu).GetField("invMenu",
             BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field == null) return;
-
-        var invMenu = field.GetValue(__instance);
+        var invMenu = field?.GetValue(__instance);
         if (invMenu == null) return;
 
         var type = invMenu.GetType();
-        var receiveClick = type.GetMethod("receiveLeftClick",
+        var selectedField = type.GetField("currentlySelectedItem",
             BindingFlags.Public | BindingFlags.Instance);
-        receiveClick?.Invoke(invMenu, new object[] { x, y, playSound });
+        int selected = (int)(selectedField?.GetValue(invMenu) ?? -1);
 
-        // reset CursorSlotItem ที่ถูก set โดย original method
-        Game1.player.CursorSlotItem = null;
+        // ถ้ามีการ select item ใหม่ ให้ reset CursorSlotItem
+        if (selected != -1 && Game1.player.CursorSlotItem != __state)
+        {
+            // คืน item กลับ inventory แทนที่จะลอยติดนิ้ว
+            if (Game1.player.CursorSlotItem != null)
+            {
+                Game1.player.addItemToInventory(Game1.player.CursorSlotItem);
+                Game1.player.CursorSlotItem = null;
+            }
+        }
     }
 }
