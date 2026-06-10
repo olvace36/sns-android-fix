@@ -13,14 +13,12 @@ public class ArsenalMenuPatch
 
     static void Postfix(ArsenalMenu __instance)
     {
-        var instanceType = __instance.GetType().BaseType;
-        int ax = (int)(instanceType?.GetField("xPositionOnScreen")?.GetValue(__instance) ?? -1);
-        int ay = (int)(instanceType?.GetField("yPositionOnScreen")?.GetValue(__instance) ?? -1);
-        int aw = (int)(instanceType?.GetField("width")?.GetValue(__instance) ?? -1);
-        int ah = (int)(instanceType?.GetField("height")?.GetValue(__instance) ?? -1);
-        Monitor?.Log($"ArsenalMenu: X={ax}, Y={ay}, W={aw}, H={ah}", LogLevel.Info);
+        var instanceType = typeof(ArsenalMenu);
+        int ax = (int)(instanceType.GetField("xPositionOnScreen", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.FlattenHierarchy)?.GetValue(__instance) ?? -1);
+        int ay = (int)(instanceType.GetField("yPositionOnScreen", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.FlattenHierarchy)?.GetValue(__instance) ?? -1);
+        Monitor?.Log($"ArsenalMenu: X={ax}, Y={ay}", LogLevel.Info);
 
-        var field = typeof(ArsenalMenu).GetField("invMenu",
+        var field = instanceType.GetField("invMenu",
             BindingFlags.NonPublic | BindingFlags.Instance);
         if (field == null)
         {
