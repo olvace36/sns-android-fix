@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 
@@ -8,9 +9,6 @@ public class LevelUpMenuTranspilerFix
 {
     public static void Apply(Harmony harmony)
     {
-        // หา implementation จริงของ GetLocalIndexForMethod
-        var allTypes = typeof(HarmonyLib.Harmony).Assembly.GetTypes();
-        
         var spaceCoreAssembly = System.AppDomain.CurrentDomain.GetAssemblies()
             .FirstOrDefault(a => a.GetName().Name == "SpaceCore");
         if (spaceCoreAssembly == null) return;
