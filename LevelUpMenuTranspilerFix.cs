@@ -1,17 +1,13 @@
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
-using StardewModdingAPI;
 
 namespace SnsAndroidFix;
 
 public class LevelUpMenuTranspilerFix
 {
-    internal static IMonitor? Monitor;
-
-    public static void Apply(Harmony harmony, IMonitor monitor)
+    public static void Apply(Harmony harmony)
     {
-        Monitor = monitor;
         var spaceCoreApiType = AccessTools.TypeByName("SpaceCore.Api");
         if (spaceCoreApiType == null) return;
 
@@ -25,10 +21,10 @@ public class LevelUpMenuTranspilerFix
                 .GetMethod(nameof(GetLocalIndexPostfix))));
     }
 
-    public static void GetLocalIndexPostfix(MethodBase meth, string local, ref List<int> __result)
+    public static void GetLocalIndexPostfix(string local, ref List<int> __result)
     {
-        Monitor?.Log($"GetLocalIndexForMethod: method={meth?.Name}, local={local}, result count={__result?.Count}", LogLevel.Info);
+        // ถ้า Android ไม่เจอ local ให้ return {-1} เพื่อให้ Transpiler ข้ามไป
         if (__result == null || __result.Count == 0)
-            __result = new List<int> { 0 };
+            __result = new List<int> { -1 };
     }
 }
