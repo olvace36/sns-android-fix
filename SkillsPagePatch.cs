@@ -50,6 +50,8 @@ public class SkillsPagePatch
                 foreach (var skill in visibleSkills)
                     Monitor?.Log($"  skill: {skill}", LogLevel.Info);
 
+            Monitor?.Log($"NewSkillsPage pos: x={newPage.xPositionOnScreen}, y={newPage.yPositionOnScreen}, w={newPage.width}, h={newPage.height}", LogLevel.Info);
+
             pages[skillsTab] = newPage;
             Monitor?.Log("SkillsPage replaced!", LogLevel.Info);
         };
