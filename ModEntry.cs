@@ -12,5 +12,6 @@ public class ModEntry : Mod
         var harmony = new Harmony(ModManifest.UniqueID);
         harmony.PatchAll();
         GuidebookMenuPatch.Apply(harmony);
+        LevelUpMenuTranspilerFix.Apply(harmony);
     }
 }
