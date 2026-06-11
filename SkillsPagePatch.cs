@@ -121,12 +121,39 @@ public class SkillsPagePatch
             var page = pages[1];
             if (page?.GetType() != _newSkillsPageType) return;
 
-            // ทดสอบ draw สี่เหลี่ยมสีแดง
-            e.SpriteBatch.Draw(Game1.staminaRect,
-                new Rectangle(890, 136, 44, 48),
-                Color.Red);
+            var showsAll = _newSkillsPageType.GetProperty("ShowsAllSkillsAtOnce",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
+            if (showsAll is true) return;
 
-            Monitor?.Log("RenderedActiveMenu: drew test rect", LogLevel.Info);
+            var upBtn = _newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
+            var downBtn = _newSkillsPageType.GetField("downButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
+
+            // log texture info
+            var texField = upBtn?.GetType().GetField("texture", BindingFlags.Public | BindingFlags.Instance);
+            var srcField = upBtn?.GetType().GetField("sourceRect", BindingFlags.Public | BindingFlags.Instance);
+            var tex = texField?.GetValue(upBtn);
+            var src = srcField?.GetValue(upBtn);
+            Monitor?.Log($"upBtn texture={tex?.GetType().Name}, sourceRect={src}", LogLevel.Info);
+
+            var upBounds = (Rectangle?)upBtn?.GetType().GetField("bounds")?.GetValue(upBtn);
+            var downBounds = (Rectangle?)downBtn?.GetType().GetField("bounds")?.GetValue(downBtn);
+
+            if (tex is Texture2D texture2D && src is Rectangle srcRect && upBounds.HasValue)
+            {
+                e.SpriteBatch.Draw(texture2D, upBounds.Value, srcRect, Color.White);
+            }
+            if (tex is Texture2D texture2D2 && src is Rectangle srcRect2 && downBounds.HasValue)
+            {
+                var downTexField = downBtn?.GetType().GetField("texture", BindingFlags.Public | BindingFlags.Instance);
+                var downSrcField = downBtn?.GetType().GetField("sourceRect", BindingFlags.Public | BindingFlags.Instance);
+                if (downTexField?.GetValue(downBtn) is Texture2D downTex &&
+                    downSrcField?.GetValue(downBtn) is Rectangle downSrc)
+                {
+                    e.SpriteBatch.Draw(downTex, downBounds.Value, downSrc, Color.White);
+                }
+            }
+
+            Monitor?.Log("RenderedActiveMenu: drew buttons", LogLevel.Info);
         };
     }
 
