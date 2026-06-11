@@ -14,5 +14,10 @@ public class ModEntry : Mod
         LevelUpMenuTranspilerFix.Apply(harmony);
         harmony.PatchAll();
         GuidebookMenuPatch.Apply(harmony);
+
+        helper.Events.Display.MenuChanged += (s, e) => {
+            if (e.NewMenu != null)
+                Monitor.Log($"Menu: {e.NewMenu.GetType().FullName}", LogLevel.Info);
+        };
     }
 }
