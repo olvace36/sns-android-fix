@@ -49,12 +49,13 @@ public class SkillsPagePatch
             var oldPage = pages[skillsTab];
             int x = oldPage.xPositionOnScreen;
             int y = oldPage.yPositionOnScreen;
-            int w = oldPage.width - 60;
+            int w = oldPage.width;
             int h = oldPage.height;
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
-            int rightEdge = x + w - 48;
+            // ขยับปุ่มให้อยู่ในกรอบ GameMenu
+            int rightEdge = x + w - 64;
 
             var upBtn = newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var downBtn = newSkillsPageType.GetField("downButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
