@@ -51,7 +51,7 @@ public class SkillsPagePatch
                 ?.GetValue(gameMenu) as System.Collections.Generic.List<IClickableMenu>;
             if (pages == null) return;
 
-            int skillsTab = GameMenu.skillsTab;
+            int skillsTab = 1;
             if (skillsTab >= pages.Count) return;
 
             var constructor = _newSkillsPageType.GetConstructor(new[]
@@ -116,14 +116,13 @@ public class SkillsPagePatch
 
             var pages = typeof(GameMenu).GetField("pages", BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(gameMenu) as System.Collections.Generic.List<IClickableMenu>;
-            if (pages == null || gameMenu.currentTab != GameMenu.skillsTab) return;
+            if (pages == null || gameMenu.currentTab != 1) return;
 
-            var page = pages[GameMenu.skillsTab];
+            var page = pages[1];
             if (page?.GetType() != _newSkillsPageType) return;
 
             var showsAll = _newSkillsPageType.GetProperty("ShowsAllSkillsAtOnce",
                 BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
-            Monitor?.Log($"RenderedActiveMenu: ShowsAllSkillsAtOnce={showsAll}", LogLevel.Info);
             if (showsAll is true) return;
 
             var upBtn = _newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
@@ -133,19 +132,28 @@ public class SkillsPagePatch
             var scrollBtn = _newSkillsPageType.GetField("scrollBar", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
 
             var drawMethod = upBtn?.GetType().GetMethod("draw", new[] { typeof(SpriteBatch) });
-            Monitor?.Log($"drawMethod found: {drawMethod != null}, upBtn: {upBtn != null}, downBtn: {downBtn != null}", LogLevel.Info);
 
-            drawMethod?.Invoke(upBtn, new object[] { e.SpriteBatch });
-            drawMethod?.Invoke(downBtn, new object[] { e.SpriteBatch });
+            // Begin SpriteBatch ใหม่
+            var sb = e.SpriteBatch;
+            sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
+                SamplerState.PointClamp, null, null, null,
+                Game1.GlobalToLocal(Game1.viewport, Vector2.Zero) != Vector2.Zero ? null : null);
+
+            drawMethod?.Invoke(upBtn, new object[] { sb });
+            drawMethod?.Invoke(downBtn, new object[] { sb });
 
             if (scrollBarRunner is Rectangle runner2)
             {
-                IClickableMenu.drawTextureBox(e.SpriteBatch, Game1.mouseCursors,
+                IClickableMenu.drawTextureBox(sb, Game1.mouseCursors,
                     new Rectangle(403, 383, 6, 6),
                     runner2.X, runner2.Y, runner2.Width, runner2.Height,
                     Color.White, 4f, true, -1f);
             }
-            drawMethod?.Invoke(scrollBtn, new object[] { e.SpriteBatch });
+            drawMethod?.Invoke(scrollBtn, new object[] { sb });
+
+            sb.End();
+
+            Monitor?.Log($"RenderedActiveMenu: drew buttons", LogLevel.Info);
         };
     }
 
