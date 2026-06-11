@@ -2,6 +2,7 @@ using System.Reflection;
 using HarmonyLib;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
+using StardewValley;
 using StardewValley.Menus;
 
 namespace SnsAndroidFix;
@@ -34,23 +35,21 @@ public class SkillsPagePatch
             });
             if (constructor == null) return;
 
+            int x = (Game1.uiViewport.Width - gameMenu.width) / 2;
+            int y = (Game1.uiViewport.Height - gameMenu.height) / 2;
+
             var newPage = (IClickableMenu)constructor.Invoke(new object[]
             {
-                gameMenu.xPositionOnScreen,
-                gameMenu.yPositionOnScreen,
-                gameMenu.width,
-                gameMenu.height
+                x, y, gameMenu.width, gameMenu.height
             });
 
             var visibleSkills = newSkillsPageType.GetProperty("VisibleSkills",
                 BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.GetValue(newPage) as string[];
-            Monitor?.Log($"VisibleSkills: {visibleSkills?.Length ?? -1}", LogLevel.Info);
+            Monitor?.Log($"VisibleSkills: {visibleSkills?.Length ?? -1}, pos: x={x}, y={y}", LogLevel.Info);
             if (visibleSkills != null)
                 foreach (var skill in visibleSkills)
                     Monitor?.Log($"  skill: {skill}", LogLevel.Info);
-
-            Monitor?.Log($"NewSkillsPage pos: x={newPage.xPositionOnScreen}, y={newPage.yPositionOnScreen}, w={newPage.width}, h={newPage.height}", LogLevel.Info);
 
             pages[skillsTab] = newPage;
             Monitor?.Log("SkillsPage replaced!", LogLevel.Info);
