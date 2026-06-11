@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
-using StardewValley.Menus;
 
 namespace SnsAndroidFix;
 
@@ -9,17 +8,47 @@ public class LevelUpMenuTranspilerFix
 {
     public static void Apply(Harmony harmony)
     {
-        var method = AccessTools.Method(typeof(LevelUpMenu), "RevalidateHealth");
-        if (method == null) return;
+        var types = new[]
+        {
+            "SwordAndSorcerySMAPI.Framework.ModSkills.LevelUpMenuRevalidateHealthPatch",
+            "SwordAndSorcerySMAPI.Framework.ModSkills.LevelUpMenuRevalidateHealthPatchAgain"
+        };
 
-        harmony.Patch(method,
-            transpiler: new HarmonyMethod(typeof(LevelUpMenuTranspilerFix)
-                .GetMethod(nameof(SafeTranspiler))));
+        foreach (var typeName in types)
+        {
+            var type = AccessTools.TypeByName(typeName);
+            if (type == null) continue;
+
+            var transpiler = type.GetMethod("Transpiler",
+                BindingFlags.Public | BindingFlags.Static);
+            if (transpiler == null) continue;
+
+            harmony.Patch(transpiler,
+                prefix: new HarmonyMethod(typeof(LevelUpMenuTranspilerFix)
+                    .GetMethod(nameof(SafeTranspilerPrefix))));
+        }
     }
 
-    public static IEnumerable<CodeInstruction> SafeTranspiler(
+    public static bool SafeTranspilerPrefix(MethodBase original,
+        ref IEnumerable<CodeInstruction> __result,
         IEnumerable<CodeInstruction> insns)
     {
-        return insns;
+        try
+        {
+            var indices = AccessTools.TypeByName("SpaceCore.ISpaceCoreApi")
+                ?.GetMethod("GetLocalIndexForMethod")
+                ?.Invoke(null, new object[] { original, "expected_max_health" }) as int[];
+            if (indices == null || indices.Length == 0)
+            {
+                __result = insns;
+                return false;
+            }
+            return true;
+        }
+        catch
+        {
+            __result = insns;
+            return false;
+        }
     }
 }
