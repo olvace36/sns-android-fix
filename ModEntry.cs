@@ -13,9 +13,11 @@ public class ModEntry : Mod
         harmony.PatchAll();
         GuidebookMenuPatch.Apply(harmony);
 
-        helper.Events.GameLoop.GameLaunched += (s, e) =>
-        {
-            LevelUpMenuTranspilerFix.Apply(harmony);
-        };
+        helper.Events.GameLoop.GameLaunched += OnGameLaunched;
+    }
+
+    private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
+    {
+        LevelUpMenuTranspilerFix.Apply();
     }
 }
