@@ -1,4 +1,3 @@
-using System;
 using System.Reflection;
 using HarmonyLib;
 
@@ -18,21 +17,25 @@ public class LevelUpMenuTranspilerFix
         harmony.Patch(method,
             prefix: new HarmonyMethod(
                 typeof(LevelUpMenuTranspilerFix)
-                .GetMethod(nameof(GameLaunchedPrefix))));
+                .GetMethod(nameof(BeforeGameLaunched))));
     }
 
-    public static void GameLaunchedPrefix()
+    public static void BeforeGameLaunched()
     {
-        // patch RevalidateHealth ก่อน SNS จะ patch
+        // patch RevalidateHealth ก่อน SNS PatchAll
         var method = AccessTools.Method(
             typeof(StardewValley.Menus.LevelUpMenu), "RevalidateHealth");
         if (method == null) return;
 
         var harmony = new Harmony("You.SnsAndroidFix.PrePatch");
-        harmony.Patch(method,
-            transpiler: new HarmonyMethod(
-                typeof(LevelUpMenuTranspilerFix)
-                .GetMethod(nameof(EmptyTranspiler))));
+        try
+        {
+            harmony.Patch(method,
+                transpiler: new HarmonyMethod(
+                    typeof(LevelUpMenuTranspilerFix)
+                    .GetMethod(nameof(EmptyTranspiler))));
+        }
+        catch { }
     }
 
     public static System.Collections.Generic.IEnumerable<CodeInstruction> EmptyTranspiler(
