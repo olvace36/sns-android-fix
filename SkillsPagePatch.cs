@@ -60,7 +60,12 @@ public class SkillsPagePatch
                 BindingFlags.Public | BindingFlags.Instance)?.GetValue(newPage) as System.Collections.IList;
             var visibleSkills = newSkillsPageType.GetProperty("VisibleSkills",
                 BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
-
+            var upButton = newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
+            var downButton = newSkillsPageType.GetField("downButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
+            var upBounds = upButton?.GetType().GetField("bounds")?.GetValue(upButton);
+            var downBounds = downButton?.GetType().GetField("bounds")?.GetValue(downButton);
+            Monitor?.Log($"upButton bounds: {upBounds}, downButton bounds: {downBounds}", LogLevel.Info);
+            Monitor?.Log($"scrollBarRunner: {newSkillsPageType.GetField("scrollBarRunner", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage)}", LogLevel.Info);
             Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}", LogLevel.Info);
             Monitor?.Log($"squareSide={squareSide}, scaleFactor={scaleFactor}", LogLevel.Info);
             Monitor?.Log($"skillScrollOffset={skillScrollOffset}, maxOnScreen={maxSkillCountOnScreen}", LogLevel.Info);
