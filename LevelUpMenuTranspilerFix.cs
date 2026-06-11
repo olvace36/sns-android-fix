@@ -1,6 +1,6 @@
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
-using StardewValley.Menus;
 
 namespace SnsAndroidFix;
 
@@ -8,19 +8,30 @@ public class LevelUpMenuTranspilerFix
 {
     public static void Apply(Harmony harmony)
     {
-        var method = AccessTools.Method(typeof(LevelUpMenu), "RevalidateHealth");
-        if (method == null) return;
+        // หา implementation จริงของ GetLocalIndexForMethod
+        var allTypes = typeof(HarmonyLib.Harmony).Assembly.GetTypes();
+        
+        var spaceCoreAssembly = System.AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "SpaceCore");
+        if (spaceCoreAssembly == null) return;
 
-        var patches = Harmony.GetPatchInfo(method);
-        if (patches == null) return;
-
-        foreach (var patch in patches.Transpilers)
+        foreach (var type in spaceCoreAssembly.GetTypes())
         {
-            if (patch.owner.Contains("SwordAndSorcery"))
-            {
-                var h = new Harmony(patch.owner);
-                h.Unpatch(method, patch.PatchMethod);
-            }
+            var method = type.GetMethod("GetLocalIndexForMethod",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (method == null) continue;
+
+            harmony.Patch(method,
+                postfix: new HarmonyMethod(
+                    typeof(LevelUpMenuTranspilerFix)
+                    .GetMethod(nameof(GetLocalIndexPostfix))));
+            break;
         }
+    }
+
+    public static void GetLocalIndexPostfix(ref List<int> __result)
+    {
+        if (__result == null || __result.Count == 0)
+            __result = new List<int> { 0 };
     }
 }
