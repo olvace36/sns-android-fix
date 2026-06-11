@@ -9,7 +9,7 @@ public class ModEntry : Mod
     {
         ArsenalMenuPatch.Monitor = Monitor;
         var harmony = new Harmony(ModManifest.UniqueID);
-        LevelUpMenuTranspilerFix.Apply(harmony);
+        LevelUpMenuTranspilerFix.Apply(harmony, Monitor);
         harmony.PatchAll();
         GuidebookMenuPatch.Apply(harmony);
     }
