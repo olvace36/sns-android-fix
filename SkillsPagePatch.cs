@@ -49,7 +49,7 @@ public class SkillsPagePatch
             var oldPage = pages[skillsTab];
             int x = oldPage.xPositionOnScreen;
             int y = oldPage.yPositionOnScreen;
-            int w = oldPage.width;
+            int w = oldPage.width - 60;
             int h = oldPage.height;
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
