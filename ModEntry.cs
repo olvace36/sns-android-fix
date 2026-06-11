@@ -1,5 +1,6 @@
 using HarmonyLib;
 using StardewModdingAPI;
+using StardewModdingAPI.Events;
 
 namespace SnsAndroidFix;
 
@@ -10,8 +11,12 @@ public class ModEntry : Mod
         ArsenalMenuPatch.Monitor = Monitor;
         RevalidateHealthPatch.Monitor = Monitor;
         var harmony = new Harmony(ModManifest.UniqueID);
-        LevelUpMenuTranspilerFix.Apply(harmony);
         harmony.PatchAll();
         GuidebookMenuPatch.Apply(harmony);
+
+        helper.Events.GameLoop.GameLaunched += (s, e) =>
+        {
+            LevelUpMenuTranspilerFix.Apply(harmony);
+        };
     }
 }
