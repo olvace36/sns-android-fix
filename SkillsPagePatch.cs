@@ -35,18 +35,18 @@ public class SkillsPagePatch
             });
             if (constructor == null) return;
 
-            int x = (Game1.uiViewport.Width - gameMenu.width) / 2;
-            int y = (Game1.uiViewport.Height - gameMenu.height) / 2;
+            var oldPage = pages[skillsTab];
+            int x = oldPage.xPositionOnScreen;
+            int y = oldPage.yPositionOnScreen;
+            int w = oldPage.width;
+            int h = oldPage.height;
 
-            var newPage = (IClickableMenu)constructor.Invoke(new object[]
-            {
-                x, y, gameMenu.width, gameMenu.height
-            });
+            var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
             var visibleSkills = newSkillsPageType.GetProperty("VisibleSkills",
                 BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.GetValue(newPage) as string[];
-            Monitor?.Log($"VisibleSkills: {visibleSkills?.Length ?? -1}, pos: x={x}, y={y}", LogLevel.Info);
+            Monitor?.Log($"VisibleSkills: {visibleSkills?.Length ?? -1}, pos: x={x}, y={y}, w={w}, h={h}", LogLevel.Info);
             if (visibleSkills != null)
                 foreach (var skill in visibleSkills)
                     Monitor?.Log($"  skill: {skill}", LogLevel.Info);
