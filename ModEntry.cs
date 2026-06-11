@@ -1,6 +1,5 @@
 using HarmonyLib;
 using StardewModdingAPI;
-using StardewModdingAPI.Events;
 
 namespace SnsAndroidFix;
 
@@ -10,14 +9,8 @@ public class ModEntry : Mod
     {
         ArsenalMenuPatch.Monitor = Monitor;
         var harmony = new Harmony(ModManifest.UniqueID);
+        LevelUpMenuTranspilerFix.Apply(harmony);
         harmony.PatchAll();
         GuidebookMenuPatch.Apply(harmony);
-
-        helper.Events.GameLoop.GameLaunched += OnGameLaunched;
-    }
-
-    private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
-    {
-        LevelUpMenuTranspilerFix.Apply();
     }
 }
