@@ -69,7 +69,9 @@ public class SkillsPagePatch
             if (visibleSkills != null)
                 foreach (var skill in visibleSkills)
                     Monitor?.Log($"  skill: {skill}", LogLevel.Info);
-
+                foreach (var f in newSkillsPageType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                    Monitor?.Log($"field: {f.Name} = {f.GetValue(newPage)}", LogLevel.Info);
+            
             pages[skillsTab] = newPage;
             Monitor?.Log("SkillsPage replaced!", LogLevel.Info);
         };
