@@ -43,10 +43,29 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
+            // log ทุกอย่าง
+            var squareSide = newSkillsPageType.GetField("squareSide",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
+            var scaleFactor = newSkillsPageType.GetField("scaleFactor",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
+            var skillScrollOffset = newSkillsPageType.GetField("skillScrollOffset",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
+            var maxSkillCountOnScreen = newSkillsPageType.GetProperty("MaxSkillCountOnScreen",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
+            var allSkillCount = newSkillsPageType.GetProperty("AllSkillCount",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
+            var skillBars = newSkillsPageType.GetField("skillBars",
+                BindingFlags.Public | BindingFlags.Instance)?.GetValue(newPage) as System.Collections.IList;
+            var skillAreas = newSkillsPageType.GetField("skillAreas",
+                BindingFlags.Public | BindingFlags.Instance)?.GetValue(newPage) as System.Collections.IList;
             var visibleSkills = newSkillsPageType.GetProperty("VisibleSkills",
-                BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.GetValue(newPage) as string[];
-            Monitor?.Log($"VisibleSkills: {visibleSkills?.Length ?? -1}, pos: x={x}, y={y}, w={w}, h={h}", LogLevel.Info);
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
+
+            Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}", LogLevel.Info);
+            Monitor?.Log($"squareSide={squareSide}, scaleFactor={scaleFactor}", LogLevel.Info);
+            Monitor?.Log($"skillScrollOffset={skillScrollOffset}, maxOnScreen={maxSkillCountOnScreen}", LogLevel.Info);
+            Monitor?.Log($"allSkillCount={allSkillCount}, skillBars={skillBars?.Count}, skillAreas={skillAreas?.Count}", LogLevel.Info);
+            Monitor?.Log($"VisibleSkills={visibleSkills?.Length}", LogLevel.Info);
             if (visibleSkills != null)
                 foreach (var skill in visibleSkills)
                     Monitor?.Log($"  skill: {skill}", LogLevel.Info);
