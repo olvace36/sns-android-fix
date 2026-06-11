@@ -1,5 +1,7 @@
 using System.Reflection;
 using HarmonyLib;
+using StardewModdingAPI;
+using StardewModdingAPI.Events;
 using StardewValley.Menus;
 
 namespace SnsAndroidFix;
