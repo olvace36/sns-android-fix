@@ -15,38 +15,34 @@ public class SkillsPagePatch
         Monitor = monitor;
         helper.Events.Display.MenuChanged += (s, e) =>
         {
-            if (e.NewMenu is not GameMenu gameMenu)
-            {
-                Monitor.Log($"Menu changed but not GameMenu: {e.NewMenu?.GetType().Name}", LogLevel.Info);
-                return;
-            }
-
-            Monitor.Log("GameMenu opened, trying to replace SkillsPage", LogLevel.Info);
+            if (e.NewMenu is not GameMenu gameMenu) return;
 
             var newSkillsPageType = AccessTools.TypeByName("SpaceCore.Interface.NewSkillsPage");
-            Monitor.Log($"NewSkillsPage type: {newSkillsPageType?.FullName ?? "null"}", LogLevel.Info);
+            if (newSkillsPageType == null)
+            {
+                Monitor.Log("NewSkillsPage type not found!", LogLevel.Error);
+                return;
+            }
 
             var pages = typeof(GameMenu).GetField("pages",
                 BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(gameMenu) as System.Collections.Generic.List<IClickableMenu>;
-            Monitor.Log($"pages count: {pages?.Count ?? -1}", LogLevel.Info);
-
             if (pages == null) return;
 
             int skillsTab = GameMenu.skillsTab;
             if (skillsTab >= pages.Count) return;
 
-            Monitor.Log($"skillsTab={skillsTab}, current page={pages[skillsTab]?.GetType().Name}", LogLevel.Info);
-
             if (pages[skillsTab]?.GetType() == newSkillsPageType) return;
 
-            var constructor = newSkillsPageType?.GetConstructor(new[]
+            var constructor = newSkillsPageType.GetConstructor(new[]
             {
                 typeof(int), typeof(int), typeof(int), typeof(int)
             });
-            Monitor.Log($"constructor: {constructor != null}", LogLevel.Info);
-
-            if (constructor == null) return;
+            if (constructor == null)
+            {
+                Monitor.Log("NewSkillsPage constructor not found!", LogLevel.Error);
+                return;
+            }
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[]
             {
@@ -55,6 +51,32 @@ public class SkillsPagePatch
                 gameMenu.width,
                 gameMenu.height
             });
+
+            // log VisibleSkills
+            var visibleSkills = newSkillsPageType.GetProperty("VisibleSkills",
+                BindingFlags.NonPublic | BindingFlags.Instance)
+                ?.GetValue(newPage) as string[];
+            Monitor.Log($"VisibleSkills count: {visibleSkills?.Length ?? -1}", LogLevel.Info);
+            if (visibleSkills != null)
+                foreach (var skill in visibleSkills)
+                    Monitor.Log($"  skill: {skill}", LogLevel.Info);
+
+            // log skillBars and skillAreas
+            var skillBars = newSkillsPageType.GetField("skillBars",
+                BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(newPage) as System.Collections.IList;
+            Monitor.Log($"skillBars count: {skillBars?.Count ?? -1}", LogLevel.Info);
+
+            var skillAreas = newSkillsPageType.GetField("skillAreas",
+                BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(newPage) as System.Collections.IList;
+            Monitor.Log($"skillAreas count: {skillAreas?.Count ?? -1}", LogLevel.Info);
+
+            // log AllSkillCount
+            var allSkillCount = newSkillsPageType.GetProperty("AllSkillCount",
+                BindingFlags.NonPublic | BindingFlags.Instance)
+                ?.GetValue(newPage);
+            Monitor.Log($"AllSkillCount: {allSkillCount}", LogLevel.Info);
 
             pages[skillsTab] = newPage;
             Monitor.Log("SkillsPage replaced with NewSkillsPage!", LogLevel.Info);
