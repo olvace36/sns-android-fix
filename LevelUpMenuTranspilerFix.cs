@@ -15,9 +15,13 @@ public class LevelUpMenuTranspilerFix
 
         foreach (var type in spaceCoreAssembly.GetTypes())
         {
+            // ข้าม interface และ abstract class
+            if (type.IsInterface || type.IsAbstract) continue;
+
             var method = type.GetMethod("GetLocalIndexForMethod",
                 BindingFlags.Public | BindingFlags.Instance);
             if (method == null) continue;
+            if (method.GetMethodBody() == null) continue;
 
             harmony.Patch(method,
                 postfix: new HarmonyMethod(
