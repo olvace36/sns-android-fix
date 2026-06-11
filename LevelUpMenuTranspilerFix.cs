@@ -1,54 +1,26 @@
-using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
+using StardewValley.Menus;
 
 namespace SnsAndroidFix;
 
 public class LevelUpMenuTranspilerFix
 {
-    public static void Apply(Harmony harmony)
+    public static void Apply()
     {
-        var types = new[]
+        var method = AccessTools.Method(typeof(LevelUpMenu), "RevalidateHealth");
+        if (method == null) return;
+
+        var patches = Harmony.GetPatchInfo(method);
+        if (patches == null) return;
+
+        foreach (var patch in patches.Transpilers)
         {
-            "SwordAndSorcerySMAPI.Framework.ModSkills.LevelUpMenuRevalidateHealthPatch",
-            "SwordAndSorcerySMAPI.Framework.ModSkills.LevelUpMenuRevalidateHealthPatchAgain"
-        };
-
-        foreach (var typeName in types)
-        {
-            var type = AccessTools.TypeByName(typeName);
-            if (type == null) continue;
-
-            var transpiler = type.GetMethod("Transpiler",
-                BindingFlags.Public | BindingFlags.Static);
-            if (transpiler == null) continue;
-
-            harmony.Patch(transpiler,
-                prefix: new HarmonyMethod(typeof(LevelUpMenuTranspilerFix)
-                    .GetMethod(nameof(SafeTranspilerPrefix))));
-        }
-    }
-
-    public static bool SafeTranspilerPrefix(MethodBase original,
-        ref IEnumerable<CodeInstruction> __result,
-        IEnumerable<CodeInstruction> insns)
-    {
-        try
-        {
-            var indices = AccessTools.TypeByName("SpaceCore.ISpaceCoreApi")
-                ?.GetMethod("GetLocalIndexForMethod")
-                ?.Invoke(null, new object[] { original, "expected_max_health" }) as int[];
-            if (indices == null || indices.Length == 0)
+            if (patch.owner.Contains("SwordAndSorcery"))
             {
-                __result = insns;
-                return false;
+                var harmony = new Harmony(patch.owner);
+                harmony.Unpatch(method, HarmonyPatchType.Transpiler, patch.owner);
             }
-            return true;
-        }
-        catch
-        {
-            __result = insns;
-            return false;
         }
     }
 }
