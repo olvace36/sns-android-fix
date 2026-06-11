@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 
@@ -7,37 +8,22 @@ public class LevelUpMenuTranspilerFix
 {
     public static void Apply(Harmony harmony)
     {
-        var snsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS");
-        if (snsType == null) return;
+        var spaceCoreApiType = AccessTools.TypeByName("SpaceCore.Api");
+        if (spaceCoreApiType == null) return;
 
-        var method = snsType.GetMethod("GameLoop_GameLaunched",
-            BindingFlags.NonPublic | BindingFlags.Instance);
+        var method = spaceCoreApiType.GetMethod("GetLocalIndexForMethod",
+            BindingFlags.Public | BindingFlags.Instance);
         if (method == null) return;
 
         harmony.Patch(method,
-            prefix: new HarmonyMethod(
+            postfix: new HarmonyMethod(
                 typeof(LevelUpMenuTranspilerFix)
-                .GetMethod(nameof(BeforeGameLaunched))));
+                .GetMethod(nameof(GetLocalIndexPostfix))));
     }
 
-    public static void BeforeGameLaunched()
+    public static void GetLocalIndexPostfix(ref List<int> __result)
     {
-        // patch RevalidateHealth ก่อน SNS PatchAll
-        var method = AccessTools.Method(
-            typeof(StardewValley.Menus.LevelUpMenu), "RevalidateHealth");
-        if (method == null) return;
-
-        var harmony = new Harmony("You.SnsAndroidFix.PrePatch");
-        try
-        {
-            harmony.Patch(method,
-                transpiler: new HarmonyMethod(
-                    typeof(LevelUpMenuTranspilerFix)
-                    .GetMethod(nameof(EmptyTranspiler))));
-        }
-        catch { }
+        if (__result == null || __result.Count == 0)
+            __result = new List<int> { 0 };
     }
-
-    public static System.Collections.Generic.IEnumerable<CodeInstruction> EmptyTranspiler(
-        System.Collections.Generic.IEnumerable<CodeInstruction> insns) => insns;
 }
