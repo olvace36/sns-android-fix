@@ -13,6 +13,6 @@ public class ModEntry : Mod
         LevelUpMenuTranspilerFix.Apply(harmony);
         harmony.PatchAll();
         GuidebookMenuPatch.Apply(harmony);
-        SkillsPagePatch.Apply(helper, Monitor);
+        SkillsPagePatch.Apply(helper, Monitor, harmony);
     }
 }
