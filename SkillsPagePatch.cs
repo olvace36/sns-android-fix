@@ -18,11 +18,7 @@ public class SkillsPagePatch
             if (e.NewMenu is not GameMenu gameMenu) return;
 
             var newSkillsPageType = AccessTools.TypeByName("SpaceCore.Interface.NewSkillsPage");
-            if (newSkillsPageType == null)
-            {
-                Monitor.Log("NewSkillsPage type not found!", LogLevel.Error);
-                return;
-            }
+            if (newSkillsPageType == null) return;
 
             var pages = typeof(GameMenu).GetField("pages",
                 BindingFlags.Public | BindingFlags.Instance)
@@ -32,17 +28,11 @@ public class SkillsPagePatch
             int skillsTab = GameMenu.skillsTab;
             if (skillsTab >= pages.Count) return;
 
-            if (pages[skillsTab]?.GetType() == newSkillsPageType) return;
-
             var constructor = newSkillsPageType.GetConstructor(new[]
             {
                 typeof(int), typeof(int), typeof(int), typeof(int)
             });
-            if (constructor == null)
-            {
-                Monitor.Log("NewSkillsPage constructor not found!", LogLevel.Error);
-                return;
-            }
+            if (constructor == null) return;
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[]
             {
@@ -52,34 +42,16 @@ public class SkillsPagePatch
                 gameMenu.height
             });
 
-            // log VisibleSkills
             var visibleSkills = newSkillsPageType.GetProperty("VisibleSkills",
                 BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.GetValue(newPage) as string[];
-            Monitor.Log($"VisibleSkills count: {visibleSkills?.Length ?? -1}", LogLevel.Info);
+            Monitor?.Log($"VisibleSkills: {visibleSkills?.Length ?? -1}", LogLevel.Info);
             if (visibleSkills != null)
                 foreach (var skill in visibleSkills)
-                    Monitor.Log($"  skill: {skill}", LogLevel.Info);
-
-            // log skillBars and skillAreas
-            var skillBars = newSkillsPageType.GetField("skillBars",
-                BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(newPage) as System.Collections.IList;
-            Monitor.Log($"skillBars count: {skillBars?.Count ?? -1}", LogLevel.Info);
-
-            var skillAreas = newSkillsPageType.GetField("skillAreas",
-                BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(newPage) as System.Collections.IList;
-            Monitor.Log($"skillAreas count: {skillAreas?.Count ?? -1}", LogLevel.Info);
-
-            // log AllSkillCount
-            var allSkillCount = newSkillsPageType.GetProperty("AllSkillCount",
-                BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.GetValue(newPage);
-            Monitor.Log($"AllSkillCount: {allSkillCount}", LogLevel.Info);
+                    Monitor?.Log($"  skill: {skill}", LogLevel.Info);
 
             pages[skillsTab] = newPage;
-            Monitor.Log("SkillsPage replaced with NewSkillsPage!", LogLevel.Info);
+            Monitor?.Log("SkillsPage replaced!", LogLevel.Info);
         };
     }
 }
