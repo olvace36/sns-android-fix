@@ -68,7 +68,6 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
-            // ทดสอบตรงกลาง page
             int rightEdge = x + 800;
 
             var upBtn = _newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
@@ -122,31 +121,12 @@ public class SkillsPagePatch
             var page = pages[1];
             if (page?.GetType() != _newSkillsPageType) return;
 
-            var showsAll = _newSkillsPageType.GetProperty("ShowsAllSkillsAtOnce",
-                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
-            if (showsAll is true) return;
+            // ทดสอบ draw สี่เหลี่ยมสีแดง
+            e.SpriteBatch.Draw(Game1.staminaRect,
+                new Rectangle(890, 136, 44, 48),
+                Color.Red);
 
-            var upBtn = _newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
-            var downBtn = _newSkillsPageType.GetField("downButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
-            var scrollBarRunner = _newSkillsPageType.GetField("scrollBarRunner",
-                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
-            var scrollBtn = _newSkillsPageType.GetField("scrollBar", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
-
-            var drawMethod = upBtn?.GetType().GetMethod("draw", new[] { typeof(SpriteBatch) });
-
-            drawMethod?.Invoke(upBtn, new object[] { e.SpriteBatch });
-            drawMethod?.Invoke(downBtn, new object[] { e.SpriteBatch });
-
-            if (scrollBarRunner is Rectangle runner2)
-            {
-                IClickableMenu.drawTextureBox(e.SpriteBatch, Game1.mouseCursors,
-                    new Rectangle(403, 383, 6, 6),
-                    runner2.X, runner2.Y, runner2.Width, runner2.Height,
-                    Color.White, 4f, true, -1f);
-            }
-            drawMethod?.Invoke(scrollBtn, new object[] { e.SpriteBatch });
-
-            Monitor?.Log("RenderedActiveMenu: drew buttons", LogLevel.Info);
+            Monitor?.Log("RenderedActiveMenu: drew test rect", LogLevel.Info);
         };
     }
 
