@@ -1,6 +1,7 @@
 using System.Reflection;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -11,6 +12,7 @@ namespace SnsAndroidFix;
 public class SkillsPagePatch
 {
     internal static IMonitor? Monitor;
+    private static Type? _newSkillsPageType;
 
     static void MoveButton(object? btn, int newX)
     {
@@ -22,9 +24,22 @@ public class SkillsPagePatch
         boundsField.SetValue(btn, b);
     }
 
-    public static void Apply(IModHelper helper, IMonitor monitor)
+    public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
         Monitor = monitor;
+
+        _newSkillsPageType = AccessTools.TypeByName("SpaceCore.Interface.NewSkillsPage");
+        if (_newSkillsPageType != null)
+        {
+            var drawMethod = _newSkillsPageType.GetMethod("draw", new[] { typeof(SpriteBatch) });
+            if (drawMethod != null)
+            {
+                harmony.Patch(drawMethod,
+                    postfix: new HarmonyMethod(typeof(SkillsPagePatch)
+                        .GetMethod(nameof(DrawPostfix))));
+            }
+        }
+
         helper.Events.Display.MenuChanged += (s, e) =>
         {
             if (e.NewMenu is not GameMenu gameMenu) return;
@@ -54,7 +69,6 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
-            // ขยับปุ่มให้อยู่ในกรอบ GameMenu
             int rightEdge = x + w - 64;
 
             var upBtn = newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
@@ -101,5 +115,38 @@ public class SkillsPagePatch
             pages[skillsTab] = newPage;
             Monitor?.Log("SkillsPage replaced!", LogLevel.Info);
         };
+    }
+
+    public static void DrawPostfix(object __instance, SpriteBatch b)
+    {
+        if (_newSkillsPageType == null) return;
+
+        var showsAll = _newSkillsPageType.GetProperty("ShowsAllSkillsAtOnce",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance);
+        if (showsAll is true) return;
+
+        var upBtn = _newSkillsPageType.GetField("upButton",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance);
+        var downBtn = _newSkillsPageType.GetField("downButton",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance);
+        var scrollBarRunner = (Rectangle?)_newSkillsPageType.GetField("scrollBarRunner",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance);
+        var scrollBtn = _newSkillsPageType.GetField("scrollBar",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance);
+
+        var drawMethod = upBtn?.GetType().GetMethod("draw", new[] { typeof(SpriteBatch) });
+        drawMethod?.Invoke(upBtn, new object[] { b });
+        drawMethod?.Invoke(downBtn, new object[] { b });
+
+        if (scrollBarRunner.HasValue)
+        {
+            IClickableMenu.drawTextureBox(b, Game1.mouseCursors,
+                new Rectangle(403, 383, 6, 6),
+                scrollBarRunner.Value.X, scrollBarRunner.Value.Y,
+                scrollBarRunner.Value.Width, scrollBarRunner.Value.Height,
+                Color.White, 4f, true, -1f);
+        }
+        drawMethod?.Invoke(scrollBtn, new object[] { b });
     }
 }
