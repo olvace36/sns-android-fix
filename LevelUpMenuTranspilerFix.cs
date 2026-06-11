@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
+using StardewValley.Menus;
 
 namespace SnsAndroidFix;
 
@@ -8,39 +9,17 @@ public class LevelUpMenuTranspilerFix
 {
     public static void Apply(Harmony harmony)
     {
-        var types = new[]
-        {
-            "SwordAndSorcerySMAPI.Framework.ModSkills.LevelUpMenuRevalidateHealthPatch",
-            "SwordAndSorcerySMAPI.Framework.ModSkills.LevelUpMenuRevalidateHealthPatchAgain"
-        };
+        var method = AccessTools.Method(typeof(LevelUpMenu), "RevalidateHealth");
+        if (method == null) return;
 
-        foreach (var typeName in types)
-        {
-            var type = AccessTools.TypeByName(typeName);
-            if (type == null) continue;
-
-            var transpiler = type.GetMethod("Transpiler",
-                BindingFlags.Public | BindingFlags.Static);
-            if (transpiler == null) continue;
-
-            harmony.Patch(transpiler,
-                prefix: new HarmonyMethod(typeof(LevelUpMenuTranspilerFix)
-                    .GetMethod(nameof(SafeTranspilerPrefix))));
-        }
+        harmony.Patch(method,
+            transpiler: new HarmonyMethod(typeof(LevelUpMenuTranspilerFix)
+                .GetMethod(nameof(SafeTranspiler))));
     }
 
-    public static bool SafeTranspilerPrefix(MethodBase original,
-        ref IEnumerable<CodeInstruction> __result,
+    public static IEnumerable<CodeInstruction> SafeTranspiler(
         IEnumerable<CodeInstruction> insns)
     {
-        try
-        {
-            return true;
-        }
-        catch
-        {
-            __result = insns;
-            return false;
-        }
+        return insns;
     }
 }
