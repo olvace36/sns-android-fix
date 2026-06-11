@@ -68,7 +68,8 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
-            int rightEdge = x + w - 64;
+            // ทดสอบตรงกลาง page
+            int rightEdge = x + 800;
 
             var upBtn = _newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var downBtn = _newSkillsPageType.GetField("downButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
