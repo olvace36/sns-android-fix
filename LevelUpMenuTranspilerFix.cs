@@ -1,28 +1,27 @@
-using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
-using StardewValley.Menus;
 
 namespace SnsAndroidFix;
 
 public class LevelUpMenuTranspilerFix
 {
-    public static void Apply()
+    public static void Apply(Harmony harmony)
     {
-        var method = AccessTools.Method(typeof(LevelUpMenu), "RevalidateHealth");
+        var spaceCoreType = AccessTools.TypeByName("SpaceCore.ISpaceCoreApi");
+        if (spaceCoreType == null) return;
+
+        var method = spaceCoreType.GetMethod("GetLocalIndexForMethod");
         if (method == null) return;
 
-        var patches = Harmony.GetPatchInfo(method);
-        if (patches == null) return;
+        harmony.Patch(method,
+            postfix: new HarmonyMethod(
+                typeof(LevelUpMenuTranspilerFix)
+                .GetMethod(nameof(GetLocalIndexPostfix))));
+    }
 
-        // unpatch transpiler ของ SNS ทั้งหมด
-        foreach (var patch in patches.Transpilers)
-        {
-            if (!patch.owner.Contains("SnsAndroidFix"))
-            {
-                var h = new Harmony(patch.owner);
-                h.Unpatch(method, patch.PatchMethod);
-            }
-        }
+    public static void GetLocalIndexPostfix(ref int[] __result)
+    {
+        if (__result == null || __result.Length == 0)
+            __result = new int[] { 0 };
     }
 }
