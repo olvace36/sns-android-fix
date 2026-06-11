@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
@@ -8,21 +7,22 @@ namespace SnsAndroidFix;
 
 public class LevelUpMenuTranspilerFix
 {
-    public static void Apply(Harmony harmony)
+    public static void Apply()
     {
         var method = AccessTools.Method(typeof(LevelUpMenu), "RevalidateHealth");
         if (method == null) return;
 
-        try
-        {
-            harmony.Patch(method,
-                transpiler: new HarmonyMethod(
-                    typeof(LevelUpMenuTranspilerFix)
-                    .GetMethod(nameof(EmptyTranspiler))));
-        }
-        catch { }
-    }
+        var patches = Harmony.GetPatchInfo(method);
+        if (patches == null) return;
 
-    public static IEnumerable<CodeInstruction> EmptyTranspiler(
-        IEnumerable<CodeInstruction> insns) => insns;
+        // unpatch transpiler ของ SNS ทั้งหมด
+        foreach (var patch in patches.Transpilers)
+        {
+            if (!patch.owner.Contains("SnsAndroidFix"))
+            {
+                var h = new Harmony(patch.owner);
+                h.Unpatch(method, patch.PatchMethod);
+            }
+        }
+    }
 }
