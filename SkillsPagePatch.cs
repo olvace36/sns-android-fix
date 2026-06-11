@@ -133,27 +133,19 @@ public class SkillsPagePatch
 
             var drawMethod = upBtn?.GetType().GetMethod("draw", new[] { typeof(SpriteBatch) });
 
-            // Begin SpriteBatch ใหม่
-            var sb = e.SpriteBatch;
-            sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
-                SamplerState.PointClamp, null, null, null,
-                Game1.GlobalToLocal(Game1.viewport, Vector2.Zero) != Vector2.Zero ? null : null);
-
-            drawMethod?.Invoke(upBtn, new object[] { sb });
-            drawMethod?.Invoke(downBtn, new object[] { sb });
+            drawMethod?.Invoke(upBtn, new object[] { e.SpriteBatch });
+            drawMethod?.Invoke(downBtn, new object[] { e.SpriteBatch });
 
             if (scrollBarRunner is Rectangle runner2)
             {
-                IClickableMenu.drawTextureBox(sb, Game1.mouseCursors,
+                IClickableMenu.drawTextureBox(e.SpriteBatch, Game1.mouseCursors,
                     new Rectangle(403, 383, 6, 6),
                     runner2.X, runner2.Y, runner2.Width, runner2.Height,
                     Color.White, 4f, true, -1f);
             }
-            drawMethod?.Invoke(scrollBtn, new object[] { sb });
+            drawMethod?.Invoke(scrollBtn, new object[] { e.SpriteBatch });
 
-            sb.End();
-
-            Monitor?.Log($"RenderedActiveMenu: drew buttons", LogLevel.Info);
+            Monitor?.Log("RenderedActiveMenu: drew buttons", LogLevel.Info);
         };
     }
 
