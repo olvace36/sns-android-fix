@@ -213,14 +213,14 @@ public class SkillsPagePatch
 
                 if ((l + 1) % 5 == 0)
                 {
-                    // milestone bar (ใหญ่) — วาดทั้ง filled และ empty
+                    // milestone bar (ใหญ่) — 145=empty, 159=filled
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
                         new Rectangle(145, 338, 14, 9), Color.Black * 0.35f,
                         0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
-                        new Rectangle(145, 338, 14, 9), Color.White * (filled ? 1f : 0.65f),
+                        new Rectangle(filled ? 159 : 145, 338, 14, 9), Color.White * (filled ? 1f : 0.65f),
                         0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
                 }
                 else
