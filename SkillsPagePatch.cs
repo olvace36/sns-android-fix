@@ -85,7 +85,6 @@ public class SkillsPagePatch
         int pageX = (int?)_xField?.GetValue(__instance) ?? 0;
         int pageY = (int?)_yField?.GetValue(__instance) ?? 0;
 
-        // ถ้า pageX=0 ใช้ค่าจาก GameMenu
         if (pageX == 0 && Game1.activeClickableMenu is GameMenu gm)
             pageX = gm.xPositionOnScreen;
         if (pageY == 0 && Game1.activeClickableMenu is GameMenu gm2)
@@ -94,16 +93,16 @@ public class SkillsPagePatch
         int num = pageX + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8 + 800;
         int num2 = pageY + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 8;
 
-        Monitor?.Log($"DrawPostfix: pageX={pageX}, pageY={pageY}, num={num}, num2={num2}", LogLevel.Info);
-
         var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
         if (visibleSkills == null || visibleSkills.Length == 0) return;
 
-        var getCustomSkillLevel = AccessTools.Method(typeof(Farmer), "GetCustomSkillLevel",
-            new[] { typeof(string) });
         var skillsType = AccessTools.TypeByName("SpaceCore.Skills");
         var getSkillMethod = skillsType?.GetMethod("GetSkill", BindingFlags.Public | BindingFlags.Static);
+        var getCustomSkillLevel = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomSkillLevel",
+            new[] { typeof(Farmer), typeof(string) });
 
         int row = 0;
         foreach (var name in visibleSkills)
@@ -115,13 +114,12 @@ public class SkillsPagePatch
             int num4 = 0;
             var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
             int levels = expCurve?.Length ?? 10;
-            int playerLevel = (int?)getCustomSkillLevel?.Invoke(Game1.player, new object[] { name }) ?? 0;
+            int playerLevel = (int?)getCustomSkillLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
             string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
             var skillIcon = skillType.GetProperty("SkillsPageIcon")?.GetValue(skill) as Texture2D;
 
             Monitor?.Log($"Drawing skill: {skillName}, level={playerLevel}, row={row}", LogLevel.Info);
 
-            // draw skill name
             if (skillName.Length > 0)
             {
                 b.DrawString(Game1.smallFont, skillName,
@@ -129,7 +127,6 @@ public class SkillsPagePatch
                     (float)(num2 + 4 + row * 56)), Game1.textColor);
             }
 
-            // draw skill icon
             if (skillIcon != null)
             {
                 b.Draw(skillIcon, new Vector2((float)(num - 56), (float)(num2 + row * 56)),
@@ -138,7 +135,6 @@ public class SkillsPagePatch
                     null, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
             }
 
-            // draw XP bars
             for (int l = 0; l < levels; l++)
             {
                 bool filled = playerLevel > l;
