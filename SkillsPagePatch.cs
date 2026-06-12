@@ -46,7 +46,6 @@ public class SkillsPagePatch
             }
         }
 
-        // log ชื่อ menu ทุกครั้งที่เปลี่ยน
         helper.Events.Display.MenuChanged += (s, e) =>
         {
             if (e.NewMenu != null)
@@ -142,7 +141,7 @@ public class SkillsPagePatch
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
         if (visibleSkills == null || visibleSkills.Length == 0) return;
 
-        // ขยับ skillArea ให้ตรงกับ draw position จริง
+        // ขยับ skillArea ใน DrawPostfix ทุก frame
         var skillAreasList = _newSkillsPageType.GetField("skillAreas",
             BindingFlags.Public | BindingFlags.Instance)
             ?.GetValue(__instance) as List<ClickableTextureComponent>;
@@ -153,7 +152,6 @@ public class SkillsPagePatch
                 int r = i - 5;
                 var area = skillAreasList[i];
                 var bounds = area.bounds;
-                // ตรงกับ draw position: num - 128 - 48 ถึง num
                 bounds.X = num - 128 - 48;
                 bounds.Y = num2 + r * 56;
                 area.bounds = bounds;
@@ -162,10 +160,18 @@ public class SkillsPagePatch
 
         var skillsType = AccessTools.TypeByName("SpaceCore.Skills");
         var getSkillMethod = skillsType?.GetMethod("GetSkill", BindingFlags.Public | BindingFlags.Static);
-        var getCustomSkillLevel = AccessTools.Method(
+        var getBuffedLevel = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomBuffedSkillLevel",
+            new[] { typeof(Farmer), typeof(string) });
+        var getBaseLevel = AccessTools.Method(
             AccessTools.TypeByName("SpaceCore.SkillExtensions"),
             "GetCustomSkillLevel",
             new[] { typeof(Farmer), typeof(string) });
+        var getBuffAmount = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomSkillBuffAmount",
+            new[] { typeof(Farmer), typeof(string), typeof(string) });
 
         int row = 0;
         foreach (var name in visibleSkills)
@@ -177,7 +183,13 @@ public class SkillsPagePatch
             int num4 = 0;
             var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
             int levels = expCurve?.Length ?? 10;
-            int playerLevel = (int?)getCustomSkillLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
+
+            // ใช้ buffed level สำหรับแสดง XP bars
+            int buffedLevel = (int?)getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
+            int baseLevel = (int?)getBaseLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
+            int buffAmount = (int?)getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
+            bool hasBuff = buffAmount != 0;
+
             string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
             var skillIcon = skillType.GetProperty("SkillsPageIcon")?.GetValue(skill) as Texture2D;
 
@@ -198,7 +210,7 @@ public class SkillsPagePatch
 
             for (int l = 0; l < levels; l++)
             {
-                bool filled = playerLevel > l;
+                bool filled = buffedLevel > l;
                 if (!filled && (l + 1) % 5 == 0)
                 {
                     b.Draw(Game1.mouseCursors,
@@ -220,12 +232,14 @@ public class SkillsPagePatch
                 }
                 if (l == levels - 1)
                 {
-                    NumberSprite.draw(playerLevel, b,
-                        new Vector2((float)(num4 + num + (l + 2) * 36 + 12 + ((playerLevel >= 10) ? 12 : 0)),
+                    // level number สีเขียวถ้ามี buff
+                    Color levelColor = hasBuff ? Color.LightGreen : Color.SandyBrown;
+                    NumberSprite.draw(buffedLevel, b,
+                        new Vector2((float)(num4 + num + (l + 2) * 36 + 12 + ((buffedLevel >= 10) ? 12 : 0)),
                         (float)(num2 + 16 + row * 56)), Color.Black * 0.35f, 1f, 0.85f, 1f, 0, 0);
-                    NumberSprite.draw(playerLevel, b,
-                        new Vector2((float)(num4 + num + (l + 2) * 36 + 16 + ((playerLevel >= 10) ? 12 : 0)),
-                        (float)(num2 + 12 + row * 56)), Color.SandyBrown * (playerLevel == 0 ? 0.75f : 1f),
+                    NumberSprite.draw(buffedLevel, b,
+                        new Vector2((float)(num4 + num + (l + 2) * 36 + 16 + ((buffedLevel >= 10) ? 12 : 0)),
+                        (float)(num2 + 12 + row * 56)), levelColor * (buffedLevel == 0 ? 0.75f : 1f),
                         1f, 0.87f, 1f, 0, 0);
                 }
                 if ((l + 1) % 5 == 0) num4 += 24;
@@ -233,7 +247,7 @@ public class SkillsPagePatch
             row++;
         }
 
-        // draw tooltip หลังสุด เพื่อให้อยู่บน layer สูงสุด
+        // draw tooltip หลังสุด
         var hoverText = (string?)_newSkillsPageType.GetField("hoverText",
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
         var hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
