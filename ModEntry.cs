@@ -25,6 +25,14 @@ public class ModEntry : Mod
 
         bool _checked = false;
 
+        helper.Events.GameLoop.DayStarted += (s, e) =>
+        {
+            if (_revalidated) return;
+            _revalidated = true;
+            Monitor.Log("DayStarted: calling RevalidateHealth", LogLevel.Info);
+            LevelUpMenu.RevalidateHealth(Game1.player);
+        };
+    
         void CheckSkillLevels(string source)
         {
             var getLevel = AccessTools.Method(
