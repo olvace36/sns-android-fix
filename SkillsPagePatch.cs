@@ -35,8 +35,6 @@ public class SkillsPagePatch
                     postfix: new HarmonyMethod(typeof(SkillsPagePatch)
                         .GetMethod(nameof(DrawPostfix))));
             }
-
-            // MaxSkillCountOnScreen คืนค่า 5 ปกติ ไม่ต้อง patch แล้ว
         }
 
         helper.Events.Display.MenuChanged += (s, e) =>
@@ -66,13 +64,10 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
-            var skillScrollOffset = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
-            var maxSkillCountOnScreen = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
-            var allSkillCount = _newSkillsPageType.GetProperty("AllSkillCount", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
-            var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
+            var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
 
             Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}", LogLevel.Info);
-            Monitor?.Log($"skillScrollOffset={skillScrollOffset}, maxOnScreen={maxSkillCountOnScreen}, allSkillCount={allSkillCount}", LogLevel.Info);
             Monitor?.Log($"VisibleSkills={visibleSkills?.Length}", LogLevel.Info);
             if (visibleSkills != null)
                 foreach (var skill in visibleSkills)
@@ -81,41 +76,34 @@ public class SkillsPagePatch
             pages[skillsTab] = newPage;
             Monitor?.Log("SkillsPage replaced!", LogLevel.Info);
         };
-
-        helper.Events.Display.RenderedActiveMenu += (s, e) =>
-        {
-            if (Game1.activeClickableMenu is not GameMenu gameMenu) return;
-            if (_newSkillsPageType == null) return;
-
-            var pages = typeof(GameMenu).GetField("pages", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(gameMenu) as List<IClickableMenu>;
-            if (pages == null || gameMenu.currentTab != 1) return;
-
-            var page = pages[1];
-            if (page?.GetType() != _newSkillsPageType) return;
-        };
     }
 
     public static void DrawPostfix(object __instance, SpriteBatch b)
     {
         if (_newSkillsPageType == null) return;
 
-        int pageX = (int?)_xField?.GetValue(__instance) ?? 90;
-        int pageY = (int?)_yField?.GetValue(__instance) ?? 72;
+        int pageX = (int?)_xField?.GetValue(__instance) ?? 0;
+        int pageY = (int?)_yField?.GetValue(__instance) ?? 0;
 
-        // คำนวณ num เหมือน draw() จริงๆ แต่บวก offset ไปขวา
-        int num = pageX + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8 + 676;
+        // ถ้า pageX=0 ใช้ค่าจาก GameMenu
+        if (pageX == 0 && Game1.activeClickableMenu is GameMenu gm)
+            pageX = gm.xPositionOnScreen;
+        if (pageY == 0 && Game1.activeClickableMenu is GameMenu gm2)
+            pageY = gm2.yPositionOnScreen;
+
+        int num = pageX + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8 + 800;
         int num2 = pageY + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 8;
 
-        Monitor?.Log($"DrawPostfix: pageX={pageX}, num={num}, num2={num2}", LogLevel.Info);
+        Monitor?.Log($"DrawPostfix: pageX={pageX}, pageY={pageY}, num={num}, num2={num2}", LogLevel.Info);
 
         var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
         if (visibleSkills == null || visibleSkills.Length == 0) return;
 
+        var getCustomSkillLevel = AccessTools.Method(typeof(Farmer), "GetCustomSkillLevel",
+            new[] { typeof(string) });
         var skillsType = AccessTools.TypeByName("SpaceCore.Skills");
         var getSkillMethod = skillsType?.GetMethod("GetSkill", BindingFlags.Public | BindingFlags.Static);
-        var getCustomSkillLevel = AccessTools.Method(typeof(Farmer), "GetCustomSkillLevel");
 
         int row = 0;
         foreach (var name in visibleSkills)
@@ -127,7 +115,7 @@ public class SkillsPagePatch
             int num4 = 0;
             var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
             int levels = expCurve?.Length ?? 10;
-            int playerLevel = (int?)getCustomSkillLevel?.Invoke(Game1.player, new object[] { skill }) ?? 0;
+            int playerLevel = (int?)getCustomSkillLevel?.Invoke(Game1.player, new object[] { name }) ?? 0;
             string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
             var skillIcon = skillType.GetProperty("SkillsPageIcon")?.GetValue(skill) as Texture2D;
 
