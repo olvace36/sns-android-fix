@@ -42,6 +42,16 @@ public class SkillsPagePatch
                     postfix: new HarmonyMethod(typeof(SkillsPagePatch)
                         .GetMethod(nameof(MaxSkillCountPostfix))));
             }
+
+            // patch drawDialogueBox ให้ skip ตอน _isDrawingCustom
+            var dialogMethod = typeof(IClickableMenu).GetMethod("drawDialogueBox",
+                BindingFlags.Public | BindingFlags.Static);
+            if (dialogMethod != null)
+            {
+                harmony.Patch(dialogMethod,
+                    prefix: new HarmonyMethod(typeof(SkillsPagePatch)
+                        .GetMethod(nameof(DrawDialogueBoxPrefix))));
+            }
         }
 
         helper.Events.Display.MenuChanged += (s, e) =>
@@ -108,6 +118,12 @@ public class SkillsPagePatch
         __result = 10;
     }
 
+    public static bool DrawDialogueBoxPrefix()
+    {
+        if (_isDrawingCustom) return false;
+        return true;
+    }
+
     public static bool DrawPrefix(object __instance, SpriteBatch b)
     {
         if (_newSkillsPageType == null) return true;
@@ -120,22 +136,15 @@ public class SkillsPagePatch
 
         var scrollOffsetField = _newSkillsPageType.GetField("skillScrollOffset",
             BindingFlags.NonPublic | BindingFlags.Instance);
-
-        // draw vanilla 5 skills ปกติ โดย set MaxSkillCount=5 ชั่วคราว
-        // แล้ว draw custom skills ด้วย xPositionOnScreen ที่ขยับไปขวา
-
-        // 1. draw vanilla ปกติ (skillScrollOffset=0, draw 5 skills)
-        scrollOffsetField?.SetValue(__instance, 0);
-
-        // 2. เรียก draw custom skills ด้วย x ที่เลื่อนไปขวา
-        int origX = __instance is IClickableMenu menu ? menu.xPositionOnScreen : 0;
         var xField = typeof(IClickableMenu).GetField("xPositionOnScreen",
             BindingFlags.Public | BindingFlags.Instance);
+
+        int origX = (int?)xField?.GetValue(__instance) ?? 0;
+        Monitor?.Log($"DrawPrefix origX={origX}", LogLevel.Info);
 
         _isDrawingCustom = true;
         try
         {
-            // draw vanilla ก่อน
             var drawMethod = _newSkillsPageType.GetMethod("draw", new[] { typeof(SpriteBatch) });
 
             // ขยับ x ไปขวา แล้ว draw custom skills
@@ -153,7 +162,7 @@ public class SkillsPagePatch
             _isDrawingCustom = false;
         }
 
-        return true; // ยังให้ vanilla draw ปกติด้วย
+        return true;
     }
 
     public static void DrawPostfix(object __instance, SpriteBatch b)
