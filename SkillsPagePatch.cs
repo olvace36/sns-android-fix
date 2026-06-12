@@ -64,6 +64,25 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
+            // ขยับ skillArea ของ custom skills ไปฝั่งขวา
+            var skillAreasList = _newSkillsPageType.GetField("skillAreas",
+                BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(newPage) as List<ClickableTextureComponent>;
+            if (skillAreasList != null)
+            {
+                int vanillaY0 = skillAreasList.Count > 0 ? skillAreasList[0].bounds.Y : 216;
+                for (int i = 5; i < skillAreasList.Count; i++)
+                {
+                    int row = i - 5;
+                    var area = skillAreasList[i];
+                    var bounds = area.bounds;
+                    bounds.X = 900;
+                    bounds.Y = vanillaY0 + row * 56;
+                    area.bounds = bounds;
+                    Monitor?.Log($"Moved skillArea[{i}] to x={bounds.X} y={bounds.Y}", LogLevel.Info);
+                }
+            }
+
             var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
                 BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
 
