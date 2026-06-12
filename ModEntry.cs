@@ -25,13 +25,26 @@ public class ModEntry : Mod
 
         helper.Events.GameLoop.SaveLoaded += (s, e) =>
         {
+            var rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
+                ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+            var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
+                ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+
+            var rogueId = rogueSkill?.GetType().GetProperty("Id")?.GetValue(rogueSkill);
+            var paladinId = paladinSkill?.GetType().GetProperty("Id")?.GetValue(paladinSkill);
+
+            Monitor.Log($"RogueSkill ID={rogueId}", LogLevel.Info);
+            Monitor.Log($"PaladinSkill ID={paladinId}", LogLevel.Info);
+
             var getLevel = AccessTools.Method(
                 AccessTools.TypeByName("SpaceCore.SkillExtensions"),
                 "GetCustomSkillLevel",
                 new[] { typeof(Farmer), typeof(string) });
 
-            int rogueLevel = (int)(getLevel?.Invoke(null, new object[] { Game1.player, "DestyNova.SwordAndSorcery.Rogue" }) ?? 0);
-            int paladinLevel = (int)(getLevel?.Invoke(null, new object[] { Game1.player, "DestyNova.SwordAndSorcery.Paladin" }) ?? 0);
+            int rogueLevel = (int)(getLevel?.Invoke(null, new object[] { Game1.player, rogueId?.ToString() ?? "" }) ?? 0);
+            int paladinLevel = (int)(getLevel?.Invoke(null, new object[] { Game1.player, paladinId?.ToString() ?? "" }) ?? 0);
 
             int expectedBonus = rogueLevel * 3 + paladinLevel * 5;
             int expectedMaxHealth = 100 + expectedBonus;
