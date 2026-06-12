@@ -31,7 +31,6 @@ public class SkillsPagePatch
                         .GetMethod(nameof(DrawPostfix))));
             }
 
-            // วิธีที่ 1 — patch MaxSkillCountOnScreen getter ให้ return 10
             var maxProp = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen",
                 BindingFlags.NonPublic | BindingFlags.Instance);
             if (maxProp != null)
@@ -74,12 +73,32 @@ public class SkillsPagePatch
             var skillBarsList = _newSkillsPageType.GetField("skillBars", BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(newPage) as List<ClickableTextureComponent>;
 
-            if (skillAreasList != null)
-                for (int i = 0; i < skillAreasList.Count; i++)
-                    Monitor?.Log($"skillArea[{i}] bounds={skillAreasList[i].bounds}", LogLevel.Info);
-            if (skillBarsList != null)
-                for (int i = 0; i < skillBarsList.Count; i++)
-                    Monitor?.Log($"skillBar[{i}] bounds={skillBarsList[i].bounds}", LogLevel.Info);
+            // ขยับ custom skills ไปฝั่งขวา
+            if (skillAreasList != null && skillBarsList != null)
+            {
+                int vanillaAreaY0 = skillAreasList.Count > 0 ? skillAreasList[0].bounds.Y : 216;
+
+                for (int i = 5; i < skillAreasList.Count; i++)
+                {
+                    int row = i - 5;
+                    var area = skillAreasList[i];
+                    var bounds = area.bounds;
+                    bounds.X = 900;
+                    bounds.Y = vanillaAreaY0 + row * 56;
+                    area.bounds = bounds;
+                    Monitor?.Log($"Moved skillArea[{i}] to x={bounds.X} y={bounds.Y}", LogLevel.Info);
+                }
+
+                for (int i = 5; i < skillBarsList.Count; i++)
+                {
+                    int row = i - 5;
+                    var bar = skillBarsList[i];
+                    var bounds = bar.bounds;
+                    bounds.Y = vanillaAreaY0 + row * 56;
+                    bar.bounds = bounds;
+                    Monitor?.Log($"Moved skillBar[{i}] to x={bounds.X} y={bounds.Y}", LogLevel.Info);
+                }
+            }
 
             var skillScrollOffset = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var maxSkillCountOnScreen = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
@@ -113,14 +132,11 @@ public class SkillsPagePatch
         };
     }
 
-    // วิธีที่ 1 — MaxSkillCountOnScreen return 10
     public static void MaxSkillCountPostfix(ref int __result)
     {
-        Monitor?.Log($"MaxSkillCountOnScreen was {__result}, setting to 10", LogLevel.Info);
         __result = 10;
     }
 
-    // วิธีที่ 2 — DrawPostfix draw custom skills เองโดยดึง x จาก __instance
     public static void DrawPostfix(object __instance, SpriteBatch b)
     {
         if (_newSkillsPageType == null) return;
@@ -129,24 +145,21 @@ public class SkillsPagePatch
             BindingFlags.Public | BindingFlags.Instance)
             ?.GetValue(__instance) as List<ClickableTextureComponent>;
 
-        if (skillBarsList == null || skillBarsList.Count <= 5) return;
+        if (skillBarsList == null) return;
 
-        // วิธีที่ 2: ดึง x จาก skillBar[5] ของ __instance ตรงๆ
-        int customX = skillBarsList[5].bounds.X;
-        Monitor?.Log($"DrawPostfix: customX={customX}", LogLevel.Info);
-
-        for (int i = 0; i < skillBarsList.Count; i++)
+        // log bounds ของ skillBar[0-4] เพื่อหา x สูงสุดของ vanilla
+        int maxVanillaX = 0;
+        for (int i = 0; i < Math.Min(5, skillBarsList.Count); i++)
         {
             var bar = skillBarsList[i];
-            if (bar.bounds.X != customX) continue;
-
-            Monitor?.Log($"Drawing bar[{i}] bounds={bar.bounds}", LogLevel.Info);
-
-            b.Draw(Game1.mouseCursors,
-                new Vector2(bar.bounds.X, bar.bounds.Y),
-                bar.sourceRect,
-                Color.White, 0f, Vector2.Zero, 4f,
-                SpriteEffects.None, 1f);
+            Monitor?.Log($"DrawPostfix skillBar[{i}] bounds={bar.bounds}", LogLevel.Info);
+            if (bar.bounds.X + bar.bounds.Width > maxVanillaX)
+                maxVanillaX = bar.bounds.X + bar.bounds.Width;
         }
+        Monitor?.Log($"DrawPostfix maxVanillaX={maxVanillaX}", LogLevel.Info);
+
+        // log skillBar[5] จาก __instance จริงๆ
+        if (skillBarsList.Count > 5)
+            Monitor?.Log($"DrawPostfix skillBar[5] bounds={skillBarsList[5].bounds}", LogLevel.Info);
     }
 }
