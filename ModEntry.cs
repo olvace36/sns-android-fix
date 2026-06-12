@@ -25,28 +25,16 @@ public class ModEntry : Mod
 
         helper.Events.GameLoop.SaveLoaded += (s, e) =>
         {
-            var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
             var getLevel = AccessTools.Method(
                 AccessTools.TypeByName("SpaceCore.SkillExtensions"),
                 "GetCustomSkillLevel",
-                new[] { typeof(Farmer), skillType });
+                new[] { typeof(Farmer), typeof(string) });
 
-            var rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
-                ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
-            var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
-                ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
-
-            int rogueLevel = rogueSkill != null
-                ? (int)(getLevel?.Invoke(null, new object[] { Game1.player, rogueSkill }) ?? 0)
-                : 0;
-            int paladinLevel = paladinSkill != null
-                ? (int)(getLevel?.Invoke(null, new object[] { Game1.player, paladinSkill }) ?? 0)
-                : 0;
+            int rogueLevel = (int)(getLevel?.Invoke(null, new object[] { Game1.player, "DestyNova.SwordAndSorcery.Rogue" }) ?? 0);
+            int paladinLevel = (int)(getLevel?.Invoke(null, new object[] { Game1.player, "DestyNova.SwordAndSorcery.Paladin" }) ?? 0);
 
             int expectedBonus = rogueLevel * 3 + paladinLevel * 5;
-            int expectedMaxHealth = 100 + expectedBonus; // base maxHealth = 100
+            int expectedMaxHealth = 100 + expectedBonus;
 
             Monitor.Log($"SaveLoaded: Rogue level={rogueLevel}, Paladin level={paladinLevel}", LogLevel.Info);
             Monitor.Log($"SaveLoaded: expectedBonus={expectedBonus}, currentMaxHealth={Game1.player.maxHealth}, expectedMaxHealth={expectedMaxHealth}", LogLevel.Info);
