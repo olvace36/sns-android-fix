@@ -16,16 +16,6 @@ public class SkillsPagePatch
     internal static IMonitor? Monitor;
     private static Type? _newSkillsPageType;
 
-    static void MoveButton(object? btn, int newX)
-    {
-        if (btn == null) return;
-        var boundsField = btn.GetType().GetField("bounds");
-        if (boundsField == null) return;
-        var b = (Rectangle)boundsField.GetValue(btn);
-        b.X = newX;
-        boundsField.SetValue(btn, b);
-    }
-
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
         Monitor = monitor;
@@ -117,71 +107,30 @@ public class SkillsPagePatch
     {
         if (_newSkillsPageType == null) return;
 
-        var maxOnScreen = (int?)_newSkillsPageType.GetProperty("MaxSkillCountOnScreen",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? 5;
-
         var skillBarsList = _newSkillsPageType.GetField("skillBars",
             BindingFlags.Public | BindingFlags.Instance)
             ?.GetValue(__instance) as List<ClickableTextureComponent>;
-        var skillAreasList = _newSkillsPageType.GetField("skillAreas",
-            BindingFlags.Public | BindingFlags.Instance)
-            ?.GetValue(__instance) as List<ClickableTextureComponent>;
-        var skillBarIndexes = _newSkillsPageType.GetField("skillBarSkillIndexes",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance) as Dictionary<int, int>;
-        var skillAreaIndexes = _newSkillsPageType.GetField("skillAreaSkillIndexes",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance) as Dictionary<int, int>;
 
-        if (skillBarsList == null || skillBarIndexes == null) return;
+        if (skillBarsList == null) return;
 
-        // draw skillAreas (icon + level number) ของ custom skills
-        if (skillAreasList != null && skillAreaIndexes != null)
-        {
-            for (int i = 0; i < skillAreasList.Count; i++)
-            {
-                if (!skillAreaIndexes.TryGetValue(i, out int skillIndex)) continue;
-                if (skillIndex < maxOnScreen) continue;
+        // ทดสอบ draw สี่เหลี่ยมสีแดงที่ x=842 y=216
+        b.Draw(Game1.staminaRect, new Rectangle(842, 216, 56, 36), Color.Red);
 
-                var area = skillAreasList[i];
-                Monitor?.Log($"Drawing area[{i}] skillIndex={skillIndex} tex={area.texture?.Name} src={area.sourceRect} bounds={area.bounds}", LogLevel.Info);
-
-                if (area.texture != null)
-                {
-                    float scale = area.bounds.Width > 0 && area.sourceRect.Width > 0
-                        ? (float)area.bounds.Width / area.sourceRect.Width
-                        : 4f;
-                    b.Draw(area.texture,
-                        new Vector2(area.bounds.X, area.bounds.Y),
-                        area.sourceRect,
-                        Color.White, 0f, Vector2.Zero, scale,
-                        SpriteEffects.None, 1f);
-                }
-            }
-        }
-
-        // draw skillBars (XP bars) ของ custom skills
+        // draw skillBars ที่ x >= 842 (custom skills)
         for (int i = 0; i < skillBarsList.Count; i++)
         {
-            if (!skillBarIndexes.TryGetValue(i, out int skillIndex)) continue;
-            if (skillIndex < maxOnScreen) continue;
-
             var bar = skillBarsList[i];
-            Monitor?.Log($"Drawing bar[{i}] skillIndex={skillIndex} tex={bar.texture?.Name} src={bar.sourceRect} bounds={bar.bounds}", LogLevel.Info);
+            if (bar.bounds.X < 842) continue;
 
-            if (bar.texture != null)
-            {
-                float scale = bar.bounds.Width > 0 && bar.sourceRect.Width > 0
-                    ? (float)bar.bounds.Width / bar.sourceRect.Width
-                    : 4f;
-                b.Draw(bar.texture,
-                    new Vector2(bar.bounds.X, bar.bounds.Y),
-                    bar.sourceRect,
-                    Color.White, 0f, Vector2.Zero, scale,
-                    SpriteEffects.None, 1f);
-            }
+            Monitor?.Log($"Drawing skillBar[{i}] bounds={bar.bounds}", LogLevel.Info);
+
+            b.Draw(Game1.mouseCursors,
+                new Vector2(bar.bounds.X, bar.bounds.Y),
+                bar.sourceRect,
+                Color.White, 0f, Vector2.Zero, 4f,
+                SpriteEffects.None, 1f);
         }
 
-        Monitor?.Log($"DrawPostfix done (maxOnScreen={maxOnScreen})", LogLevel.Info);
+        Monitor?.Log("DrawPostfix done", LogLevel.Info);
     }
 }
