@@ -11,11 +11,13 @@ public class ModEntry : Mod
         RevalidateHealthPatch.Monitor = Monitor;
         SkillsPagePatch.Monitor = Monitor;
         FancyAlchemyMenuPatch.Monitor = Monitor;
+        ShieldSigilMenuPatch.Monitor = Monitor;
         var harmony = new Harmony(ModManifest.UniqueID);
         LevelUpMenuTranspilerFix.Apply(harmony);
         harmony.PatchAll();
         GuidebookMenuPatch.Apply(harmony);
         FancyAlchemyMenuPatch.Apply(harmony);
+        ShieldSigilMenuPatch.Apply(harmony);
         SkillsPagePatch.Apply(helper, Monitor, harmony);
     }
 }
