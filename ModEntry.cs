@@ -23,7 +23,9 @@ public class ModEntry : Mod
         ShieldSigilMenuPatch.Apply(harmony);
         SkillsPagePatch.Apply(helper, Monitor, harmony);
 
-        helper.Events.GameLoop.SaveLoaded += (s, e) =>
+        bool _checked = false;
+
+        void CheckSkillLevels(string source)
         {
             var getLevel = AccessTools.Method(
                 AccessTools.TypeByName("SpaceCore.SkillExtensions"),
@@ -42,10 +44,32 @@ public class ModEntry : Mod
             int expectedBonus = rogueLevel * 3 + paladinLevel * 5;
             int expectedMaxHealth = 100 + expectedBonus;
 
-            Monitor.Log($"SaveLoaded: Rogue level={rogueLevel}, XP={rogueXP}", LogLevel.Info);
-            Monitor.Log($"SaveLoaded: Paladin level={paladinLevel}, XP={paladinXP}", LogLevel.Info);
-            Monitor.Log($"SaveLoaded: expectedBonus={expectedBonus}, currentMaxHealth={Game1.player.maxHealth}, expectedMaxHealth={expectedMaxHealth}", LogLevel.Info);
-            Monitor.Log($"SaveLoaded: bonus applied correctly={Game1.player.maxHealth >= expectedMaxHealth}", LogLevel.Info);
+            Monitor.Log($"[{source}] Rogue level={rogueLevel}, XP={rogueXP}", LogLevel.Info);
+            Monitor.Log($"[{source}] Paladin level={paladinLevel}, XP={paladinXP}", LogLevel.Info);
+            Monitor.Log($"[{source}] expectedBonus={expectedBonus}, currentMaxHealth={Game1.player.maxHealth}, expectedMaxHealth={expectedMaxHealth}", LogLevel.Info);
+            Monitor.Log($"[{source}] bonus applied correctly={Game1.player.maxHealth >= expectedMaxHealth}", LogLevel.Info);
+        }
+
+        // วิธีที่ 1: SaveLoaded
+        helper.Events.GameLoop.SaveLoaded += (s, e) => CheckSkillLevels("SaveLoaded");
+
+        // วิธีที่ 2: DayStarted
+        helper.Events.GameLoop.DayStarted += (s, e) =>
+        {
+            if (!_checked)
+            {
+                _checked = true;
+                CheckSkillLevels("DayStarted");
+            }
+        };
+
+        // วิธีที่ 3: OneSecondUpdateTicked
+        bool _tickChecked = false;
+        helper.Events.GameLoop.OneSecondUpdateTicked += (s, e) =>
+        {
+            if (_tickChecked || !Context.IsWorldReady) return;
+            _tickChecked = true;
+            CheckSkillLevels("OneSecondUpdateTicked");
         };
     }
 }
