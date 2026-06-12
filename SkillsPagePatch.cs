@@ -15,6 +15,7 @@ public class SkillsPagePatch
 {
     internal static IMonitor? Monitor;
     private static Type? _newSkillsPageType;
+    private static bool _isDrawingCustom = false;
 
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
@@ -27,6 +28,8 @@ public class SkillsPagePatch
             if (drawMethod != null)
             {
                 harmony.Patch(drawMethod,
+                    prefix: new HarmonyMethod(typeof(SkillsPagePatch)
+                        .GetMethod(nameof(DrawPrefix))),
                     postfix: new HarmonyMethod(typeof(SkillsPagePatch)
                         .GetMethod(nameof(DrawPostfix))));
             }
@@ -68,38 +71,6 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
-            var skillAreasList = _newSkillsPageType.GetField("skillAreas", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(newPage) as List<ClickableTextureComponent>;
-            var skillBarsList = _newSkillsPageType.GetField("skillBars", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(newPage) as List<ClickableTextureComponent>;
-
-            // ขยับ custom skills ไปฝั่งขวา
-            if (skillAreasList != null && skillBarsList != null)
-            {
-                int vanillaAreaY0 = skillAreasList.Count > 0 ? skillAreasList[0].bounds.Y : 216;
-
-                for (int i = 5; i < skillAreasList.Count; i++)
-                {
-                    int row = i - 5;
-                    var area = skillAreasList[i];
-                    var bounds = area.bounds;
-                    bounds.X = 900;
-                    bounds.Y = vanillaAreaY0 + row * 56;
-                    area.bounds = bounds;
-                    Monitor?.Log($"Moved skillArea[{i}] to x={bounds.X} y={bounds.Y}", LogLevel.Info);
-                }
-
-                for (int i = 5; i < skillBarsList.Count; i++)
-                {
-                    int row = i - 5;
-                    var bar = skillBarsList[i];
-                    var bounds = bar.bounds;
-                    bounds.Y = vanillaAreaY0 + row * 56;
-                    bar.bounds = bounds;
-                    Monitor?.Log($"Moved skillBar[{i}] to x={bounds.X} y={bounds.Y}", LogLevel.Info);
-                }
-            }
-
             var skillScrollOffset = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var maxSkillCountOnScreen = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var allSkillCount = _newSkillsPageType.GetProperty("AllSkillCount", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
@@ -137,29 +108,57 @@ public class SkillsPagePatch
         __result = 10;
     }
 
+    public static bool DrawPrefix(object __instance, SpriteBatch b)
+    {
+        if (_newSkillsPageType == null) return true;
+        if (_isDrawingCustom) return true;
+
+        var allSkillCount = (int?)_newSkillsPageType.GetProperty("AllSkillCount",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? 0;
+
+        if (allSkillCount <= 5) return true;
+
+        var scrollOffsetField = _newSkillsPageType.GetField("skillScrollOffset",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        // draw vanilla 5 skills ปกติ โดย set MaxSkillCount=5 ชั่วคราว
+        // แล้ว draw custom skills ด้วย xPositionOnScreen ที่ขยับไปขวา
+
+        // 1. draw vanilla ปกติ (skillScrollOffset=0, draw 5 skills)
+        scrollOffsetField?.SetValue(__instance, 0);
+
+        // 2. เรียก draw custom skills ด้วย x ที่เลื่อนไปขวา
+        int origX = __instance is IClickableMenu menu ? menu.xPositionOnScreen : 0;
+        var xField = typeof(IClickableMenu).GetField("xPositionOnScreen",
+            BindingFlags.Public | BindingFlags.Instance);
+
+        _isDrawingCustom = true;
+        try
+        {
+            // draw vanilla ก่อน
+            var drawMethod = _newSkillsPageType.GetMethod("draw", new[] { typeof(SpriteBatch) });
+
+            // ขยับ x ไปขวา แล้ว draw custom skills
+            scrollOffsetField?.SetValue(__instance, 5);
+            xField?.SetValue(__instance, origX + 676);
+            Monitor?.Log($"Drawing custom skills at x={origX + 676}", LogLevel.Info);
+            drawMethod?.Invoke(__instance, new object[] { b });
+
+            // restore
+            xField?.SetValue(__instance, origX);
+            scrollOffsetField?.SetValue(__instance, 0);
+        }
+        finally
+        {
+            _isDrawingCustom = false;
+        }
+
+        return true; // ยังให้ vanilla draw ปกติด้วย
+    }
+
     public static void DrawPostfix(object __instance, SpriteBatch b)
     {
-        if (_newSkillsPageType == null) return;
-
-        var skillBarsList = _newSkillsPageType.GetField("skillBars",
-            BindingFlags.Public | BindingFlags.Instance)
-            ?.GetValue(__instance) as List<ClickableTextureComponent>;
-
-        if (skillBarsList == null) return;
-
-        // log bounds ของ skillBar[0-4] เพื่อหา x สูงสุดของ vanilla
-        int maxVanillaX = 0;
-        for (int i = 0; i < Math.Min(5, skillBarsList.Count); i++)
-        {
-            var bar = skillBarsList[i];
-            Monitor?.Log($"DrawPostfix skillBar[{i}] bounds={bar.bounds}", LogLevel.Info);
-            if (bar.bounds.X + bar.bounds.Width > maxVanillaX)
-                maxVanillaX = bar.bounds.X + bar.bounds.Width;
-        }
-        Monitor?.Log($"DrawPostfix maxVanillaX={maxVanillaX}", LogLevel.Info);
-
-        // log skillBar[5] จาก __instance จริงๆ
-        if (skillBarsList.Count > 5)
-            Monitor?.Log($"DrawPostfix skillBar[5] bounds={skillBarsList[5].bounds}", LogLevel.Info);
+        if (_isDrawingCustom) return;
+        Monitor?.Log("DrawPostfix called", LogLevel.Info);
     }
 }
