@@ -21,12 +21,6 @@ public class ShieldSigilMenuPatch
         }
 
         var constructor = menuType.GetConstructors()[0];
-        if (constructor == null)
-        {
-            Monitor?.Log("ShieldSigilMenu constructor not found!", LogLevel.Error);
-            return;
-        }
-
         harmony.Patch(constructor,
             postfix: new HarmonyMethod(typeof(ShieldSigilMenuPatch)
                 .GetMethod(nameof(ConstructorPostfix))));
@@ -38,15 +32,17 @@ public class ShieldSigilMenuPatch
     {
         if (__instance is not IClickableMenu menu) return;
 
-        int x = menu.xPositionOnScreen + menu.width - 32;
-        int y = menu.yPositionOnScreen - 8;
+        var closeButtonField = typeof(IClickableMenu).GetField("upperRightCloseButton",
+            BindingFlags.Public | BindingFlags.Instance);
 
-        menu.upperRightCloseButton = new ClickableTextureComponent(
-            new Rectangle(x, y, 17 * 4, 17 * 4),
+        var closeButton = new ClickableTextureComponent(
+            new Rectangle(Game1.uiViewport.Width - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
             Game1.mobileSpriteSheet,
             new Rectangle(62, 0, 17, 17),
             4f);
 
-        Monitor?.Log($"ShieldSigilMenu close button added at x={x} y={y}", LogLevel.Info);
+        closeButtonField?.SetValue(menu, closeButton);
+
+        Monitor?.Log("ShieldSigilMenu close button added", LogLevel.Info);
     }
 }
