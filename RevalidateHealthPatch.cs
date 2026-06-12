@@ -19,7 +19,7 @@ public class RevalidateHealthPatch
         var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
         var getLevel = AccessTools.Method(
             AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomSkillLevel",
+            "GetCustomBuffedSkillLevel",
             new[] { typeof(Farmer), skillType });
 
         // Paladin skill +5 health per level
