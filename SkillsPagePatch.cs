@@ -36,7 +36,6 @@ public class SkillsPagePatch
                         .GetMethod(nameof(DrawPostfix))));
             }
 
-            // patch performHoverAction
             var hoverMethod = _newSkillsPageType.GetMethod("performHoverAction",
                 BindingFlags.Public | BindingFlags.Instance);
             if (hoverMethod != null)
@@ -47,8 +46,12 @@ public class SkillsPagePatch
             }
         }
 
+        // log ชื่อ menu ทุกครั้งที่เปลี่ยน
         helper.Events.Display.MenuChanged += (s, e) =>
         {
+            if (e.NewMenu != null)
+                Monitor?.Log($"MenuChanged: {e.NewMenu.GetType().FullName}", LogLevel.Info);
+
             if (e.NewMenu is not GameMenu gameMenu) return;
             if (_newSkillsPageType == null) return;
 
@@ -108,7 +111,7 @@ public class SkillsPagePatch
         foreach (var area in skillAreasList)
         {
             if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
-            if (skillIndex < 5) continue; // ข้าม vanilla skills
+            if (skillIndex < 5) continue;
             if (!area.containsPoint(x, y)) continue;
             if (area.hoverText.Length <= 0) continue;
 
@@ -139,7 +142,7 @@ public class SkillsPagePatch
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
         if (visibleSkills == null || visibleSkills.Length == 0) return;
 
-        // ขยับ skillArea ใน DrawPostfix ทุก frame
+        // ขยับ skillArea ให้ตรงกับ draw position จริง
         var skillAreasList = _newSkillsPageType.GetField("skillAreas",
             BindingFlags.Public | BindingFlags.Instance)
             ?.GetValue(__instance) as List<ClickableTextureComponent>;
@@ -150,7 +153,8 @@ public class SkillsPagePatch
                 int r = i - 5;
                 var area = skillAreasList[i];
                 var bounds = area.bounds;
-                bounds.X = 900;
+                // ตรงกับ draw position: num - 128 - 48 ถึง num
+                bounds.X = num - 128 - 48;
                 bounds.Y = num2 + r * 56;
                 area.bounds = bounds;
             }
@@ -227,6 +231,17 @@ public class SkillsPagePatch
                 if ((l + 1) % 5 == 0) num4 += 24;
             }
             row++;
+        }
+
+        // draw tooltip หลังสุด เพื่อให้อยู่บน layer สูงสุด
+        var hoverText = (string?)_newSkillsPageType.GetField("hoverText",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+        var hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+
+        if (hoverText.Length > 0)
+        {
+            IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1, hoverTitle.Length > 0 ? hoverTitle : null);
         }
     }
 }
