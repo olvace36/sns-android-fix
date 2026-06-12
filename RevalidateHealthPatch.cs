@@ -17,9 +17,9 @@ public class RevalidateHealthPatch
         int bonus = 0;
 
         // Paladin skill +5 health per level
-        var paladinSkill = AccessTools.Field(
-            AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP"),
-            "PaladinSkill")?.GetValue(null);
+        var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
+            ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
+            ?.GetValue(null);
         Monitor?.Log($"paladinSkill={paladinSkill?.GetType().Name ?? "null"}", LogLevel.Info);
         if (paladinSkill != null)
         {
@@ -32,9 +32,9 @@ public class RevalidateHealthPatch
         }
 
         // Rogue skill +3 health per level
-        var rogueSkill = AccessTools.Field(
-            AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS"),
-            "RogueSkill")?.GetValue(null);
+        var rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
+            ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
+            ?.GetValue(null);
         Monitor?.Log($"rogueSkill={rogueSkill?.GetType().Name ?? "null"}", LogLevel.Info);
         if (rogueSkill != null)
         {
