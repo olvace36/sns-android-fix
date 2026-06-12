@@ -87,24 +87,28 @@ public class SkillsPagePatch
                 scrollBarRunnerField.SetValue(newPage, runner);
             }
 
-            // log skillAreas bounds
             var skillAreasList = _newSkillsPageType.GetField("skillAreas", BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(newPage) as List<ClickableTextureComponent>;
             if (skillAreasList != null)
                 for (int i = 0; i < skillAreasList.Count; i++)
                     Monitor?.Log($"skillArea[{i}] bounds={skillAreasList[i].bounds}", LogLevel.Info);
 
+            var skillBarsList = _newSkillsPageType.GetField("skillBars", BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(newPage) as List<ClickableTextureComponent>;
+            if (skillBarsList != null)
+                for (int i = 0; i < skillBarsList.Count; i++)
+                    Monitor?.Log($"skillBar[{i}] bounds={skillBarsList[i].bounds}", LogLevel.Info);
+
             var skillScrollOffset = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var maxSkillCountOnScreen = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var allSkillCount = _newSkillsPageType.GetProperty("AllSkillCount", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
-            var skillBars = _newSkillsPageType.GetField("skillBars", BindingFlags.Public | BindingFlags.Instance)?.GetValue(newPage) as System.Collections.IList;
             var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
             var upBounds = upBtn?.GetType().GetField("bounds")?.GetValue(upBtn);
             var downBounds = downBtn?.GetType().GetField("bounds")?.GetValue(downBtn);
 
             Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}, rightEdge={rightEdge}", LogLevel.Info);
             Monitor?.Log($"skillScrollOffset={skillScrollOffset}, maxOnScreen={maxSkillCountOnScreen}, allSkillCount={allSkillCount}", LogLevel.Info);
-            Monitor?.Log($"skillBars={skillBars?.Count}, skillAreas={skillAreasList?.Count}", LogLevel.Info);
+            Monitor?.Log($"skillBars={skillBarsList?.Count}, skillAreas={skillAreasList?.Count}", LogLevel.Info);
             Monitor?.Log($"upButton: {upBounds}, downButton: {downBounds}", LogLevel.Info);
             Monitor?.Log($"scrollBarRunner: {scrollBarRunnerField?.GetValue(newPage)}", LogLevel.Info);
             Monitor?.Log($"VisibleSkills={visibleSkills?.Length}", LogLevel.Info);
