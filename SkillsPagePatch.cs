@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
@@ -48,7 +49,7 @@ public class SkillsPagePatch
 
             var pages = typeof(GameMenu).GetField("pages",
                 BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(gameMenu) as System.Collections.Generic.List<IClickableMenu>;
+                ?.GetValue(gameMenu) as List<IClickableMenu>;
             if (pages == null) return;
 
             int skillsTab = 1;
@@ -68,7 +69,7 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
-            int rightEdge = x + 800;
+            int rightEdge = x + w - 64;
 
             var upBtn = _newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var downBtn = _newSkillsPageType.GetField("downButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
@@ -86,18 +87,24 @@ public class SkillsPagePatch
                 scrollBarRunnerField.SetValue(newPage, runner);
             }
 
+            // log skillAreas bounds
+            var skillAreasList = _newSkillsPageType.GetField("skillAreas", BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(newPage) as List<ClickableTextureComponent>;
+            if (skillAreasList != null)
+                for (int i = 0; i < skillAreasList.Count; i++)
+                    Monitor?.Log($"skillArea[{i}] bounds={skillAreasList[i].bounds}", LogLevel.Info);
+
             var skillScrollOffset = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var maxSkillCountOnScreen = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var allSkillCount = _newSkillsPageType.GetProperty("AllSkillCount", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var skillBars = _newSkillsPageType.GetField("skillBars", BindingFlags.Public | BindingFlags.Instance)?.GetValue(newPage) as System.Collections.IList;
-            var skillAreas = _newSkillsPageType.GetField("skillAreas", BindingFlags.Public | BindingFlags.Instance)?.GetValue(newPage) as System.Collections.IList;
             var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
             var upBounds = upBtn?.GetType().GetField("bounds")?.GetValue(upBtn);
             var downBounds = downBtn?.GetType().GetField("bounds")?.GetValue(downBtn);
 
             Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}, rightEdge={rightEdge}", LogLevel.Info);
             Monitor?.Log($"skillScrollOffset={skillScrollOffset}, maxOnScreen={maxSkillCountOnScreen}, allSkillCount={allSkillCount}", LogLevel.Info);
-            Monitor?.Log($"skillBars={skillBars?.Count}, skillAreas={skillAreas?.Count}", LogLevel.Info);
+            Monitor?.Log($"skillBars={skillBars?.Count}, skillAreas={skillAreasList?.Count}", LogLevel.Info);
             Monitor?.Log($"upButton: {upBounds}, downButton: {downBounds}", LogLevel.Info);
             Monitor?.Log($"scrollBarRunner: {scrollBarRunnerField?.GetValue(newPage)}", LogLevel.Info);
             Monitor?.Log($"VisibleSkills={visibleSkills?.Length}", LogLevel.Info);
@@ -115,7 +122,7 @@ public class SkillsPagePatch
             if (_newSkillsPageType == null) return;
 
             var pages = typeof(GameMenu).GetField("pages", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(gameMenu) as System.Collections.Generic.List<IClickableMenu>;
+                ?.GetValue(gameMenu) as List<IClickableMenu>;
             if (pages == null || gameMenu.currentTab != 1) return;
 
             var page = pages[1];
@@ -128,30 +135,20 @@ public class SkillsPagePatch
             var upBtn = _newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
             var downBtn = _newSkillsPageType.GetField("downButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
 
-            // log texture info
-            var texField = upBtn?.GetType().GetField("texture", BindingFlags.Public | BindingFlags.Instance);
-            var srcField = upBtn?.GetType().GetField("sourceRect", BindingFlags.Public | BindingFlags.Instance);
-            var tex = texField?.GetValue(upBtn);
-            var src = srcField?.GetValue(upBtn);
-            Monitor?.Log($"upBtn texture={tex?.GetType().Name}, sourceRect={src}", LogLevel.Info);
-
             var upBounds = (Rectangle?)upBtn?.GetType().GetField("bounds")?.GetValue(upBtn);
             var downBounds = (Rectangle?)downBtn?.GetType().GetField("bounds")?.GetValue(downBtn);
 
-            if (tex is Texture2D texture2D && src is Rectangle srcRect && upBounds.HasValue)
-            {
-                e.SpriteBatch.Draw(texture2D, upBounds.Value, srcRect, Color.White);
-            }
-            if (tex is Texture2D texture2D2 && src is Rectangle srcRect2 && downBounds.HasValue)
-            {
-                var downTexField = downBtn?.GetType().GetField("texture", BindingFlags.Public | BindingFlags.Instance);
-                var downSrcField = downBtn?.GetType().GetField("sourceRect", BindingFlags.Public | BindingFlags.Instance);
-                if (downTexField?.GetValue(downBtn) is Texture2D downTex &&
-                    downSrcField?.GetValue(downBtn) is Rectangle downSrc)
-                {
-                    e.SpriteBatch.Draw(downTex, downBounds.Value, downSrc, Color.White);
-                }
-            }
+            if (upBounds.HasValue)
+                e.SpriteBatch.Draw(Game1.mouseCursors,
+                    new Vector2(upBounds.Value.X, upBounds.Value.Y),
+                    new Rectangle(421, 459, 11, 12),
+                    Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+
+            if (downBounds.HasValue)
+                e.SpriteBatch.Draw(Game1.mouseCursors,
+                    new Vector2(downBounds.Value.X, downBounds.Value.Y),
+                    new Rectangle(421, 472, 11, 12),
+                    Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 
             Monitor?.Log("RenderedActiveMenu: drew buttons", LogLevel.Info);
         };
