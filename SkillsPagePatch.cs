@@ -69,28 +69,21 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
-            // set MaxSkillCountOnScreen = AllSkillCount เพื่อให้ draw ทั้งหมด
-            var allSkillCount = _newSkillsPageType.GetProperty("AllSkillCount",
-                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
-            var maxField = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            if (maxField != null && allSkillCount != null)
-                maxField.SetValue(newPage, allSkillCount);
-
             var skillAreasList = _newSkillsPageType.GetField("skillAreas", BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(newPage) as List<ClickableTextureComponent>;
+            var skillBarsList = _newSkillsPageType.GetField("skillBars", BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(newPage) as List<ClickableTextureComponent>;
+
             if (skillAreasList != null)
                 for (int i = 0; i < skillAreasList.Count; i++)
                     Monitor?.Log($"skillArea[{i}] bounds={skillAreasList[i].bounds}", LogLevel.Info);
-
-            var skillBarsList = _newSkillsPageType.GetField("skillBars", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(newPage) as List<ClickableTextureComponent>;
             if (skillBarsList != null)
                 for (int i = 0; i < skillBarsList.Count; i++)
                     Monitor?.Log($"skillBar[{i}] bounds={skillBarsList[i].bounds}", LogLevel.Info);
 
             var skillScrollOffset = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var maxSkillCountOnScreen = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
+            var allSkillCount = _newSkillsPageType.GetProperty("AllSkillCount", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
 
             Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}", LogLevel.Info);
@@ -123,6 +116,47 @@ public class SkillsPagePatch
 
     public static void DrawPostfix(object __instance, SpriteBatch b)
     {
-        Monitor?.Log("DrawPostfix called!", LogLevel.Info);
+        if (_newSkillsPageType == null) return;
+
+        var maxOnScreen = (int?)_newSkillsPageType.GetProperty("MaxSkillCountOnScreen",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? 5;
+        var skillScrollOffset = (int?)_newSkillsPageType.GetField("skillScrollOffset",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? 0;
+
+        var skillBarsList = _newSkillsPageType.GetField("skillBars",
+            BindingFlags.Public | BindingFlags.Instance)
+            ?.GetValue(__instance) as List<ClickableTextureComponent>;
+        var skillAreasList = _newSkillsPageType.GetField("skillAreas",
+            BindingFlags.Public | BindingFlags.Instance)
+            ?.GetValue(__instance) as List<ClickableTextureComponent>;
+        var skillBarIndexes = _newSkillsPageType.GetField("skillBarSkillIndexes",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as Dictionary<int, int>;
+        var skillAreaIndexes = _newSkillsPageType.GetField("skillAreaSkillIndexes",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as Dictionary<int, int>;
+
+        if (skillBarsList == null || skillBarIndexes == null) return;
+
+        // draw skillBars ที่ index >= maxOnScreen (custom skills)
+        for (int i = 0; i < skillBarsList.Count; i++)
+        {
+            if (!skillBarIndexes.TryGetValue(i, out int skillIndex)) continue;
+            if (skillIndex < maxOnScreen) continue; // vanilla skills ถูก draw แล้ว
+            skillBarsList[i].draw(b);
+        }
+
+        // draw skillAreas ที่ index >= maxOnScreen (custom skills)
+        if (skillAreasList != null && skillAreaIndexes != null)
+        {
+            for (int i = 0; i < skillAreasList.Count; i++)
+            {
+                if (!skillAreaIndexes.TryGetValue(i, out int skillIndex)) continue;
+                if (skillIndex < maxOnScreen) continue;
+                skillAreasList[i].draw(b);
+            }
+        }
+
+        Monitor?.Log($"DrawPostfix: drew custom skills (maxOnScreen={maxOnScreen})", LogLevel.Info);
     }
 }
