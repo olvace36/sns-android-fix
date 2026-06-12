@@ -69,23 +69,13 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
 
-            int rightEdge = x + w - 64;
-
-            var upBtn = _newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
-            var downBtn = _newSkillsPageType.GetField("downButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
-            var scrollBtn = _newSkillsPageType.GetField("scrollBar", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
-
-            MoveButton(upBtn, rightEdge);
-            MoveButton(downBtn, rightEdge);
-            MoveButton(scrollBtn, rightEdge + 12);
-
-            var scrollBarRunnerField = _newSkillsPageType.GetField("scrollBarRunner", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (scrollBarRunnerField != null)
-            {
-                var runner = (Rectangle)scrollBarRunnerField.GetValue(newPage);
-                runner.X = rightEdge + 12;
-                scrollBarRunnerField.SetValue(newPage, runner);
-            }
+            // set MaxSkillCountOnScreen = AllSkillCount เพื่อให้ draw ทั้งหมด
+            var allSkillCount = _newSkillsPageType.GetProperty("AllSkillCount",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
+            var maxField = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (maxField != null && allSkillCount != null)
+                maxField.SetValue(newPage, allSkillCount);
 
             var skillAreasList = _newSkillsPageType.GetField("skillAreas", BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(newPage) as List<ClickableTextureComponent>;
@@ -101,16 +91,11 @@ public class SkillsPagePatch
 
             var skillScrollOffset = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var maxSkillCountOnScreen = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
-            var allSkillCount = _newSkillsPageType.GetProperty("AllSkillCount", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
-            var upBounds = upBtn?.GetType().GetField("bounds")?.GetValue(upBtn);
-            var downBounds = downBtn?.GetType().GetField("bounds")?.GetValue(downBtn);
 
-            Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}, rightEdge={rightEdge}", LogLevel.Info);
+            Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}", LogLevel.Info);
             Monitor?.Log($"skillScrollOffset={skillScrollOffset}, maxOnScreen={maxSkillCountOnScreen}, allSkillCount={allSkillCount}", LogLevel.Info);
             Monitor?.Log($"skillBars={skillBarsList?.Count}, skillAreas={skillAreasList?.Count}", LogLevel.Info);
-            Monitor?.Log($"upButton: {upBounds}, downButton: {downBounds}", LogLevel.Info);
-            Monitor?.Log($"scrollBarRunner: {scrollBarRunnerField?.GetValue(newPage)}", LogLevel.Info);
             Monitor?.Log($"VisibleSkills={visibleSkills?.Length}", LogLevel.Info);
             if (visibleSkills != null)
                 foreach (var skill in visibleSkills)
@@ -132,29 +117,7 @@ public class SkillsPagePatch
             var page = pages[1];
             if (page?.GetType() != _newSkillsPageType) return;
 
-            var showsAll = _newSkillsPageType.GetProperty("ShowsAllSkillsAtOnce",
-                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
-            if (showsAll is true) return;
-
-            var upBtn = _newSkillsPageType.GetField("upButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
-            var downBtn = _newSkillsPageType.GetField("downButton", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(page);
-
-            var upBounds = (Rectangle?)upBtn?.GetType().GetField("bounds")?.GetValue(upBtn);
-            var downBounds = (Rectangle?)downBtn?.GetType().GetField("bounds")?.GetValue(downBtn);
-
-            if (upBounds.HasValue)
-                e.SpriteBatch.Draw(Game1.mouseCursors,
-                    new Vector2(upBounds.Value.X, upBounds.Value.Y),
-                    new Rectangle(421, 459, 11, 12),
-                    Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-
-            if (downBounds.HasValue)
-                e.SpriteBatch.Draw(Game1.mouseCursors,
-                    new Vector2(downBounds.Value.X, downBounds.Value.Y),
-                    new Rectangle(421, 472, 11, 12),
-                    Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-
-            Monitor?.Log("RenderedActiveMenu: drew buttons", LogLevel.Info);
+            Monitor?.Log("RenderedActiveMenu: active", LogLevel.Info);
         };
     }
 
