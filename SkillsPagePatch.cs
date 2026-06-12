@@ -184,10 +184,9 @@ public class SkillsPagePatch
             var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
             int levels = expCurve?.Length ?? 10;
 
-            // ใช้ buffed level สำหรับแสดง XP bars
             int buffedLevel = (int?)getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
-            int baseLevel = (int?)getBaseLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
-            int buffAmount = (int?)getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
+            int baseLevel   = (int?)getBaseLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
+            int buffAmount  = (int?)getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
             bool hasBuff = buffAmount != 0;
 
             string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
@@ -211,25 +210,32 @@ public class SkillsPagePatch
             for (int l = 0; l < levels; l++)
             {
                 bool filled = buffedLevel > l;
-                if (!filled && (l + 1) % 5 == 0)
+
+                if ((l + 1) % 5 == 0)
                 {
+                    // milestone bar (ใหญ่) — วาดทั้ง filled และ empty
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
-                        new Rectangle(145, 338, 14, 9), Color.Black * 0.35f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                        new Rectangle(145, 338, 14, 9), Color.Black * 0.35f,
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
-                        new Rectangle(145, 338, 14, 9), Color.White * 0.65f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                        new Rectangle(145, 338, 14, 9), Color.White * (filled ? 1f : 0.65f),
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
                 }
-                else if ((l + 1) % 5 != 0)
+                else
                 {
+                    // bar เล็ก — ของเดิม
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
-                        new Rectangle(129, 338, 8, 9), Color.Black * 0.35f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
+                        new Rectangle(129, 338, 8, 9), Color.Black * 0.35f,
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
                         new Rectangle(129 + (filled ? 8 : 0), 338, 8, 9), Color.White * (filled ? 1f : 0.65f),
                         0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
                 }
+
                 if (l == levels - 1)
                 {
                     // level number สีเขียวถ้ามี buff
@@ -242,6 +248,7 @@ public class SkillsPagePatch
                         (float)(num2 + 12 + row * 56)), levelColor * (buffedLevel == 0 ? 0.75f : 1f),
                         1f, 0.87f, 1f, 0, 0);
                 }
+
                 if ((l + 1) % 5 == 0) num4 += 24;
             }
             row++;
