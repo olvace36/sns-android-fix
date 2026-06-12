@@ -16,6 +16,7 @@ public class SkillsPagePatch
     internal static IMonitor? Monitor;
     private static Type? _newSkillsPageType;
     private static bool _isDrawingCustom = false;
+    private static FieldInfo? _xField;
 
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
@@ -24,6 +25,14 @@ public class SkillsPagePatch
 
         if (_newSkillsPageType != null)
         {
+            // หา xPositionOnScreen field จาก hierarchy
+            _xField = _newSkillsPageType.GetField("xPositionOnScreen",
+                BindingFlags.Public | BindingFlags.Instance)
+                ?? typeof(IClickableMenu).GetField("xPositionOnScreen",
+                BindingFlags.Public | BindingFlags.Instance);
+
+            Monitor?.Log($"xField found: {_xField != null}, DeclaringType={_xField?.DeclaringType?.Name}", LogLevel.Info);
+
             var drawMethod = _newSkillsPageType.GetMethod("draw", new[] { typeof(SpriteBatch) });
             if (drawMethod != null)
             {
@@ -43,7 +52,6 @@ public class SkillsPagePatch
                         .GetMethod(nameof(MaxSkillCountPostfix))));
             }
 
-            // patch drawDialogueBox ให้ skip ตอน _isDrawingCustom
             var dialogMethod = typeof(IClickableMenu).GetMethod("drawDialogueBox",
                 BindingFlags.Public | BindingFlags.Static);
             if (dialogMethod != null)
@@ -136,10 +144,8 @@ public class SkillsPagePatch
 
         var scrollOffsetField = _newSkillsPageType.GetField("skillScrollOffset",
             BindingFlags.NonPublic | BindingFlags.Instance);
-        var xField = typeof(IClickableMenu).GetField("xPositionOnScreen",
-            BindingFlags.Public | BindingFlags.Instance);
 
-        int origX = (int?)xField?.GetValue(__instance) ?? 0;
+        int origX = (int?)_xField?.GetValue(__instance) ?? 0;
         Monitor?.Log($"DrawPrefix origX={origX}", LogLevel.Info);
 
         _isDrawingCustom = true;
@@ -147,14 +153,12 @@ public class SkillsPagePatch
         {
             var drawMethod = _newSkillsPageType.GetMethod("draw", new[] { typeof(SpriteBatch) });
 
-            // ขยับ x ไปขวา แล้ว draw custom skills
             scrollOffsetField?.SetValue(__instance, 5);
-            xField?.SetValue(__instance, origX + 676);
+            _xField?.SetValue(__instance, origX + 676);
             Monitor?.Log($"Drawing custom skills at x={origX + 676}", LogLevel.Info);
             drawMethod?.Invoke(__instance, new object[] { b });
 
-            // restore
-            xField?.SetValue(__instance, origX);
+            _xField?.SetValue(__instance, origX);
             scrollOffsetField?.SetValue(__instance, 0);
         }
         finally
