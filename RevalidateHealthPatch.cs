@@ -20,6 +20,7 @@ public class RevalidateHealthPatch
         var paladinSkill = AccessTools.Field(
             AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP"),
             "PaladinSkill")?.GetValue(null);
+        Monitor?.Log($"paladinSkill={paladinSkill?.GetType().Name ?? "null"}", LogLevel.Info);
         if (paladinSkill != null)
         {
             var getLevel = AccessTools.Method(
@@ -34,6 +35,7 @@ public class RevalidateHealthPatch
         var rogueSkill = AccessTools.Field(
             AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS"),
             "RogueSkill")?.GetValue(null);
+        Monitor?.Log($"rogueSkill={rogueSkill?.GetType().Name ?? "null"}", LogLevel.Info);
         if (rogueSkill != null)
         {
             var getLevel = AccessTools.Method(
