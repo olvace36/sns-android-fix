@@ -20,17 +20,7 @@ public class FancyAlchemyMenuPatch
             return;
         }
 
-        var constructor = menuType.GetConstructor(
-            BindingFlags.Public | BindingFlags.Instance,
-            null, System.Type.EmptyTypes, null)
-            ?? menuType.GetConstructors()[0];
-
-        if (constructor == null)
-        {
-            Monitor?.Log("FancyAlchemyMenu constructor not found!", LogLevel.Error);
-            return;
-        }
-
+        var constructor = menuType.GetConstructors()[0];
         harmony.Patch(constructor,
             postfix: new HarmonyMethod(typeof(FancyAlchemyMenuPatch)
                 .GetMethod(nameof(ConstructorPostfix))));
@@ -42,15 +32,17 @@ public class FancyAlchemyMenuPatch
     {
         if (__instance is not IClickableMenu menu) return;
 
-        int x = menu.xPositionOnScreen + menu.width - 32;
-        int y = menu.yPositionOnScreen - 8;
+        var closeButtonField = typeof(IClickableMenu).GetField("upperRightCloseButton",
+            BindingFlags.Public | BindingFlags.Instance);
 
-        menu.upperRightCloseButton = new ClickableTextureComponent(
-            new Rectangle(x, y, 17 * 4, 17 * 4),
+        var closeButton = new ClickableTextureComponent(
+            new Rectangle(Game1.uiViewport.Width - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
             Game1.mobileSpriteSheet,
             new Rectangle(62, 0, 17, 17),
             4f);
 
-        Monitor?.Log($"FancyAlchemyMenu close button added at x={x} y={y}", LogLevel.Info);
+        closeButtonField?.SetValue(menu, closeButton);
+
+        Monitor?.Log("FancyAlchemyMenu close button added", LogLevel.Info);
     }
 }
