@@ -35,6 +35,16 @@ public class SkillsPagePatch
                     postfix: new HarmonyMethod(typeof(SkillsPagePatch)
                         .GetMethod(nameof(DrawPostfix))));
             }
+
+            // patch performHoverAction
+            var hoverMethod = _newSkillsPageType.GetMethod("performHoverAction",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (hoverMethod != null)
+            {
+                harmony.Patch(hoverMethod,
+                    postfix: new HarmonyMethod(typeof(SkillsPagePatch)
+                        .GetMethod(nameof(HoverPostfix))));
+            }
         }
 
         helper.Events.Display.MenuChanged += (s, e) =>
@@ -76,6 +86,38 @@ public class SkillsPagePatch
             pages[skillsTab] = newPage;
             Monitor?.Log("SkillsPage replaced!", LogLevel.Info);
         };
+    }
+
+    public static void HoverPostfix(object __instance, int x, int y)
+    {
+        if (_newSkillsPageType == null) return;
+
+        var skillAreasList = _newSkillsPageType.GetField("skillAreas",
+            BindingFlags.Public | BindingFlags.Instance)
+            ?.GetValue(__instance) as List<ClickableTextureComponent>;
+        var skillAreaIndexes = _newSkillsPageType.GetField("skillAreaSkillIndexes",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as Dictionary<int, int>;
+        var hoverTextField = _newSkillsPageType.GetField("hoverText",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        var hoverTitleField = _newSkillsPageType.GetField("hoverTitle",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        if (skillAreasList == null || skillAreaIndexes == null) return;
+
+        foreach (var area in skillAreasList)
+        {
+            if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
+            if (skillIndex < 5) continue; // ข้าม vanilla skills
+            if (!area.containsPoint(x, y)) continue;
+            if (area.hoverText.Length <= 0) continue;
+
+            hoverTextField?.SetValue(__instance, area.hoverText);
+            hoverTitleField?.SetValue(__instance, area.name.StartsWith("C")
+                ? area.name.Substring(1)
+                : area.name);
+            break;
+        }
     }
 
     public static void DrawPostfix(object __instance, SpriteBatch b)
@@ -186,6 +228,5 @@ public class SkillsPagePatch
             }
             row++;
         }
-        Monitor?.Log($"DrawPostfix: drew {visibleSkills.Length} custom skills", LogLevel.Info);
     }
 }
