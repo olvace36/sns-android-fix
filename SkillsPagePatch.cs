@@ -120,8 +120,6 @@ public class SkillsPagePatch
 
         var maxOnScreen = (int?)_newSkillsPageType.GetProperty("MaxSkillCountOnScreen",
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? 5;
-        var skillScrollOffset = (int?)_newSkillsPageType.GetField("skillScrollOffset",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? 0;
 
         var skillBarsList = _newSkillsPageType.GetField("skillBars",
             BindingFlags.Public | BindingFlags.Instance)
@@ -138,15 +136,14 @@ public class SkillsPagePatch
 
         if (skillBarsList == null || skillBarIndexes == null) return;
 
-        // draw skillBars ที่ index >= maxOnScreen (custom skills)
-        for (int i = 0; i < skillBarsList.Count; i++)
+        // log skillBar[5] texture info
+        if (skillBarsList.Count > 5)
         {
-            if (!skillBarIndexes.TryGetValue(i, out int skillIndex)) continue;
-            if (skillIndex < maxOnScreen) continue; // vanilla skills ถูก draw แล้ว
-            skillBarsList[i].draw(b);
+            var bar = skillBarsList[5];
+            Monitor?.Log($"skillBar[5] texture={bar.texture?.GetType().Name}, src={bar.sourceRect}, bounds={bar.bounds}", LogLevel.Info);
         }
 
-        // draw skillAreas ที่ index >= maxOnScreen (custom skills)
+        // draw skillAreas ที่ index >= maxOnScreen
         if (skillAreasList != null && skillAreaIndexes != null)
         {
             for (int i = 0; i < skillAreasList.Count; i++)
@@ -154,6 +151,23 @@ public class SkillsPagePatch
                 if (!skillAreaIndexes.TryGetValue(i, out int skillIndex)) continue;
                 if (skillIndex < maxOnScreen) continue;
                 skillAreasList[i].draw(b);
+            }
+        }
+
+        // draw skillBars ที่ index >= maxOnScreen โดยใช้ SpriteBatch.Draw ตรงๆ
+        for (int i = 0; i < skillBarsList.Count; i++)
+        {
+            if (!skillBarIndexes.TryGetValue(i, out int skillIndex)) continue;
+            if (skillIndex < maxOnScreen) continue;
+
+            var bar = skillBarsList[i];
+            if (bar.texture != null)
+            {
+                b.Draw(bar.texture,
+                    new Vector2(bar.bounds.X, bar.bounds.Y),
+                    bar.sourceRect,
+                    Color.White, 0f, Vector2.Zero, 4f,
+                    SpriteEffects.None, 1f);
             }
         }
 
