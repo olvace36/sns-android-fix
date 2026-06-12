@@ -16,6 +16,12 @@ public class RevalidateHealthPatch
     {
         int bonus = 0;
 
+        var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
+        var getLevel = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomSkillLevel",
+            new[] { typeof(Farmer), skillType });
+
         // Paladin skill +5 health per level
         var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
             ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
@@ -23,9 +29,6 @@ public class RevalidateHealthPatch
         Monitor?.Log($"paladinSkill={paladinSkill?.GetType().Name ?? "null"}", LogLevel.Info);
         if (paladinSkill != null)
         {
-            var getLevel = AccessTools.Method(
-                AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-                "GetCustomSkillLevel");
             int level = (int)(getLevel?.Invoke(null, new object[] { farmer, paladinSkill }) ?? 0);
             bonus += level * 5;
             Monitor?.Log($"Paladin level={level}, bonus={level * 5}", LogLevel.Info);
@@ -38,9 +41,6 @@ public class RevalidateHealthPatch
         Monitor?.Log($"rogueSkill={rogueSkill?.GetType().Name ?? "null"}", LogLevel.Info);
         if (rogueSkill != null)
         {
-            var getLevel = AccessTools.Method(
-                AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-                "GetCustomSkillLevel");
             int level = (int)(getLevel?.Invoke(null, new object[] { farmer, rogueSkill }) ?? 0);
             bonus += level * 3;
             Monitor?.Log($"Rogue level={level}, bonus={level * 3}", LogLevel.Info);
