@@ -76,10 +76,10 @@ public class SkillsPagePatch
 
             if (skillAreasList != null)
                 for (int i = 0; i < skillAreasList.Count; i++)
-                    Monitor?.Log($"skillArea[{i}] bounds={skillAreasList[i].bounds}", LogLevel.Info);
+                    Monitor?.Log($"skillArea[{i}] bounds={skillAreasList[i].bounds}, src={skillAreasList[i].sourceRect}, tex={skillAreasList[i].texture?.Name}", LogLevel.Info);
             if (skillBarsList != null)
                 for (int i = 0; i < skillBarsList.Count; i++)
-                    Monitor?.Log($"skillBar[{i}] bounds={skillBarsList[i].bounds}", LogLevel.Info);
+                    Monitor?.Log($"skillBar[{i}] bounds={skillBarsList[i].bounds}, src={skillBarsList[i].sourceRect}, tex={skillBarsList[i].texture?.Name}", LogLevel.Info);
 
             var skillScrollOffset = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var maxSkillCountOnScreen = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
@@ -88,7 +88,6 @@ public class SkillsPagePatch
 
             Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}", LogLevel.Info);
             Monitor?.Log($"skillScrollOffset={skillScrollOffset}, maxOnScreen={maxSkillCountOnScreen}, allSkillCount={allSkillCount}", LogLevel.Info);
-            Monitor?.Log($"skillBars={skillBarsList?.Count}, skillAreas={skillAreasList?.Count}", LogLevel.Info);
             Monitor?.Log($"VisibleSkills={visibleSkills?.Length}", LogLevel.Info);
             if (visibleSkills != null)
                 foreach (var skill in visibleSkills)
@@ -136,41 +135,53 @@ public class SkillsPagePatch
 
         if (skillBarsList == null || skillBarIndexes == null) return;
 
-        // log skillBar[5] texture info
-        if (skillBarsList.Count > 5)
-        {
-            var bar = skillBarsList[5];
-            Monitor?.Log($"skillBar[5] texture={bar.texture?.GetType().Name}, src={bar.sourceRect}, bounds={bar.bounds}", LogLevel.Info);
-        }
-
-        // draw skillAreas ที่ index >= maxOnScreen
+        // draw skillAreas (icon + level number) ของ custom skills
         if (skillAreasList != null && skillAreaIndexes != null)
         {
             for (int i = 0; i < skillAreasList.Count; i++)
             {
                 if (!skillAreaIndexes.TryGetValue(i, out int skillIndex)) continue;
                 if (skillIndex < maxOnScreen) continue;
-                skillAreasList[i].draw(b);
+
+                var area = skillAreasList[i];
+                Monitor?.Log($"Drawing area[{i}] skillIndex={skillIndex} tex={area.texture?.Name} src={area.sourceRect} bounds={area.bounds}", LogLevel.Info);
+
+                if (area.texture != null)
+                {
+                    float scale = area.bounds.Width > 0 && area.sourceRect.Width > 0
+                        ? (float)area.bounds.Width / area.sourceRect.Width
+                        : 4f;
+                    b.Draw(area.texture,
+                        new Vector2(area.bounds.X, area.bounds.Y),
+                        area.sourceRect,
+                        Color.White, 0f, Vector2.Zero, scale,
+                        SpriteEffects.None, 1f);
+                }
             }
         }
 
-        // draw skillBars ที่ index >= maxOnScreen โดยใช้ SpriteBatch.Draw ตรงๆ
+        // draw skillBars (XP bars) ของ custom skills
         for (int i = 0; i < skillBarsList.Count; i++)
         {
             if (!skillBarIndexes.TryGetValue(i, out int skillIndex)) continue;
             if (skillIndex < maxOnScreen) continue;
 
             var bar = skillBarsList[i];
+            Monitor?.Log($"Drawing bar[{i}] skillIndex={skillIndex} tex={bar.texture?.Name} src={bar.sourceRect} bounds={bar.bounds}", LogLevel.Info);
+
             if (bar.texture != null)
             {
+                float scale = bar.bounds.Width > 0 && bar.sourceRect.Width > 0
+                    ? (float)bar.bounds.Width / bar.sourceRect.Width
+                    : 4f;
                 b.Draw(bar.texture,
                     new Vector2(bar.bounds.X, bar.bounds.Y),
                     bar.sourceRect,
-                    Color.White, 0f, Vector2.Zero, 4f,
+                    Color.White, 0f, Vector2.Zero, scale,
                     SpriteEffects.None, 1f);
             }
         }
 
-        Monitor?.Log($"DrawPostfix: drew custom skills (maxOnScreen={maxOnScreen})", LogLevel.Info);
+        Monitor?.Log($"DrawPostfix done (maxOnScreen={maxOnScreen})", LogLevel.Info);
     }
 }
