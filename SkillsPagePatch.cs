@@ -30,6 +30,16 @@ public class SkillsPagePatch
                     postfix: new HarmonyMethod(typeof(SkillsPagePatch)
                         .GetMethod(nameof(DrawPostfix))));
             }
+
+            // วิธีที่ 1 — patch MaxSkillCountOnScreen getter ให้ return 10
+            var maxProp = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (maxProp != null)
+            {
+                harmony.Patch(maxProp.GetGetMethod(true),
+                    postfix: new HarmonyMethod(typeof(SkillsPagePatch)
+                        .GetMethod(nameof(MaxSkillCountPostfix))));
+            }
         }
 
         helper.Events.Display.MenuChanged += (s, e) =>
@@ -66,10 +76,10 @@ public class SkillsPagePatch
 
             if (skillAreasList != null)
                 for (int i = 0; i < skillAreasList.Count; i++)
-                    Monitor?.Log($"skillArea[{i}] bounds={skillAreasList[i].bounds}, src={skillAreasList[i].sourceRect}, tex={skillAreasList[i].texture?.Name}", LogLevel.Info);
+                    Monitor?.Log($"skillArea[{i}] bounds={skillAreasList[i].bounds}", LogLevel.Info);
             if (skillBarsList != null)
                 for (int i = 0; i < skillBarsList.Count; i++)
-                    Monitor?.Log($"skillBar[{i}] bounds={skillBarsList[i].bounds}, src={skillBarsList[i].sourceRect}, tex={skillBarsList[i].texture?.Name}", LogLevel.Info);
+                    Monitor?.Log($"skillBar[{i}] bounds={skillBarsList[i].bounds}", LogLevel.Info);
 
             var skillScrollOffset = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
             var maxSkillCountOnScreen = _newSkillsPageType.GetProperty("MaxSkillCountOnScreen", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage);
@@ -103,6 +113,14 @@ public class SkillsPagePatch
         };
     }
 
+    // วิธีที่ 1 — MaxSkillCountOnScreen return 10
+    public static void MaxSkillCountPostfix(ref int __result)
+    {
+        Monitor?.Log($"MaxSkillCountOnScreen was {__result}, setting to 10", LogLevel.Info);
+        __result = 10;
+    }
+
+    // วิธีที่ 2 — DrawPostfix draw custom skills เองโดยดึง x จาก __instance
     public static void DrawPostfix(object __instance, SpriteBatch b)
     {
         if (_newSkillsPageType == null) return;
@@ -111,18 +129,18 @@ public class SkillsPagePatch
             BindingFlags.Public | BindingFlags.Instance)
             ?.GetValue(__instance) as List<ClickableTextureComponent>;
 
-        if (skillBarsList == null) return;
+        if (skillBarsList == null || skillBarsList.Count <= 5) return;
 
-        // ทดสอบ draw สี่เหลี่ยมสีแดงที่ x=842 y=216
-        b.Draw(Game1.staminaRect, new Rectangle(842, 216, 56, 36), Color.Red);
+        // วิธีที่ 2: ดึง x จาก skillBar[5] ของ __instance ตรงๆ
+        int customX = skillBarsList[5].bounds.X;
+        Monitor?.Log($"DrawPostfix: customX={customX}", LogLevel.Info);
 
-        // draw skillBars ที่ x >= 842 (custom skills)
         for (int i = 0; i < skillBarsList.Count; i++)
         {
             var bar = skillBarsList[i];
-            if (bar.bounds.X < 842) continue;
+            if (bar.bounds.X != customX) continue;
 
-            Monitor?.Log($"Drawing skillBar[{i}] bounds={bar.bounds}", LogLevel.Info);
+            Monitor?.Log($"Drawing bar[{i}] bounds={bar.bounds}", LogLevel.Info);
 
             b.Draw(Game1.mouseCursors,
                 new Vector2(bar.bounds.X, bar.bounds.Y),
@@ -130,7 +148,5 @@ public class SkillsPagePatch
                 Color.White, 0f, Vector2.Zero, 4f,
                 SpriteEffects.None, 1f);
         }
-
-        Monitor?.Log("DrawPostfix done", LogLevel.Info);
     }
 }
