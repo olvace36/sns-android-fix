@@ -43,26 +43,25 @@ public class ModEntry : Mod
             _pendingRevalidate = true;
         };
 
-        // check ทุก tick ว่า buffed level เปลี่ยนไปไหม
         int _lastRogueBuffed = 0;
         int _lastPaladinBuffed = 0;
-        var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
-        var getBuffedLevel = AccessTools.Method(
-            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomBuffedSkillLevel",
-            new[] { typeof(Farmer), skillType });
-        var rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
-            ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null);
-        var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
-            ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null);
 
         helper.Events.GameLoop.UpdateTicked += (s, e) =>
         {
             if (!Context.IsWorldReady) return;
 
-            // check buffed level เปลี่ยนไปไหม
+            var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
+            var getBuffedLevel = AccessTools.Method(
+                AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+                "GetCustomBuffedSkillLevel",
+                new[] { typeof(Farmer), skillType });
+            var rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
+                ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+            var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
+                ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+
             int rogueBuffed = rogueSkill != null
                 ? (int)(getBuffedLevel?.Invoke(null, new object[] { Game1.player, rogueSkill }) ?? 0)
                 : 0;
