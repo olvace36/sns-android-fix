@@ -27,7 +27,7 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched populateClickableComponentList", LogLevel.Info);
         }
 
-        // 2. ปิด SpaceCore InventoryPageLeftClickPatch ทั้งหมด
+        // 2. ปิด SpaceCore InventoryPageLeftClickPatch
         var spaceCorePrefix = AccessTools.TypeByName("SpaceCore.InventoryPageLeftClickPatch")
             ?.GetMethod("Prefix", BindingFlags.Public | BindingFlags.Static);
         if (spaceCorePrefix != null)
@@ -39,7 +39,19 @@ public class EquipmentMenuDebugPatch
         }
         else Monitor?.Log("SpaceCore.InventoryPageLeftClickPatch.Prefix not found!", LogLevel.Warn);
 
-        // 3. patch getComponentWithID ให้ return null เมื่อ ID = 1348000
+        // 3. ปิด SpaceCore InventoryPageDrawTooltipPatch (ลบปุ่มวาด)
+        var spaceCoreDrawPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageDrawTooltipPatch")
+            ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
+        if (spaceCoreDrawPostfix != null)
+        {
+            harmony.Patch(spaceCoreDrawPostfix,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
+                    .GetMethod(nameof(BlockSpaceCorePrefix))));
+            Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix", LogLevel.Info);
+        }
+        else Monitor?.Log("SpaceCore.InventoryPageDrawTooltipPatch.Postfix not found!", LogLevel.Warn);
+
+        // 4. patch getComponentWithID
         var getComp = typeof(IClickableMenu).GetMethod("getComponentWithID",
             BindingFlags.Public | BindingFlags.Instance);
         if (getComp != null)
@@ -50,7 +62,7 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched getComponentWithID", LogLevel.Info);
         }
 
-        // 4. วาดปุ่มใหม่ใน InventoryPage.draw
+        // 5. วาดปุ่มใหม่ใน InventoryPage.draw
         var draw = typeof(InventoryPage).GetMethod("draw",
             new[] { typeof(SpriteBatch) });
         if (draw != null)
@@ -61,7 +73,7 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
         }
 
-        // 5. handle click
+        // 6. handle click
         var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
             BindingFlags.Public | BindingFlags.Instance);
         if (receiveLeftClick != null)
@@ -105,14 +117,13 @@ public class EquipmentMenuDebugPatch
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
-    // ปิด SpaceCore handler ทั้งหมด
+    // ปิด SpaceCore handler
     public static bool BlockSpaceCorePrefix() => false;
 
     public static void PopulatePostfix(IClickableMenu __instance)
     {
         if (__instance is not InventoryPage page) return;
 
-        // ลบ ID 1348000 ออกจาก allClickableComponents
         var all = __instance.allClickableComponents;
         if (all != null)
         {
@@ -127,7 +138,6 @@ public class EquipmentMenuDebugPatch
             }
         }
 
-        // fix leftNeighborID
         var equipmentIcons = typeof(InventoryPage)
             .GetField("equipmentIcons", BindingFlags.Public | BindingFlags.Instance)
             ?.GetValue(page) as System.Collections.Generic.List<ClickableComponent>;
@@ -143,12 +153,11 @@ public class EquipmentMenuDebugPatch
             }
         }
 
-        // ขยับปุ่มขึ้นจากตำแหน่งเดิม 100px เพื่อไม่ชนปุ่ม SpaceCore เดิม
+        // ปุ่มใหม่ขยับขึ้น 100px จากตำแหน่งเดิม
         _btnBounds = new Rectangle(
             page.xPositionOnScreen - 80,
             page.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12 - 100,
             64, 64);
-        Monitor?.Log($"btnBounds={_btnBounds}", LogLevel.Info);
     }
 
     public static bool GetComponentWithIDPrefix(int id, ref ClickableComponent __result)
@@ -214,4 +223,3 @@ public class EquipmentMenuDebugPatch
         TryOpenEquipmentMenu(x, y, "gm-release");
     }
 }
-
