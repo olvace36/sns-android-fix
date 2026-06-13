@@ -90,7 +90,8 @@ public class SnsEquipmentMenu : IClickableMenu
         int startY = menuY + menuH + 8;
         int totalHeight = vh - startY - 44;
 
-        _inventory = new InventoryMenu(startX, startY, false);
+        // playerInventory: true — link กับ Game1.player.Items จริงๆ
+        _inventory = new InventoryMenu(startX, startY, true);
 
         var invMenu = (object)_inventory;
         var type = invMenu.GetType();
@@ -163,7 +164,6 @@ public class SnsEquipmentMenu : IClickableMenu
         catch (Exception ex) { Monitor?.Log($"SetSlotItem error: {ex.Message}", LogLevel.Error); }
     }
 
-    // ดึง validator จาก SpaceCore โดยตรง
     static Func<Item, bool>? GetSlotValidator(string slotId)
     {
         try
@@ -187,11 +187,16 @@ public class SnsEquipmentMenu : IClickableMenu
     {
         if (item == null) return true;
         var validator = GetSlotValidator(slotId);
-        if (validator == null) return false;
-        return validator.Invoke(item);
+        if (validator == null)
+        {
+            Monitor?.Log($"IsValidForSlot: validator null for {slotId}", LogLevel.Warn);
+            return false;
+        }
+        bool result = validator.Invoke(item);
+        Monitor?.Log($"IsValidForSlot: {item.DisplayName} → {slotId} = {result}", LogLevel.Info);
+        return result;
     }
 
-    // ดึง item ที่ user เลือกไว้ใน inventory (highlight สีแดง)
     Item? GetSelectedItem()
     {
         int selected = _inventory.currentlySelectedItem;
@@ -201,11 +206,20 @@ public class SnsEquipmentMenu : IClickableMenu
 
     void TryEquipItem(string slotId, ClickableTextureComponent slot, bool playSound)
     {
+        int selected = _inventory.currentlySelectedItem;
+        Monitor?.Log($"TryEquipItem: slotId={slotId} currentlySelectedItem={selected}", LogLevel.Info);
+
         var selectedItem = GetSelectedItem();
-        if (selectedItem == null) return;
+        if (selectedItem == null)
+        {
+            Monitor?.Log($"TryEquipItem: no item selected", LogLevel.Info);
+            return;
+        }
+
+        Monitor?.Log($"TryEquipItem: selectedItem={selectedItem.DisplayName}", LogLevel.Info);
+
         if (!IsValidForSlot(slotId, selectedItem)) return;
 
-        int selected = _inventory.currentlySelectedItem;
         var old = GetSlotItem(slotId);
         SetSlotItem(slotId, selectedItem);
         Game1.player.Items[selected] = old;
@@ -213,12 +227,11 @@ public class SnsEquipmentMenu : IClickableMenu
         _inventory.currentlySelectedItem = -1;
 
         if (playSound) Game1.playSound(old != null ? "dwop" : "crit");
-        Monitor?.Log($"Equipped {selectedItem.DisplayName} to {slotId}", LogLevel.Info);
+        Monitor?.Log($"TryEquipItem: success! {selectedItem.DisplayName} → {slotId}", LogLevel.Info);
     }
 
     public override void receiveLeftClick(int x, int y, bool playSound = true)
     {
-        // ปุ่ม X
         var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
         if (closeBtn != null && closeBtn.containsPoint(x, y))
@@ -227,28 +240,23 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
-        // armor slot
         if (_armorSlot.containsPoint(x, y))
         {
             TryEquipItem(ArmorSlotId, _armorSlot, playSound);
             return;
         }
 
-        // offhand slot
         if (_offhandSlot.containsPoint(x, y))
         {
             TryEquipItem(OffhandSlotId, _offhandSlot, playSound);
             return;
         }
 
-        // inventory — ให้ Android จัดการ touch style เอง
         if (_inventory.isWithinBounds(x, y))
         {
             _inventory.receiveLeftClick(x, y, playSound);
             return;
         }
-
-        // กดนอก — ไม่ปิด
     }
 
     public override void releaseLeftClick(int x, int y)
@@ -295,7 +303,6 @@ public class SnsEquipmentMenu : IClickableMenu
             Game1.graphics.GraphicsDevice.Viewport.Bounds,
             Color.Black * 0.4f);
 
-        // กล่อง slot บน
         IClickableMenu.drawTextureBox(b, _boxX, _boxY, _boxW, _boxH, Color.White);
 
         Utility.drawTextWithShadow(b, "Armor", Game1.smallFont,
@@ -308,11 +315,9 @@ public class SnsEquipmentMenu : IClickableMenu
         _offhandSlot.draw(b);
         _offhandSlot.drawItem(b, 0, 0);
 
-        // กล่อง inventory ล่าง
         IClickableMenu.drawTextureBox(b, _invBorderX, _invBorderY, _invBorderW, _invBorderH, Color.White);
         _inventory.draw(b);
 
-        // ปุ่ม X
         var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
         closeBtn?.draw(b);
