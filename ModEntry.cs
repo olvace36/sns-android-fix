@@ -48,6 +48,7 @@ public class ModEntry : Mod
             paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
                 ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
+            SnsEquipmentMenu.InitSlotIds();
             Monitor.Log($"GameLaunched: rogueSkill={rogueSkill?.GetType().Name ?? "null"}, paladinSkill={paladinSkill?.GetType().Name ?? "null"}", LogLevel.Info);
         };
 
@@ -87,4 +88,3 @@ public class ModEntry : Mod
         };
     }
 }
-
