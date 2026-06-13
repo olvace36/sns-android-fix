@@ -156,7 +156,7 @@ public class EquipmentMenuDebugPatch
         // ปุ่มใหม่ขยับขึ้น 100px จากตำแหน่งเดิม
         _btnBounds = new Rectangle(
             page.xPositionOnScreen - 80,
-            page.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12 + 200,
+            page.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12 + 100,
             64, 64);
     }
 
@@ -223,3 +223,4 @@ public class EquipmentMenuDebugPatch
         TryOpenEquipmentMenu(x, y, "gm-release");
     }
 }
+
