@@ -106,7 +106,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched GameMenu.releaseLeftClick", LogLevel.Info);
         }
 
-        // แก้ข้อ 1, 3: patch GameMenu.leftClickHeld ส่งต่อให้ child menu
         var gameMenuHeld = typeof(GameMenu).GetMethod("leftClickHeld",
             BindingFlags.Public | BindingFlags.Instance);
         if (gameMenuHeld != null)
@@ -216,27 +215,32 @@ public class EquipmentMenuDebugPatch
     {
         TryOpenEquipmentMenu(x, y, "gm-receive");
 
-        // ส่งต่อให้ child menu ถ้าเป็น SnsEquipmentMenu
         var child = __instance.GetChildMenu();
         if (child is SnsEquipmentMenu sns)
+        {
+            Monitor?.Log($"GameMenuReceive: forwarding to SnsEquipmentMenu ({x},{y})", LogLevel.Info);
             sns.receiveLeftClick(x, y);
+        }
     }
 
     public static void GameMenuReleasePostfix(GameMenu __instance, int x, int y)
     {
         TryOpenEquipmentMenu(x, y, "gm-release");
 
-        // แก้ข้อ 1, 3: ส่งต่อ releaseLeftClick ให้ child menu
         var child = __instance.GetChildMenu();
         if (child is SnsEquipmentMenu sns)
+        {
+            Monitor?.Log($"GameMenuRelease: forwarding to SnsEquipmentMenu ({x},{y})", LogLevel.Info);
             sns.releaseLeftClick(x, y);
+        }
     }
 
-    // แก้ข้อ 1, 3: ส่งต่อ leftClickHeld ให้ child menu
     public static void GameMenuLeftClickHeldPostfix(GameMenu __instance, int x, int y)
     {
         var child = __instance.GetChildMenu();
+        Monitor?.Log($"GameMenuLeftClickHeld: child={child?.GetType().Name ?? "null"} ({x},{y})", LogLevel.Info);
         if (child is SnsEquipmentMenu sns)
             sns.leftClickHeld(x, y);
     }
 }
+
