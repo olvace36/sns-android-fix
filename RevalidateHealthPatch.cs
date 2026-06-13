@@ -18,20 +18,16 @@ public class RevalidateHealthPatch
         var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
         var getLevel = AccessTools.Method(
             AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomSkillLevel",
+            "GetCustomBuffedSkillLevel",
             new[] { typeof(Farmer), skillType });
 
-        // Paladin skill +5 health per level
         var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
             ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
             ?.GetValue(null);
-        Monitor?.Log($"paladinSkill={paladinSkill?.GetType().Name ?? "null"}", LogLevel.Info);
 
-        // Rogue skill +3 health per level
         var rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
             ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
             ?.GetValue(null);
-        Monitor?.Log($"rogueSkill={rogueSkill?.GetType().Name ?? "null"}", LogLevel.Info);
 
         int paladinLevel = paladinSkill != null
             ? (int)(getLevel?.Invoke(null, new object[] { farmer, paladinSkill }) ?? 0)
