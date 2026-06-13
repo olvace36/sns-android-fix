@@ -16,7 +16,6 @@ public class SnsEquipmentMenu : IClickableMenu
 {
     internal static IMonitor? Monitor;
 
-    // slot ID จะถูก set ตอน runtime หลังรู้ UniqueID จริงของ SNS
     private static string? _armorSlotId;
     private static string? _offhandSlotId;
 
@@ -33,7 +32,6 @@ public class SnsEquipmentMenu : IClickableMenu
     private int _boxX, _boxY, _boxW, _boxH;
     private int _invBorderX, _invBorderY, _invBorderW, _invBorderH;
 
-    // เรียกตอน GameLaunched เพื่อหา slot IDs จริงๆ จาก EquipmentSlots
     public static void InitSlotIds()
     {
         try
@@ -46,13 +44,8 @@ public class SnsEquipmentMenu : IClickableMenu
                 ?.GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
                 ?.GetValue(null);
 
-            if (equipmentSlots == null)
-            {
-                Monitor?.Log("InitSlotIds: EquipmentSlots null", LogLevel.Warn);
-                return;
-            }
+            if (equipmentSlots == null) { Monitor?.Log("InitSlotIds: EquipmentSlots null", LogLevel.Warn); return; }
 
-            // dump keys ทั้งหมด
             var keys = equipmentSlots.GetType()
                 .GetProperty("Keys")
                 ?.GetValue(equipmentSlots) as IEnumerable<string>;
@@ -67,12 +60,9 @@ public class SnsEquipmentMenu : IClickableMenu
                 }
             }
 
-            Monitor?.Log($"InitSlotIds: armorSlotId={_armorSlotId ?? "null"} offhandSlotId={_offhandSlotId ?? "null"}", LogLevel.Info);
+            Monitor?.Log($"InitSlotIds: armor={_armorSlotId ?? "null"} offhand={_offhandSlotId ?? "null"}", LogLevel.Info);
         }
-        catch (Exception ex)
-        {
-            Monitor?.Log($"InitSlotIds error: {ex.Message}", LogLevel.Error);
-        }
+        catch (Exception ex) { Monitor?.Log($"InitSlotIds error: {ex.Message}", LogLevel.Error); }
     }
 
     public SnsEquipmentMenu() : base(0, 0, 0, 0)
@@ -80,10 +70,8 @@ public class SnsEquipmentMenu : IClickableMenu
         if (_getItem == null)
         {
             var api = GetSpaceCoreApi();
-            _getItem = api?.GetType().GetMethod("GetItemInEquipmentSlot",
-                new[] { typeof(Farmer), typeof(string) });
-            _setItem = api?.GetType().GetMethod("SetItemInEquipmentSlot",
-                new[] { typeof(Farmer), typeof(string), typeof(Item) });
+            _getItem = api?.GetType().GetMethod("GetItemInEquipmentSlot", new[] { typeof(Farmer), typeof(string) });
+            _setItem = api?.GetType().GetMethod("SetItemInEquipmentSlot", new[] { typeof(Farmer), typeof(string), typeof(Item) });
         }
 
         int vw = Game1.uiViewport.Width;
@@ -94,41 +82,23 @@ public class SnsEquipmentMenu : IClickableMenu
         int menuY = vh / 2 - 150 - 100 - IClickableMenu.borderWidth;
         int menuH = 300 + IClickableMenu.borderWidth * 2;
 
-        _boxX = menuX;
-        _boxY = menuY;
-        _boxW = menuW;
-        _boxH = menuH;
+        _boxX = menuX; _boxY = menuY; _boxW = menuW; _boxH = menuH;
 
         int slotAreaX = menuX + IClickableMenu.borderWidth;
         int slotAreaY = menuY + IClickableMenu.borderWidth;
 
         _armorSlot = new ClickableTextureComponent(
             new Rectangle(slotAreaX + 40, slotAreaY + 60, 64, 64),
-            LoadTexture("DN.SnS/ArmorSlot"),
-            new Rectangle(0, 0, 16, 16), 4f)
-        {
-            myID = 200,
-            label = "Armor",
-            item  = _armorSlotId != null ? GetSlotItem(_armorSlotId) : null
-        };
+            LoadTexture("DN.SnS/ArmorSlot"), new Rectangle(0, 0, 16, 16), 4f)
+        { myID = 200, label = "Armor", item = _armorSlotId != null ? GetSlotItem(_armorSlotId) : null };
 
         _offhandSlot = new ClickableTextureComponent(
             new Rectangle(slotAreaX + 40 + 216, slotAreaY + 60, 64, 64),
-            LoadTexture("DN.SnS/OffhandSlot"),
-            new Rectangle(0, 0, 16, 16), 4f)
-        {
-            myID = 201,
-            label = "Offhand",
-            item  = _offhandSlotId != null ? GetSlotItem(_offhandSlotId) : null
-        };
+            LoadTexture("DN.SnS/OffhandSlot"), new Rectangle(0, 0, 16, 16), 4f)
+        { myID = 201, label = "Offhand", item = _offhandSlotId != null ? GetSlotItem(_offhandSlotId) : null };
 
-        int newSq = 80;
-        int hGap = 8;
-        int verticalGap = 8;
-        int rows = 3;
-        int capacity = 36;
-        int cols = capacity / rows;
-
+        int newSq = 80; int hGap = 8; int verticalGap = 8;
+        int capacity = 36; int cols = capacity / 3;
         int totalWidth = cols * (newSq + hGap) - hGap;
         int startX = menuX + (menuW - totalWidth) / 2;
         int startY = menuY + menuH + 8;
@@ -157,8 +127,7 @@ public class SnsEquipmentMenu : IClickableMenu
         {
             for (int j = 0; j < inventorySlots.Count; j++)
             {
-                int row = j / cols;
-                int col = j % cols;
+                int row = j / cols; int col = j % cols;
                 inventorySlots[j].bounds.X = startX + col * (newSq + hGap);
                 inventorySlots[j].bounds.Y = startY + row * (newSq + verticalGap);
                 inventorySlots[j].bounds.Width = newSq + hGap;
@@ -173,14 +142,11 @@ public class SnsEquipmentMenu : IClickableMenu
 
         var closeButton = new ClickableTextureComponent(
             new Rectangle(vw - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
-            Game1.mobileSpriteSheet,
-            new Rectangle(62, 0, 17, 17),
-            4f, true);
-        typeof(IClickableMenu).GetField("upperRightCloseButton",
-            BindingFlags.Public | BindingFlags.Instance)
+            Game1.mobileSpriteSheet, new Rectangle(62, 0, 17, 17), 4f, true);
+        typeof(IClickableMenu).GetField("upperRightCloseButton", BindingFlags.Public | BindingFlags.Instance)
             ?.SetValue(this, closeButton);
 
-        Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY} totalHeight={totalHeight}", LogLevel.Info);
+        Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY}", LogLevel.Info);
     }
 
     static object? GetSpaceCoreApi()
@@ -225,22 +191,15 @@ public class SnsEquipmentMenu : IClickableMenu
             var tryGetValue = equipmentSlots.GetType()
                 .GetMethod("TryGetValue", new[] { typeof(string), equipmentSlots.GetType().GetGenericArguments()[1].MakeByRefType() });
 
-            if (tryGetValue == null) return null;
-
             object?[] args = new object?[] { slotId, null };
-            bool found = (bool)(tryGetValue.Invoke(equipmentSlots, args) ?? false);
-
+            bool found = (bool)(tryGetValue?.Invoke(equipmentSlots, args) ?? false);
             if (!found || args[1] == null) return null;
 
             return args[1].GetType()
                 .GetProperty("SlotValidator", BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(args[1]) as Func<Item, bool>;
         }
-        catch (Exception ex)
-        {
-            Monitor?.Log($"GetSlotValidator error: {ex.Message}", LogLevel.Error);
-            return null;
-        }
+        catch { return null; }
     }
 
     bool IsValidForSlot(string slotId, Item? item)
@@ -258,19 +217,33 @@ public class SnsEquipmentMenu : IClickableMenu
         return Game1.player.Items[selected];
     }
 
+    // แก้ข้อ 4: ถ้าไม่มี item selected → ถอด item ออกจาก slot
+    // ถ้ามี item selected → swap item เข้า slot
     void TryEquipItem(string? slotId, ClickableTextureComponent slot, bool playSound)
     {
-        if (slotId == null)
+        if (slotId == null) return;
+
+        var selectedItem = GetSelectedItem();
+
+        if (selectedItem == null)
         {
-            Monitor?.Log("TryEquipItem: slotId null — InitSlotIds not called yet?", LogLevel.Warn);
+            // ถอด item ออกจาก slot → ใส่กลับ inventory
+            var existing = GetSlotItem(slotId);
+            if (existing == null) return;
+            if (Game1.player.addItemToInventoryBool(existing))
+            {
+                SetSlotItem(slotId, null);
+                slot.item = null;
+                if (playSound) Game1.playSound("dwop");
+                Monitor?.Log($"Unequipped {existing.DisplayName} from {slotId}", LogLevel.Info);
+            }
             return;
         }
 
-        int selected = _inventory.currentlySelectedItem;
-        var selectedItem = GetSelectedItem();
-        if (selectedItem == null) return;
+        // swap item เข้า slot
         if (!IsValidForSlot(slotId, selectedItem)) return;
 
+        int selected = _inventory.currentlySelectedItem;
         var old = GetSlotItem(slotId);
         SetSlotItem(slotId, selectedItem);
         Game1.player.Items[selected] = old;
@@ -278,7 +251,7 @@ public class SnsEquipmentMenu : IClickableMenu
         _inventory.currentlySelectedItem = -1;
 
         if (playSound) Game1.playSound(old != null ? "dwop" : "crit");
-        Monitor?.Log($"TryEquipItem: success! {selectedItem.DisplayName} → {slotId}", LogLevel.Info);
+        Monitor?.Log($"Equipped {selectedItem.DisplayName} → {slotId}", LogLevel.Info);
     }
 
     public override void receiveLeftClick(int x, int y, bool playSound = true)
@@ -291,17 +264,8 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
-        if (_armorSlot.containsPoint(x, y))
-        {
-            TryEquipItem(_armorSlotId, _armorSlot, playSound);
-            return;
-        }
-
-        if (_offhandSlot.containsPoint(x, y))
-        {
-            TryEquipItem(_offhandSlotId, _offhandSlot, playSound);
-            return;
-        }
+        if (_armorSlot.containsPoint(x, y)) { TryEquipItem(_armorSlotId, _armorSlot, playSound); return; }
+        if (_offhandSlot.containsPoint(x, y)) { TryEquipItem(_offhandSlotId, _offhandSlot, playSound); return; }
 
         if (_inventory.isWithinBounds(x, y))
         {
@@ -322,47 +286,28 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void performHoverAction(int x, int y)
     {
-        _hoveredItem = null;
-        _hoverText   = "";
-
+        _hoveredItem = null; _hoverText = "";
         _armorSlot.tryHover(x, y, 0.1f);
         _offhandSlot.tryHover(x, y, 0.1f);
         _inventory.performHoverAction(x, y);
 
         if (_armorSlot.containsPoint(x, y) && _armorSlot.item != null)
-        {
-            _hoveredItem = _armorSlot.item;
-            _hoverText   = _armorSlot.item.getDescription();
-        }
+        { _hoveredItem = _armorSlot.item; _hoverText = _armorSlot.item.getDescription(); }
         else if (_offhandSlot.containsPoint(x, y) && _offhandSlot.item != null)
-        {
-            _hoveredItem = _offhandSlot.item;
-            _hoverText   = _offhandSlot.item.getDescription();
-        }
+        { _hoveredItem = _offhandSlot.item; _hoverText = _offhandSlot.item.getDescription(); }
     }
 
-    public override void update(GameTime time)
-    {
-        _inventory.update(time);
-    }
+    public override void update(GameTime time) { _inventory.update(time); }
 
     public override void draw(SpriteBatch b)
     {
-        b.Draw(Game1.fadeToBlackRect,
-            Game1.graphics.GraphicsDevice.Viewport.Bounds,
-            Color.Black * 0.4f);
+        b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.4f);
 
         IClickableMenu.drawTextureBox(b, _boxX, _boxY, _boxW, _boxH, Color.White);
-
-        Utility.drawTextWithShadow(b, "Armor", Game1.smallFont,
-            new Vector2(_armorSlot.bounds.X, _armorSlot.bounds.Y - 28), Game1.textColor);
-        Utility.drawTextWithShadow(b, "Offhand", Game1.smallFont,
-            new Vector2(_offhandSlot.bounds.X, _offhandSlot.bounds.Y - 28), Game1.textColor);
-
-        _armorSlot.draw(b);
-        _armorSlot.drawItem(b, 0, 0);
-        _offhandSlot.draw(b);
-        _offhandSlot.drawItem(b, 0, 0);
+        Utility.drawTextWithShadow(b, "Armor", Game1.smallFont, new Vector2(_armorSlot.bounds.X, _armorSlot.bounds.Y - 28), Game1.textColor);
+        Utility.drawTextWithShadow(b, "Offhand", Game1.smallFont, new Vector2(_offhandSlot.bounds.X, _offhandSlot.bounds.Y - 28), Game1.textColor);
+        _armorSlot.draw(b); _armorSlot.drawItem(b, 0, 0);
+        _offhandSlot.draw(b); _offhandSlot.drawItem(b, 0, 0);
 
         IClickableMenu.drawTextureBox(b, _invBorderX, _invBorderY, _invBorderW, _invBorderH, Color.White);
         _inventory.draw(b);
@@ -374,12 +319,9 @@ public class SnsEquipmentMenu : IClickableMenu
         if (_hoveredItem != null)
             IClickableMenu.drawToolTip(b, _hoverText, _hoveredItem.DisplayName, _hoveredItem, false);
 
-        if (!Game1.options.hardwareCursor)
-            drawMouse(b);
+        if (!Game1.options.hardwareCursor) drawMouse(b);
     }
 
-    public override void emergencyShutDown()
-    {
-        base.emergencyShutDown();
-    }
+    public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
+
