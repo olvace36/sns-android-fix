@@ -107,8 +107,6 @@ public class SnsEquipmentMenu : IClickableMenu
         type.GetField("drawSlots", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, true);
         type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
         type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
-
-        // แก้ข้อ 2: tapHoldTime = 0f ให้ highlight ทันทีไม่ต้องกดค้าง
         type.GetField("tapHoldTime", BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, 0f);
 
         var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
@@ -139,7 +137,7 @@ public class SnsEquipmentMenu : IClickableMenu
             BindingFlags.Public | BindingFlags.Instance)
             ?.SetValue(this, closeButton);
 
-        Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY} totalHeight={totalHeight} invBounds=({_inventory.xPositionOnScreen},{_inventory.yPositionOnScreen},{_inventory.width},{_inventory.height})", LogLevel.Info);
+        Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY} totalHeight={totalHeight}", LogLevel.Info);
     }
 
     static object? GetSpaceCoreApi()
@@ -167,7 +165,7 @@ public class SnsEquipmentMenu : IClickableMenu
         catch (Exception ex) { Monitor?.Log($"SetSlotItem error: {ex.Message}", LogLevel.Error); }
     }
 
-    // แก้ข้อ 4: ค้นหา SpaceCore.SpaceCore จาก assembly แทน AccessTools.TypeByName
+    // แก้ข้อ 4: ใช้ TryGetValue แทน get_Item
     static Func<Item, bool>? GetSlotValidator(string slotId)
     {
         try
@@ -192,15 +190,27 @@ public class SnsEquipmentMenu : IClickableMenu
                 return null;
             }
 
-            var slotData = equipmentSlots.GetType()
-                .GetMethod("get_Item")
-                ?.Invoke(equipmentSlots, new object[] { slotId });
+            // ใช้ TryGetValue แทน get_Item
+            var tryGetValue = equipmentSlots.GetType()
+                .GetMethod("TryGetValue", new[] { typeof(string), equipmentSlots.GetType().GetGenericArguments()[1].MakeByRefType() });
 
-            if (slotData == null)
+            if (tryGetValue == null)
             {
-                Monitor?.Log($"GetSlotValidator: slotData null for {slotId}", LogLevel.Warn);
+                Monitor?.Log("GetSlotValidator: TryGetValue method not found!", LogLevel.Warn);
                 return null;
             }
+
+            object?[] args = new object?[] { slotId, null };
+            bool found = (bool)(tryGetValue.Invoke(equipmentSlots, args) ?? false);
+
+            if (!found || args[1] == null)
+            {
+                Monitor?.Log($"GetSlotValidator: slotId '{slotId}' not found in EquipmentSlots", LogLevel.Warn);
+                return null;
+            }
+
+            var slotData = args[1];
+            Monitor?.Log($"GetSlotValidator: found slotData={slotData.GetType().Name}", LogLevel.Info);
 
             return slotData.GetType()
                 .GetProperty("SlotValidator", BindingFlags.Public | BindingFlags.Instance)
@@ -281,12 +291,8 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
-        // แก้ข้อ 1: log bounds เพื่อ debug
-        Monitor?.Log($"click ({x},{y}) invBounds=({_inventory.xPositionOnScreen},{_inventory.yPositionOnScreen},{_inventory.width},{_inventory.height}) inBounds={_inventory.isWithinBounds(x, y)}", LogLevel.Info);
-
         if (_inventory.isWithinBounds(x, y))
         {
-            Monitor?.Log($"inventory receiveLeftClick ({x},{y})", LogLevel.Info);
             _inventory.receiveLeftClick(x, y, playSound);
             return;
         }
@@ -294,13 +300,11 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void releaseLeftClick(int x, int y)
     {
-        // แก้ข้อ 3: ส่งต่อเสมอ ไม่เช็ค bounds ป้องกัน drag หยุดกลางทาง
         _inventory.releaseLeftClick(x, y);
     }
 
     public override void leftClickHeld(int x, int y)
     {
-        // แก้ข้อ 3: ส่งต่อเสมอ ไม่เช็ค bounds ป้องกัน drag หยุดกลางทาง
         _inventory.leftClickHeld(x, y);
     }
 
