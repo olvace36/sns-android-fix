@@ -21,8 +21,7 @@ public class EquipmentMenuDebugPatch
         if (populate != null)
         {
             harmony.Patch(populate,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(PopulatePostfix))));
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(PopulatePostfix))));
             Monitor?.Log("patched populateClickableComponentList", LogLevel.Info);
         }
 
@@ -31,8 +30,7 @@ public class EquipmentMenuDebugPatch
         if (spaceCorePrefix != null)
         {
             harmony.Patch(spaceCorePrefix,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(BlockSpaceCorePrefix))));
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockSpaceCorePrefix))));
             Monitor?.Log("patched SpaceCore.InventoryPageLeftClickPatch.Prefix", LogLevel.Info);
         }
 
@@ -41,8 +39,7 @@ public class EquipmentMenuDebugPatch
         if (spaceCoreDrawPostfix != null)
         {
             harmony.Patch(spaceCoreDrawPostfix,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(BlockSpaceCorePrefix))));
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockSpaceCorePrefix))));
             Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix", LogLevel.Info);
         }
 
@@ -51,18 +48,15 @@ public class EquipmentMenuDebugPatch
         if (getComp != null)
         {
             harmony.Patch(getComp,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(GetComponentWithIDPrefix))));
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GetComponentWithIDPrefix))));
             Monitor?.Log("patched getComponentWithID", LogLevel.Info);
         }
 
-        var draw = typeof(InventoryPage).GetMethod("draw",
-            new[] { typeof(SpriteBatch) });
+        var draw = typeof(InventoryPage).GetMethod("draw", new[] { typeof(SpriteBatch) });
         if (draw != null)
         {
             harmony.Patch(draw,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(DrawPostfix))));
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(DrawPostfix))));
             Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
         }
 
@@ -71,8 +65,7 @@ public class EquipmentMenuDebugPatch
         if (receiveLeftClick != null)
         {
             harmony.Patch(receiveLeftClick,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(ReceiveLeftClickPostfix))));
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(ReceiveLeftClickPostfix))));
             Monitor?.Log("patched InventoryPage.receiveLeftClick", LogLevel.Info);
         }
 
@@ -81,8 +74,7 @@ public class EquipmentMenuDebugPatch
         if (releaseLeftClick != null)
         {
             harmony.Patch(releaseLeftClick,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(ReleaseLeftClickPostfix))));
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(ReleaseLeftClickPostfix))));
             Monitor?.Log("patched InventoryPage.releaseLeftClick", LogLevel.Info);
         }
 
@@ -91,8 +83,7 @@ public class EquipmentMenuDebugPatch
         if (gameMenuReceive != null)
         {
             harmony.Patch(gameMenuReceive,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(GameMenuReceivePostfix))));
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuReceivePostfix))));
             Monitor?.Log("patched GameMenu.receiveLeftClick", LogLevel.Info);
         }
 
@@ -101,8 +92,7 @@ public class EquipmentMenuDebugPatch
         if (gameMenuRelease != null)
         {
             harmony.Patch(gameMenuRelease,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(GameMenuReleasePostfix))));
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuReleasePostfix))));
             Monitor?.Log("patched GameMenu.releaseLeftClick", LogLevel.Info);
         }
 
@@ -111,8 +101,7 @@ public class EquipmentMenuDebugPatch
         if (gameMenuHeld != null)
         {
             harmony.Patch(gameMenuHeld,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(GameMenuLeftClickHeldPostfix))));
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuLeftClickHeldPostfix))));
             Monitor?.Log("patched GameMenu.leftClickHeld", LogLevel.Info);
         }
 
@@ -162,11 +151,7 @@ public class EquipmentMenuDebugPatch
 
     public static bool GetComponentWithIDPrefix(int id, ref ClickableComponent __result)
     {
-        if (id == 1348000)
-        {
-            __result = null;
-            return false;
-        }
+        if (id == 1348000) { __result = null; return false; }
         return true;
     }
 
@@ -177,12 +162,13 @@ public class EquipmentMenuDebugPatch
         {
             var tex = Game1.content.Load<Texture2D>("spacechase0.SpaceCore/ExtraEquipmentIcon");
             b.Draw(tex, new Vector2(_btnBounds.X, _btnBounds.Y),
-                new Rectangle(0, 0, 16, 16), Color.White,
-                0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                new Rectangle(0, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
         }
         catch { }
     }
 
+    // แก้ข้อ 1 และ 3: เปิด SnsEquipmentMenu เป็น activeClickableMenu แทน child menu
+    // เพื่อให้ receiveLeftClick, leftClickHeld, releaseLeftClick ทำงานได้โดยตรง
     static void TryOpenEquipmentMenu(int x, int y, string source)
     {
         if (_btnBounds == Rectangle.Empty) return;
@@ -191,9 +177,8 @@ public class EquipmentMenuDebugPatch
         Monitor?.Log($"[{source}] Hit! Opening SnsEquipmentMenu...", LogLevel.Info);
         try
         {
-            var menu = new SnsEquipmentMenu();
-            Game1.activeClickableMenu.SetChildMenu(menu);
-            Monitor?.Log($"[{source}] SnsEquipmentMenu opened!", LogLevel.Info);
+            Game1.activeClickableMenu = new SnsEquipmentMenu();
+            Monitor?.Log($"[{source}] SnsEquipmentMenu opened as activeClickableMenu!", LogLevel.Info);
         }
         catch (Exception ex)
         {
@@ -214,33 +199,15 @@ public class EquipmentMenuDebugPatch
     public static void GameMenuReceivePostfix(GameMenu __instance, int x, int y)
     {
         TryOpenEquipmentMenu(x, y, "gm-receive");
-
-        var child = __instance.GetChildMenu();
-        if (child is SnsEquipmentMenu sns)
-        {
-            Monitor?.Log($"GameMenuReceive: forwarding to SnsEquipmentMenu ({x},{y})", LogLevel.Info);
-            sns.receiveLeftClick(x, y);
-        }
     }
 
     public static void GameMenuReleasePostfix(GameMenu __instance, int x, int y)
     {
         TryOpenEquipmentMenu(x, y, "gm-release");
-
-        var child = __instance.GetChildMenu();
-        if (child is SnsEquipmentMenu sns)
-        {
-            Monitor?.Log($"GameMenuRelease: forwarding to SnsEquipmentMenu ({x},{y})", LogLevel.Info);
-            sns.releaseLeftClick(x, y);
-        }
     }
 
     public static void GameMenuLeftClickHeldPostfix(GameMenu __instance, int x, int y)
     {
-        var child = __instance.GetChildMenu();
-        Monitor?.Log($"GameMenuLeftClickHeld: child={child?.GetType().Name ?? "null"} ({x},{y})", LogLevel.Info);
-        if (child is SnsEquipmentMenu sns)
-            sns.leftClickHeld(x, y);
+        // ไม่ต้องทำอะไรแล้วเพราะ SnsEquipmentMenu เป็น activeClickableMenu จัดการเองได้
     }
 }
-
