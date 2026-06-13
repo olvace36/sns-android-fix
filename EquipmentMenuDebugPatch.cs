@@ -75,8 +75,11 @@ public class EquipmentMenuDebugPatch
             var compsField = AccessTools.TypeByName("SpaceCore.InventoryPageConstructorPatch")
                 ?.GetField("comps", BindingFlags.Public | BindingFlags.Static);
             var comps = compsField?.GetValue(null);
-            var getOrCreate = comps?.GetType().GetMethod("GetOrCreateValue");
-            var holder = getOrCreate?.Invoke(comps, new object[] { __instance });
+            // ใช้ TryGetValue แทน GetOrCreateValue เพราะ Android SMAPI rewrite signature
+            var tryGet = comps?.GetType().GetMethod("TryGetValue");
+            object?[] tgArgs = new object?[] { __instance, null };
+            bool tgFound = (bool)(tryGet?.Invoke(comps, tgArgs) ?? false);
+            var holder = tgFound ? tgArgs[1] : null;
             var btn = holder?.GetType()
                 .GetField("Value", BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(holder) as ClickableTextureComponent;
@@ -158,4 +161,3 @@ public class EquipmentMenuDebugPatch
         catch { }
     }
 }
-
