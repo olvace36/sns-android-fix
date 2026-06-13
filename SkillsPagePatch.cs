@@ -167,6 +167,10 @@ public class SkillsPagePatch
             AccessTools.TypeByName("SpaceCore.SkillExtensions"),
             "GetCustomSkillLevel",
             new[] { typeof(Farmer), typeof(string) });
+        var getBuffAmount = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomSkillBuffAmount",
+            new[] { typeof(Farmer), typeof(string), typeof(string) });
 
         int row = 0;
         foreach (var name in visibleSkills)
@@ -178,12 +182,12 @@ public class SkillsPagePatch
             int num4 = 0;
             var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
             int levels = expCurve?.Length ?? 10;
+
             int buffedLevel = (int?)getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
             int baseLevel = (int?)getBaseLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
-            int buffAmount = buffedLevel - baseLevel;
+            int buffAmount = (int?)getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
             bool hasBuff = buffAmount != 0;
 
-            // log buffed level ทุกครั้งที่ draw
             Monitor?.Log($"DrawPostfix: {name} base={baseLevel} buffed={buffedLevel}", LogLevel.Info);
 
             string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
@@ -207,25 +211,32 @@ public class SkillsPagePatch
             for (int l = 0; l < levels; l++)
             {
                 bool filled = buffedLevel > l;
-                if (!filled && (l + 1) % 5 == 0)
+
+                if ((l + 1) % 5 == 0)
                 {
+                    // milestone bar วาดเสมอ
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
-                        new Rectangle(145, 338, 14, 9), Color.Black * 0.35f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                        new Rectangle(145, 338, 14, 9), Color.Black * 0.35f,
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
-                        new Rectangle(145, 338, 14, 9), Color.White * 0.65f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                        new Rectangle(filled ? 159 : 145, 338, 14, 9), Color.White * (filled ? 1f : 0.65f),
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
                 }
-                else if ((l + 1) % 5 != 0)
+                else
                 {
+                    // bar เล็กปกติ
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
-                        new Rectangle(129, 338, 8, 9), Color.Black * 0.35f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
+                        new Rectangle(129, 338, 8, 9), Color.Black * 0.35f,
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
                         new Rectangle(129 + (filled ? 8 : 0), 338, 8, 9), Color.White * (filled ? 1f : 0.65f),
                         0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
                 }
+
                 if (l == levels - 1)
                 {
                     Color levelColor = hasBuff ? Color.LightGreen : Color.SandyBrown;
@@ -237,6 +248,7 @@ public class SkillsPagePatch
                         (float)(num2 + 12 + row * 56)), levelColor * (buffedLevel == 0 ? 0.75f : 1f),
                         1f, 0.87f, 1f, 0, 0);
                 }
+
                 if ((l + 1) % 5 == 0) num4 += 24;
             }
             row++;
