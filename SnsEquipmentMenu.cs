@@ -11,50 +11,37 @@ using StardewValley.Tools;
 
 namespace SnsAndroidFix;
 
-/// <summary>
-/// Equipment menu สำหรับ Android แทน SpaceCore.EquipmentMenu
-/// แสดง Armor slot และ Offhand slot ของ SNS
-/// </summary>
 public class SnsEquipmentMenu : IClickableMenu
 {
     internal static IMonitor? Monitor;
 
-    private const string ArmorSlotId  = "DN.SwordAndSorcery_Armor";
+    private const string ArmorSlotId   = "DN.SwordAndSorcery_Armor";
     private const string OffhandSlotId = "DN.SwordAndSorcery_Offhand";
 
     private static MethodInfo? _getItem;
     private static MethodInfo? _setItem;
 
-    // slots
     private ClickableTextureComponent _armorSlot  = null!;
     private ClickableTextureComponent _offhandSlot = null!;
-
-    // inventory panel
     private InventoryMenu _inventory = null!;
-
-    // close button
     private ClickableTextureComponent _closeButton = null!;
 
-    // held item
     private Item? _heldItem;
-
-    // hover
     private Item? _hoveredItem;
     private string _hoverText = "";
 
     public SnsEquipmentMenu() : base(
-        Game1.uiViewport.Width  / 2 - (800 + IClickableMenu.borderWidth * 2) / 2,
-        Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2,
-        800 + IClickableMenu.borderWidth * 2,
-        600 + IClickableMenu.borderWidth * 2)
+        Game1.uiViewport.Width  / 2 - 428,
+        Game1.uiViewport.Height / 2 - 328,
+        856,
+        656)
     {
-        // cache SpaceCore API methods
         if (_getItem == null)
         {
-            var spaceCoreApi = GetSpaceCoreApi();
-            _getItem = spaceCoreApi?.GetType().GetMethod("GetItemInEquipmentSlot",
+            var api = GetSpaceCoreApi();
+            _getItem = api?.GetType().GetMethod("GetItemInEquipmentSlot",
                 new[] { typeof(Farmer), typeof(string) });
-            _setItem = spaceCoreApi?.GetType().GetMethod("SetItemInEquipmentSlot",
+            _setItem = api?.GetType().GetMethod("SetItemInEquipmentSlot",
                 new[] { typeof(Farmer), typeof(string), typeof(Item) });
         }
 
@@ -62,10 +49,10 @@ public class SnsEquipmentMenu : IClickableMenu
         int cy = yPositionOnScreen + IClickableMenu.borderWidth;
 
         // Armor slot
-        var armorTex  = LoadTexture("DN.SnS/ArmorSlot");
         _armorSlot = new ClickableTextureComponent(
-            new Rectangle(cx + 40, cy + 40, 64, 64),
-            armorTex, new Rectangle(0, 0, 16, 16), 4f)
+            new Rectangle(cx + 40, cy + 60, 64, 64),
+            LoadTexture("DN.SnS/ArmorSlot"),
+            new Rectangle(0, 0, 16, 16), 4f)
         {
             myID = 200,
             label = "Armor",
@@ -73,33 +60,33 @@ public class SnsEquipmentMenu : IClickableMenu
         };
 
         // Offhand slot
-        var offhandTex = LoadTexture("DN.SnS/OffhandSlot");
         _offhandSlot = new ClickableTextureComponent(
-            new Rectangle(cx + 40 + 216, cy + 40, 64, 64),
-            offhandTex, new Rectangle(0, 0, 16, 16), 4f)
+            new Rectangle(cx + 40 + 216, cy + 60, 64, 64),
+            LoadTexture("DN.SnS/OffhandSlot"),
+            new Rectangle(0, 0, 16, 16), 4f)
         {
             myID = 201,
             label = "Offhand",
             item  = GetSlotItem(OffhandSlotId)
         };
 
-        // inventory panel
-        _inventory = new InventoryMenu(
-            cx,
-            cy + 200,
-            false);
+        // inventory — วาง x ให้ตรงกับ menu, y ต่ำกว่า slot
+        int invX = xPositionOnScreen + IClickableMenu.borderWidth;
+        int invY = cy + 200;
+        int invCols = 12;
+        _inventory = new InventoryMenu(invX, invY, false, null, null, invCols);
 
-        // close button (X) — ใช้ Game1.mouseCursors sprite เดิม
+        // close button
         _closeButton = new ClickableTextureComponent(
             new Rectangle(xPositionOnScreen + width - 36, yPositionOnScreen - 8, 48, 48),
             Game1.mouseCursors,
-            new Rectangle(337, 494, 12, 12),
-            4f)
+            new Rectangle(337, 494, 12, 12), 4f)
         {
             myID = 999
         };
 
-        Monitor?.Log("SnsEquipmentMenu created!", LogLevel.Info);
+        Monitor?.Log($"SnsEquipmentMenu created! pos=({xPositionOnScreen},{yPositionOnScreen}) size=({width},{height})", LogLevel.Info);
+        Monitor?.Log($"invX={invX} invY={invY}", LogLevel.Info);
     }
 
     static object? GetSpaceCoreApi()
@@ -119,8 +106,7 @@ public class SnsEquipmentMenu : IClickableMenu
     {
         try
         {
-            var api = GetSpaceCoreApi();
-            return _getItem?.Invoke(api, new object[] { Game1.player, slotId }) as Item;
+            return _getItem?.Invoke(GetSpaceCoreApi(), new object[] { Game1.player, slotId }) as Item;
         }
         catch { return null; }
     }
@@ -129,8 +115,7 @@ public class SnsEquipmentMenu : IClickableMenu
     {
         try
         {
-            var api = GetSpaceCoreApi();
-            _setItem?.Invoke(api, new object[] { Game1.player, slotId, item });
+            _setItem?.Invoke(GetSpaceCoreApi(), new object[] { Game1.player, slotId, item });
         }
         catch (Exception ex)
         {
@@ -141,23 +126,18 @@ public class SnsEquipmentMenu : IClickableMenu
     bool IsArmorItem(Item? item)
     {
         if (item == null) return true;
-        var method = item.GetType().GetMethod("IsArmorItem",
-            BindingFlags.Public | BindingFlags.Instance);
-        if (method != null)
-            return (bool)(method.Invoke(item, null) ?? false) && item is not MeleeWeapon;
-        return false;
+        var method = item.GetType().GetMethod("IsArmorItem", BindingFlags.Public | BindingFlags.Instance);
+        return method != null && (bool)(method.Invoke(item, null) ?? false) && item is not MeleeWeapon;
     }
 
     bool IsOffhandItem(Item? item)
     {
         if (item == null) return true;
-        // offhand รับ Shield (MeleeWeapon category -98) หรือ item ที่ mod กำหนด
         return item is MeleeWeapon;
     }
 
     public override void receiveLeftClick(int x, int y, bool playSound = true)
     {
-        // close button
         if (_closeButton.containsPoint(x, y))
         {
             ReturnHeldItem();
@@ -165,7 +145,6 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
-        // armor slot
         if (_armorSlot.containsPoint(x, y))
         {
             if (_heldItem == null || IsArmorItem(_heldItem))
@@ -179,7 +158,6 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
-        // offhand slot
         if (_offhandSlot.containsPoint(x, y))
         {
             if (_heldItem == null || IsOffhandItem(_heldItem))
@@ -193,15 +171,14 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
-        // inventory
-        var clicked = _inventory.getItemAt(x, y);
-        if (clicked != null)
+        // inventory click
+        Item? fromInv = _inventory.getItemAt(x, y);
+        if (fromInv != null || _inventory.isWithinBounds(x, y))
         {
-            _heldItem = _inventory.rightClick(x, y, _heldItem);
+            _heldItem = _inventory.leftClick(x, y, _heldItem);
             return;
         }
 
-        // click นอก slot — คืน held item
         if (!isWithinBounds(x, y))
         {
             ReturnHeldItem();
@@ -211,7 +188,6 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void releaseLeftClick(int x, int y)
     {
-        // Android release — handle เหมือน receiveLeftClick
         receiveLeftClick(x, y, playSound: false);
     }
 
@@ -231,6 +207,7 @@ public class SnsEquipmentMenu : IClickableMenu
 
         _armorSlot.tryHover(x, y, 0.1f);
         _offhandSlot.tryHover(x, y, 0.1f);
+        _inventory.performHoverAction(x, y);
 
         if (_armorSlot.containsPoint(x, y) && _armorSlot.item != null)
         {
@@ -242,34 +219,36 @@ public class SnsEquipmentMenu : IClickableMenu
             _hoveredItem = _offhandSlot.item;
             _hoverText   = _offhandSlot.item.getDescription();
         }
+        else if (_inventory.hover(x, y, _heldItem) is Item hovered)
+        {
+            _hoveredItem = hovered;
+            _hoverText   = hovered.getDescription();
+        }
     }
 
     public override void draw(SpriteBatch b)
     {
-        // dim background
+        // dim
         b.Draw(Game1.fadeToBlackRect,
             Game1.graphics.GraphicsDevice.Viewport.Bounds,
             Color.Black * 0.4f);
 
-        // background box
+        // background
         IClickableMenu.drawTextureBox(b,
             xPositionOnScreen, yPositionOnScreen,
             width, height, Color.White);
 
         // slot labels
-        Utility.drawTextWithShadow(b, "Armor",
-            Game1.smallFont,
-            new Vector2(_armorSlot.bounds.X, _armorSlot.bounds.Y - 32),
+        Utility.drawTextWithShadow(b, "Armor", Game1.smallFont,
+            new Vector2(_armorSlot.bounds.X, _armorSlot.bounds.Y - 28),
             Game1.textColor);
-        Utility.drawTextWithShadow(b, "Offhand",
-            Game1.smallFont,
-            new Vector2(_offhandSlot.bounds.X, _offhandSlot.bounds.Y - 32),
+        Utility.drawTextWithShadow(b, "Offhand", Game1.smallFont,
+            new Vector2(_offhandSlot.bounds.X, _offhandSlot.bounds.Y - 28),
             Game1.textColor);
 
         // slots
         _armorSlot.draw(b);
         _armorSlot.drawItem(b, 0, 0);
-
         _offhandSlot.draw(b);
         _offhandSlot.drawItem(b, 0, 0);
 
@@ -288,7 +267,6 @@ public class SnsEquipmentMenu : IClickableMenu
             IClickableMenu.drawToolTip(b, _hoverText, _hoveredItem.DisplayName,
                 _hoveredItem, _heldItem != null);
 
-        // cursor
         if (!Game1.options.hardwareCursor)
             drawMouse(b);
     }
@@ -299,3 +277,4 @@ public class SnsEquipmentMenu : IClickableMenu
         base.emergencyShutDown();
     }
 }
+
