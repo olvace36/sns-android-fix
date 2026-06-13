@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
@@ -90,7 +91,6 @@ public class SnsEquipmentMenu : IClickableMenu
         int startY = menuY + menuH + 8;
         int totalHeight = vh - startY - 44;
 
-        // playerInventory: true — link กับ Game1.player.Items จริงๆ
         _inventory = new InventoryMenu(startX, startY, true);
 
         var invMenu = (object)_inventory;
@@ -107,6 +107,9 @@ public class SnsEquipmentMenu : IClickableMenu
         type.GetField("drawSlots", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, true);
         type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
         type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
+
+        // แก้ข้อ 2: tapHoldTime = 0f ให้ highlight ทันทีไม่ต้องกดค้าง
+        type.GetField("tapHoldTime", BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, 0f);
 
         var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
         if (inventorySlots != null)
@@ -136,7 +139,7 @@ public class SnsEquipmentMenu : IClickableMenu
             BindingFlags.Public | BindingFlags.Instance)
             ?.SetValue(this, closeButton);
 
-        Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY} totalHeight={totalHeight}", LogLevel.Info);
+        Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY} totalHeight={totalHeight} invBounds=({_inventory.xPositionOnScreen},{_inventory.yPositionOnScreen},{_inventory.width},{_inventory.height})", LogLevel.Info);
     }
 
     static object? GetSpaceCoreApi()
@@ -164,23 +167,50 @@ public class SnsEquipmentMenu : IClickableMenu
         catch (Exception ex) { Monitor?.Log($"SetSlotItem error: {ex.Message}", LogLevel.Error); }
     }
 
+    // แก้ข้อ 4: ค้นหา SpaceCore.SpaceCore จาก assembly แทน AccessTools.TypeByName
     static Func<Item, bool>? GetSlotValidator(string slotId)
     {
         try
         {
-            var equipmentSlots = AccessTools.TypeByName("SpaceCore.SpaceCore")
-                ?.GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
+            var spaceCoreType = AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
+                .FirstOrDefault(t => t.FullName == "SpaceCore.SpaceCore");
+
+            if (spaceCoreType == null)
+            {
+                Monitor?.Log("GetSlotValidator: SpaceCore.SpaceCore type not found!", LogLevel.Warn);
+                return null;
+            }
+
+            var equipmentSlots = spaceCoreType
+                .GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
                 ?.GetValue(null);
-            if (equipmentSlots == null) return null;
+
+            if (equipmentSlots == null)
+            {
+                Monitor?.Log("GetSlotValidator: EquipmentSlots null!", LogLevel.Warn);
+                return null;
+            }
+
             var slotData = equipmentSlots.GetType()
                 .GetMethod("get_Item")
                 ?.Invoke(equipmentSlots, new object[] { slotId });
-            if (slotData == null) return null;
+
+            if (slotData == null)
+            {
+                Monitor?.Log($"GetSlotValidator: slotData null for {slotId}", LogLevel.Warn);
+                return null;
+            }
+
             return slotData.GetType()
                 .GetProperty("SlotValidator", BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(slotData) as Func<Item, bool>;
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            Monitor?.Log($"GetSlotValidator error: {ex.Message}", LogLevel.Error);
+            return null;
+        }
     }
 
     bool IsValidForSlot(string slotId, Item? item)
@@ -217,7 +247,6 @@ public class SnsEquipmentMenu : IClickableMenu
         }
 
         Monitor?.Log($"TryEquipItem: selectedItem={selectedItem.DisplayName}", LogLevel.Info);
-
         if (!IsValidForSlot(slotId, selectedItem)) return;
 
         var old = GetSlotItem(slotId);
@@ -252,8 +281,12 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
+        // แก้ข้อ 1: log bounds เพื่อ debug
+        Monitor?.Log($"click ({x},{y}) invBounds=({_inventory.xPositionOnScreen},{_inventory.yPositionOnScreen},{_inventory.width},{_inventory.height}) inBounds={_inventory.isWithinBounds(x, y)}", LogLevel.Info);
+
         if (_inventory.isWithinBounds(x, y))
         {
+            Monitor?.Log($"inventory receiveLeftClick ({x},{y})", LogLevel.Info);
             _inventory.receiveLeftClick(x, y, playSound);
             return;
         }
@@ -261,14 +294,14 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void releaseLeftClick(int x, int y)
     {
-        if (_inventory.isWithinBounds(x, y))
-            _inventory.releaseLeftClick(x, y);
+        // แก้ข้อ 3: ส่งต่อเสมอ ไม่เช็ค bounds ป้องกัน drag หยุดกลางทาง
+        _inventory.releaseLeftClick(x, y);
     }
 
     public override void leftClickHeld(int x, int y)
     {
-        if (_inventory.isWithinBounds(x, y))
-            _inventory.leftClickHeld(x, y);
+        // แก้ข้อ 3: ส่งต่อเสมอ ไม่เช็ค bounds ป้องกัน drag หยุดกลางทาง
+        _inventory.leftClickHeld(x, y);
     }
 
     public override void performHoverAction(int x, int y)
