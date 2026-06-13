@@ -23,7 +23,6 @@ public class SkillRingsPatch
                 return;
             }
 
-            // หา instance ของ SkillRings mod
             foreach (var mod in helper.ModRegistry.GetAll())
             {
                 var modObj = mod.GetType()
@@ -45,9 +44,27 @@ public class SkillRingsPatch
             if (!Context.IsWorldReady) return;
             if (_skillRingsInstance == null || _onUpdateTicked == null) return;
 
-            // force update SkillRings buff ตอน inventory เปลี่ยน
             Monitor?.Log("InventoryChanged: forcing SkillRings update", LogLevel.Info);
-            var args = new UpdateTickedEventArgs(60, true); // IsOneSecond=true
+
+            // สร้าง UpdateTickedEventArgs ด้วย reflection
+            var argsType = AccessTools.TypeByName("StardewModdingAPI.Events.UpdateTickedEventArgs");
+            if (argsType == null)
+            {
+                Monitor?.Log("UpdateTickedEventArgs type not found", LogLevel.Warn);
+                return;
+            }
+
+            var argsConstructor = argsType.GetConstructor(
+                BindingFlags.NonPublic | BindingFlags.Instance,
+                null, new[] { typeof(uint), typeof(bool) }, null);
+
+            if (argsConstructor == null)
+            {
+                Monitor?.Log("UpdateTickedEventArgs constructor not found", LogLevel.Warn);
+                return;
+            }
+
+            var args = argsConstructor.Invoke(new object[] { (uint)60, true });
             _onUpdateTicked.Invoke(_skillRingsInstance, new object[] { null, args });
         };
     }
