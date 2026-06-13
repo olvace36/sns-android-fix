@@ -18,6 +18,7 @@ public class ModEntry : Mod
         ShieldSigilMenuPatch.Monitor = Monitor;
         BuffedSkillLevelPatch.Monitor = Monitor;
         EquipmentMenuDebugPatch.Monitor = Monitor;
+        SnsEquipmentMenu.Monitor = Monitor;
 
         var harmony = new Harmony(ModManifest.UniqueID);
         LevelUpMenuTranspilerFix.Apply(harmony);
@@ -86,3 +87,4 @@ public class ModEntry : Mod
         };
     }
 }
+
