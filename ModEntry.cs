@@ -16,7 +16,6 @@ public class ModEntry : Mod
         SkillsPagePatch.Monitor = Monitor;
         FancyAlchemyMenuPatch.Monitor = Monitor;
         ShieldSigilMenuPatch.Monitor = Monitor;
-        SkillRingsPatch.Monitor = Monitor;
         var harmony = new Harmony(ModManifest.UniqueID);
         LevelUpMenuTranspilerFix.Apply(harmony);
         harmony.PatchAll();
@@ -24,7 +23,6 @@ public class ModEntry : Mod
         FancyAlchemyMenuPatch.Apply(harmony);
         ShieldSigilMenuPatch.Apply(harmony);
         SkillsPagePatch.Apply(helper, Monitor, harmony);
-        SkillRingsPatch.Apply(helper, harmony);
 
         helper.Events.GameLoop.SaveLoaded += (s, e) =>
         {
@@ -36,13 +34,6 @@ public class ModEntry : Mod
             Monitor.Log("DayStarted: init from base level then RevalidateHealth", LogLevel.Info);
             RevalidateHealthPatch.InitFromBaseLevel(Game1.player);
             LevelUpMenu.RevalidateHealth(Game1.player);
-        };
-
-        bool _pendingRevalidate = false;
-        helper.Events.Player.InventoryChanged += (s, e) =>
-        {
-            if (!Context.IsWorldReady) return;
-            _pendingRevalidate = true;
         };
 
         int _lastRogueBuffed = 0;
@@ -73,12 +64,11 @@ public class ModEntry : Mod
 
             bool buffChanged = rogueBuffed != _lastRogueBuffed || paladinBuffed != _lastPaladinBuffed;
 
-            if (_pendingRevalidate || buffChanged)
+            if (buffChanged)
             {
-                _pendingRevalidate = false;
                 _lastRogueBuffed = rogueBuffed;
                 _lastPaladinBuffed = paladinBuffed;
-                Monitor.Log($"UpdateTicked: buffChanged={buffChanged}, Rogue={rogueBuffed}, Paladin={paladinBuffed}", LogLevel.Info);
+                Monitor.Log($"UpdateTicked: buffChanged=True, Rogue={rogueBuffed}, Paladin={paladinBuffed}", LogLevel.Info);
                 LevelUpMenu.RevalidateHealth(Game1.player);
             }
         };
