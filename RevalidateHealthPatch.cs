@@ -11,7 +11,7 @@ namespace SnsAndroidFix;
 public class RevalidateHealthPatch
 {
     internal static IMonitor? Monitor;
-    private static int _lastBonus = 0;
+    private static int _baseMaxHealth = -1;
 
     static void Postfix(Farmer farmer)
     {
@@ -19,10 +19,6 @@ public class RevalidateHealthPatch
         var getBuffedLevel = AccessTools.Method(
             AccessTools.TypeByName("SpaceCore.SkillExtensions"),
             "GetCustomBuffedSkillLevel",
-            new[] { typeof(Farmer), skillType });
-        var getBaseLevel = AccessTools.Method(
-            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomSkillLevel",
             new[] { typeof(Farmer), skillType });
 
         var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
@@ -40,22 +36,30 @@ public class RevalidateHealthPatch
             : 0;
 
         int newBonus = rogueBuffed * 3 + paladinBuffed * 5;
-        int diff = newBonus - _lastBonus;
+
+        // ถ้ายังไม่รู้ baseMaxHealth ให้คำนวณจาก maxHealth ปัจจุบัน
+        if (_baseMaxHealth < 0)
+            _baseMaxHealth = farmer.maxHealth - newBonus;
+
+        int expectedMaxHealth = _baseMaxHealth + newBonus;
 
         Monitor?.Log($"Paladin buffed={paladinBuffed}, Rogue buffed={rogueBuffed}", LogLevel.Info);
-        Monitor?.Log($"RevalidateHealth: maxHealth before={farmer.maxHealth}, newBonus={newBonus}, lastBonus={_lastBonus}, diff={diff}", LogLevel.Info);
+        Monitor?.Log($"RevalidateHealth: base={_baseMaxHealth}, newBonus={newBonus}, expected={expectedMaxHealth}, current={farmer.maxHealth}", LogLevel.Info);
 
-        if (diff != 0)
+        if (farmer.maxHealth != expectedMaxHealth)
         {
-            farmer.maxHealth += diff;
+            int diff = expectedMaxHealth - farmer.maxHealth;
+            farmer.maxHealth = expectedMaxHealth;
             farmer.health = Math.Min(farmer.health + diff, farmer.maxHealth);
-            _lastBonus = newBonus;
-            Monitor?.Log($"maxHealth after={farmer.maxHealth}", LogLevel.Info);
+            Monitor?.Log($"maxHealth set to={farmer.maxHealth}", LogLevel.Info);
         }
     }
 
-    // เซ็ต lastBonus จาก base level จริงๆ ตอน load
-    // เพื่อไม่บวกซ้ำ SNS Transpiler ที่บวกไปแล้ว
+    public static void Reset()
+    {
+        _baseMaxHealth = -1;
+    }
+
     public static void InitFromBaseLevel(Farmer farmer)
     {
         var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
@@ -78,12 +82,8 @@ public class RevalidateHealthPatch
             ? (int)(getBaseLevel?.Invoke(null, new object[] { farmer, rogueSkill }) ?? 0)
             : 0;
 
-        _lastBonus = rogueBase * 3 + paladinBase * 5;
-        Monitor?.Log($"InitFromBaseLevel: Paladin base={paladinBase}, Rogue base={rogueBase}, lastBonus={_lastBonus}", LogLevel.Info);
-    }
-
-    public static void Reset()
-    {
-        _lastBonus = 0;
+        int baseBonus = rogueBase * 3 + paladinBase * 5;
+        _baseMaxHealth = farmer.maxHealth - baseBonus;
+        Monitor?.Log($"InitFromBaseLevel: Paladin base={paladinBase}, Rogue base={rogueBase}, baseBonus={baseBonus}, baseMaxHealth={_baseMaxHealth}", LogLevel.Info);
     }
 }
