@@ -43,14 +43,14 @@ public class BuffedSkillLevelPatch
             prefix: new HarmonyMethod(typeof(BuffedSkillLevelPatch)
                 .GetMethod(nameof(GemExquisitePrefix))));
 
-        // 5. RecalculateAether — Druid, Bard, Sorcery
+        // 5. RecalculateAether — ใช้ string overload ทั้งหมด
         var recalcMethod = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
             ?.GetMethod("RecalculateAether", BindingFlags.NonPublic | BindingFlags.Static);
         if (recalcMethod != null)
         {
             harmony.Patch(recalcMethod,
                 transpiler: new HarmonyMethod(typeof(BuffedSkillLevelPatch)
-                    .GetMethod(nameof(ReplaceSkillLevelTranspiler))));
+                    .GetMethod(nameof(ReplaceSkillLevelStringTranspiler))));
             Monitor?.Log("RecalculateAether patch applied!", LogLevel.Info);
         }
         else Monitor?.Log("RecalculateAether not found!", LogLevel.Warn);
@@ -113,7 +113,6 @@ public class BuffedSkillLevelPatch
             BindingFlags.Public | BindingFlags.Instance);
         if (method != null)
             return (bool)method.Invoke(slingshot, null);
-        // fallback: เช็ค itemId ถ้า IsBow ไม่มี
         return slingshot.QualifiedItemId?.Contains("Bow") == true
             || slingshot.Name?.Contains("Bow") == true;
     }
@@ -230,7 +229,7 @@ public class BuffedSkillLevelPatch
         }
     }
 
-    // Transpiler สำหรับ method ที่ใช้ Skill object
+    // Transpiler สำหรับ method ที่ใช้ Skill object overload
     public static IEnumerable<CodeInstruction> ReplaceSkillLevelTranspiler(
         IEnumerable<CodeInstruction> instructions)
     {
@@ -257,7 +256,7 @@ public class BuffedSkillLevelPatch
         Monitor?.Log($"ReplaceSkillLevelTranspiler: replaced {replaced} calls", LogLevel.Info);
     }
 
-    // Transpiler สำหรับ method ที่ใช้ string
+    // Transpiler สำหรับ method ที่ใช้ string overload
     public static IEnumerable<CodeInstruction> ReplaceSkillLevelStringTranspiler(
         IEnumerable<CodeInstruction> instructions)
     {
