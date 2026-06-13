@@ -16,6 +16,7 @@ public class EquipmentMenuDebugPatch
 
     public static void Apply(Harmony harmony)
     {
+        // 1. ลบปุ่ม + ออกจาก allClickableComponents + fix leftNeighborID
         var populate = typeof(IClickableMenu).GetMethod("populateClickableComponentList",
             BindingFlags.Public | BindingFlags.Instance);
         if (populate != null)
@@ -26,6 +27,19 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched populateClickableComponentList", LogLevel.Info);
         }
 
+        // 2. ปิด SpaceCore InventoryPageLeftClickPatch ทั้งหมด
+        var spaceCorePrefix = AccessTools.TypeByName("SpaceCore.InventoryPageLeftClickPatch")
+            ?.GetMethod("Prefix", BindingFlags.Public | BindingFlags.Static);
+        if (spaceCorePrefix != null)
+        {
+            harmony.Patch(spaceCorePrefix,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
+                    .GetMethod(nameof(BlockSpaceCorePrefix))));
+            Monitor?.Log("patched SpaceCore.InventoryPageLeftClickPatch.Prefix", LogLevel.Info);
+        }
+        else Monitor?.Log("SpaceCore.InventoryPageLeftClickPatch.Prefix not found!", LogLevel.Warn);
+
+        // 3. patch getComponentWithID ให้ return null เมื่อ ID = 1348000
         var getComp = typeof(IClickableMenu).GetMethod("getComponentWithID",
             BindingFlags.Public | BindingFlags.Instance);
         if (getComp != null)
@@ -36,6 +50,7 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched getComponentWithID", LogLevel.Info);
         }
 
+        // 4. วาดปุ่มใหม่ใน InventoryPage.draw
         var draw = typeof(InventoryPage).GetMethod("draw",
             new[] { typeof(SpriteBatch) });
         if (draw != null)
@@ -46,6 +61,7 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
         }
 
+        // 5. handle click
         var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
             BindingFlags.Public | BindingFlags.Instance);
         if (receiveLeftClick != null)
@@ -89,6 +105,9 @@ public class EquipmentMenuDebugPatch
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
+    // ปิด SpaceCore handler ทั้งหมด
+    public static bool BlockSpaceCorePrefix() => false;
+
     public static void PopulatePostfix(IClickableMenu __instance)
     {
         if (__instance is not InventoryPage page) return;
@@ -124,10 +143,10 @@ public class EquipmentMenuDebugPatch
             }
         }
 
-        // ย้ายปุ่มไปกลางจอ เพื่อทดสอบ
+        // ขยับปุ่มขึ้นจากตำแหน่งเดิม 100px เพื่อไม่ชนปุ่ม SpaceCore เดิม
         _btnBounds = new Rectangle(
-            Game1.uiViewport.Width / 2 - 32,
-            Game1.uiViewport.Height / 2 - 32,
+            page.xPositionOnScreen - 80,
+            page.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12 - 100,
             64, 64);
         Monitor?.Log($"btnBounds={_btnBounds}", LogLevel.Info);
     }
@@ -147,7 +166,6 @@ public class EquipmentMenuDebugPatch
         if (_btnBounds == Rectangle.Empty) return;
         try
         {
-            // วาดปุ่มที่กลางจอ
             var tex = Game1.content.Load<Texture2D>("spacechase0.SpaceCore/ExtraEquipmentIcon");
             b.Draw(tex, new Vector2(_btnBounds.X, _btnBounds.Y),
                 new Rectangle(0, 0, 16, 16), Color.White,
@@ -159,7 +177,6 @@ public class EquipmentMenuDebugPatch
     static void TryOpenEquipmentMenu(int x, int y, string source)
     {
         if (_btnBounds == Rectangle.Empty) return;
-        Monitor?.Log($"[{source}] click=({x},{y}) btnBounds={_btnBounds} contains={_btnBounds.Contains(x, y)}", LogLevel.Info);
         if (!_btnBounds.Contains(x, y)) return;
 
         Monitor?.Log($"[{source}] Hit! Opening SnsEquipmentMenu...", LogLevel.Info);
@@ -179,25 +196,21 @@ public class EquipmentMenuDebugPatch
 
     public static void ReceiveLeftClickPostfix(InventoryPage __instance, int x, int y)
     {
-        Monitor?.Log($"InventoryPage.receiveLeftClick ({x},{y})", LogLevel.Info);
         TryOpenEquipmentMenu(x, y, "inv-receive");
     }
 
     public static void ReleaseLeftClickPostfix(InventoryPage __instance, int x, int y)
     {
-        Monitor?.Log($"InventoryPage.releaseLeftClick ({x},{y})", LogLevel.Info);
         TryOpenEquipmentMenu(x, y, "inv-release");
     }
 
     public static void GameMenuReceivePostfix(GameMenu __instance, int x, int y)
     {
-        Monitor?.Log($"GameMenu.receiveLeftClick ({x},{y})", LogLevel.Info);
         TryOpenEquipmentMenu(x, y, "gm-receive");
     }
 
     public static void GameMenuReleasePostfix(GameMenu __instance, int x, int y)
     {
-        Monitor?.Log($"GameMenu.releaseLeftClick ({x},{y})", LogLevel.Info);
         TryOpenEquipmentMenu(x, y, "gm-release");
     }
 }
