@@ -16,8 +16,9 @@ public class SnsEquipmentMenu : IClickableMenu
 {
     internal static IMonitor? Monitor;
 
-    private const string ArmorSlotId   = "DN.SwordAndSorcery_Armor";
-    private const string OffhandSlotId = "DN.SwordAndSorcery_Offhand";
+    // slot ID จะถูก set ตอน runtime หลังรู้ UniqueID จริงของ SNS
+    private static string? _armorSlotId;
+    private static string? _offhandSlotId;
 
     private static MethodInfo? _getItem;
     private static MethodInfo? _setItem;
@@ -31,6 +32,48 @@ public class SnsEquipmentMenu : IClickableMenu
 
     private int _boxX, _boxY, _boxW, _boxH;
     private int _invBorderX, _invBorderY, _invBorderW, _invBorderH;
+
+    // เรียกตอน GameLaunched เพื่อหา slot IDs จริงๆ จาก EquipmentSlots
+    public static void InitSlotIds()
+    {
+        try
+        {
+            var spaceCoreType = AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
+                .FirstOrDefault(t => t.FullName == "SpaceCore.SpaceCore");
+
+            var equipmentSlots = spaceCoreType
+                ?.GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
+                ?.GetValue(null);
+
+            if (equipmentSlots == null)
+            {
+                Monitor?.Log("InitSlotIds: EquipmentSlots null", LogLevel.Warn);
+                return;
+            }
+
+            // dump keys ทั้งหมด
+            var keys = equipmentSlots.GetType()
+                .GetProperty("Keys")
+                ?.GetValue(equipmentSlots) as IEnumerable<string>;
+
+            if (keys != null)
+            {
+                foreach (var key in keys)
+                {
+                    Monitor?.Log($"EquipmentSlots key: {key}", LogLevel.Info);
+                    if (key.EndsWith("_Armor")) _armorSlotId = key;
+                    if (key.EndsWith("_Offhand")) _offhandSlotId = key;
+                }
+            }
+
+            Monitor?.Log($"InitSlotIds: armorSlotId={_armorSlotId ?? "null"} offhandSlotId={_offhandSlotId ?? "null"}", LogLevel.Info);
+        }
+        catch (Exception ex)
+        {
+            Monitor?.Log($"InitSlotIds error: {ex.Message}", LogLevel.Error);
+        }
+    }
 
     public SnsEquipmentMenu() : base(0, 0, 0, 0)
     {
@@ -66,7 +109,7 @@ public class SnsEquipmentMenu : IClickableMenu
         {
             myID = 200,
             label = "Armor",
-            item  = GetSlotItem(ArmorSlotId)
+            item  = _armorSlotId != null ? GetSlotItem(_armorSlotId) : null
         };
 
         _offhandSlot = new ClickableTextureComponent(
@@ -76,7 +119,7 @@ public class SnsEquipmentMenu : IClickableMenu
         {
             myID = 201,
             label = "Offhand",
-            item  = GetSlotItem(OffhandSlotId)
+            item  = _offhandSlotId != null ? GetSlotItem(_offhandSlotId) : null
         };
 
         int newSq = 80;
@@ -165,7 +208,6 @@ public class SnsEquipmentMenu : IClickableMenu
         catch (Exception ex) { Monitor?.Log($"SetSlotItem error: {ex.Message}", LogLevel.Error); }
     }
 
-    // แก้ข้อ 4: ใช้ TryGetValue แทน get_Item
     static Func<Item, bool>? GetSlotValidator(string slotId)
     {
         try
@@ -174,47 +216,25 @@ public class SnsEquipmentMenu : IClickableMenu
                 .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
                 .FirstOrDefault(t => t.FullName == "SpaceCore.SpaceCore");
 
-            if (spaceCoreType == null)
-            {
-                Monitor?.Log("GetSlotValidator: SpaceCore.SpaceCore type not found!", LogLevel.Warn);
-                return null;
-            }
-
             var equipmentSlots = spaceCoreType
-                .GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
+                ?.GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
                 ?.GetValue(null);
 
-            if (equipmentSlots == null)
-            {
-                Monitor?.Log("GetSlotValidator: EquipmentSlots null!", LogLevel.Warn);
-                return null;
-            }
+            if (equipmentSlots == null) return null;
 
-            // ใช้ TryGetValue แทน get_Item
             var tryGetValue = equipmentSlots.GetType()
                 .GetMethod("TryGetValue", new[] { typeof(string), equipmentSlots.GetType().GetGenericArguments()[1].MakeByRefType() });
 
-            if (tryGetValue == null)
-            {
-                Monitor?.Log("GetSlotValidator: TryGetValue method not found!", LogLevel.Warn);
-                return null;
-            }
+            if (tryGetValue == null) return null;
 
             object?[] args = new object?[] { slotId, null };
             bool found = (bool)(tryGetValue.Invoke(equipmentSlots, args) ?? false);
 
-            if (!found || args[1] == null)
-            {
-                Monitor?.Log($"GetSlotValidator: slotId '{slotId}' not found in EquipmentSlots", LogLevel.Warn);
-                return null;
-            }
+            if (!found || args[1] == null) return null;
 
-            var slotData = args[1];
-            Monitor?.Log($"GetSlotValidator: found slotData={slotData.GetType().Name}", LogLevel.Info);
-
-            return slotData.GetType()
+            return args[1].GetType()
                 .GetProperty("SlotValidator", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(slotData) as Func<Item, bool>;
+                ?.GetValue(args[1]) as Func<Item, bool>;
         }
         catch (Exception ex)
         {
@@ -227,14 +247,8 @@ public class SnsEquipmentMenu : IClickableMenu
     {
         if (item == null) return true;
         var validator = GetSlotValidator(slotId);
-        if (validator == null)
-        {
-            Monitor?.Log($"IsValidForSlot: validator null for {slotId}", LogLevel.Warn);
-            return false;
-        }
-        bool result = validator.Invoke(item);
-        Monitor?.Log($"IsValidForSlot: {item.DisplayName} → {slotId} = {result}", LogLevel.Info);
-        return result;
+        if (validator == null) return false;
+        return validator.Invoke(item);
     }
 
     Item? GetSelectedItem()
@@ -244,19 +258,17 @@ public class SnsEquipmentMenu : IClickableMenu
         return Game1.player.Items[selected];
     }
 
-    void TryEquipItem(string slotId, ClickableTextureComponent slot, bool playSound)
+    void TryEquipItem(string? slotId, ClickableTextureComponent slot, bool playSound)
     {
-        int selected = _inventory.currentlySelectedItem;
-        Monitor?.Log($"TryEquipItem: slotId={slotId} currentlySelectedItem={selected}", LogLevel.Info);
-
-        var selectedItem = GetSelectedItem();
-        if (selectedItem == null)
+        if (slotId == null)
         {
-            Monitor?.Log($"TryEquipItem: no item selected", LogLevel.Info);
+            Monitor?.Log("TryEquipItem: slotId null — InitSlotIds not called yet?", LogLevel.Warn);
             return;
         }
 
-        Monitor?.Log($"TryEquipItem: selectedItem={selectedItem.DisplayName}", LogLevel.Info);
+        int selected = _inventory.currentlySelectedItem;
+        var selectedItem = GetSelectedItem();
+        if (selectedItem == null) return;
         if (!IsValidForSlot(slotId, selectedItem)) return;
 
         var old = GetSlotItem(slotId);
@@ -281,13 +293,13 @@ public class SnsEquipmentMenu : IClickableMenu
 
         if (_armorSlot.containsPoint(x, y))
         {
-            TryEquipItem(ArmorSlotId, _armorSlot, playSound);
+            TryEquipItem(_armorSlotId, _armorSlot, playSound);
             return;
         }
 
         if (_offhandSlot.containsPoint(x, y))
         {
-            TryEquipItem(OffhandSlotId, _offhandSlot, playSound);
+            TryEquipItem(_offhandSlotId, _offhandSlot, playSound);
             return;
         }
 
@@ -371,4 +383,3 @@ public class SnsEquipmentMenu : IClickableMenu
         base.emergencyShutDown();
     }
 }
-
