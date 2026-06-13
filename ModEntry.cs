@@ -29,12 +29,17 @@ public class ModEntry : Mod
             RevalidateHealthPatch.Reset();
         };
 
-        bool _revalidated = false;
         helper.Events.GameLoop.DayStarted += (s, e) =>
         {
-            if (_revalidated) return;
-            _revalidated = true;
             Monitor.Log("DayStarted: calling RevalidateHealth", LogLevel.Info);
+            LevelUpMenu.RevalidateHealth(Game1.player);
+        };
+
+        // เรียก RevalidateHealth ทันทีที่ใส่/ถอดแหวน
+        helper.Events.Player.InventoryChanged += (s, e) =>
+        {
+            if (!Context.IsWorldReady) return;
+            Monitor.Log("InventoryChanged: calling RevalidateHealth", LogLevel.Info);
             LevelUpMenu.RevalidateHealth(Game1.player);
         };
     }
