@@ -31,15 +31,23 @@ public class ModEntry : Mod
 
         helper.Events.GameLoop.DayStarted += (s, e) =>
         {
-            Monitor.Log("DayStarted: calling RevalidateHealth", LogLevel.Info);
+            Monitor.Log("DayStarted: init from base level then RevalidateHealth", LogLevel.Info);
+            RevalidateHealthPatch.InitFromBaseLevel(Game1.player);
             LevelUpMenu.RevalidateHealth(Game1.player);
         };
 
-        // เรียก RevalidateHealth ทันทีที่ใส่/ถอดแหวน
+        bool _pendingRevalidate = false;
         helper.Events.Player.InventoryChanged += (s, e) =>
         {
             if (!Context.IsWorldReady) return;
-            Monitor.Log("InventoryChanged: calling RevalidateHealth", LogLevel.Info);
+            _pendingRevalidate = true;
+        };
+
+        helper.Events.GameLoop.UpdateTicked += (s, e) =>
+        {
+            if (!_pendingRevalidate || !Context.IsWorldReady) return;
+            _pendingRevalidate = false;
+            Monitor.Log("UpdateTicked: calling RevalidateHealth after inventory change", LogLevel.Info);
             LevelUpMenu.RevalidateHealth(Game1.player);
         };
     }
