@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Reflection;
 using HarmonyLib;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
@@ -12,6 +14,7 @@ public class EquipmentMenuDebugPatch
 {
     internal static IMonitor? Monitor;
     private static readonly string LogPath = "/storage/emulated/0/sns_equipment_debug.txt";
+    private static Rectangle _btnBounds = Rectangle.Empty;
 
     static void FileLog(string msg)
     {
@@ -21,14 +24,37 @@ public class EquipmentMenuDebugPatch
 
     public static void Apply(Harmony harmony)
     {
+        // 1. ลบปุ่ม + ออกจาก allClickableComponents ป้องกัน native crash
+        var populate = typeof(IClickableMenu).GetMethod("populateClickableComponentList",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (populate != null)
+        {
+            harmony.Patch(populate,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
+                    .GetMethod(nameof(PopulatePostfix))));
+            Monitor?.Log("patched populateClickableComponentList", LogLevel.Info);
+        }
+
+        // 2. วาดปุ่ม + เองใน InventoryPage.draw
+        var draw = typeof(InventoryPage).GetMethod("draw",
+            new[] { typeof(SpriteBatch) });
+        if (draw != null)
+        {
+            harmony.Patch(draw,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
+                    .GetMethod(nameof(DrawPostfix))));
+            Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
+        }
+
+        // 3. handle click เอง
         var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
             BindingFlags.Public | BindingFlags.Instance);
         if (receiveLeftClick != null)
         {
             harmony.Patch(receiveLeftClick,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(ReceiveLeftClickPrefix))));
-            Monitor?.Log("EquipmentMenuDebugPatch: patched receiveLeftClick", LogLevel.Info);
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
+                    .GetMethod(nameof(ReceiveLeftClickPostfix))));
+            Monitor?.Log("patched InventoryPage.receiveLeftClick", LogLevel.Info);
         }
 
         var releaseLeftClick = typeof(InventoryPage).GetMethod("releaseLeftClick",
@@ -36,106 +62,92 @@ public class EquipmentMenuDebugPatch
         if (releaseLeftClick != null)
         {
             harmony.Patch(releaseLeftClick,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
-                    .GetMethod(nameof(ReleaseLeftClickPrefix))));
-            Monitor?.Log("EquipmentMenuDebugPatch: patched releaseLeftClick", LogLevel.Info);
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
+                    .GetMethod(nameof(ReleaseLeftClickPostfix))));
+            Monitor?.Log("patched InventoryPage.releaseLeftClick", LogLevel.Info);
         }
 
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
-    static bool TryHandleEquipmentButton(InventoryPage instance, int x, int y, string source)
+    // ลบปุ่ม ID 1348000 ออกจาก allClickableComponents ป้องกัน native crash
+    public static void PopulatePostfix(IClickableMenu __instance)
     {
+        if (__instance is not InventoryPage page) return;
+        var all = __instance.allClickableComponents;
+        if (all == null) return;
+        for (int i = all.Count - 1; i >= 0; i--)
+        {
+            if (all[i].myID == 1348000)
+            {
+                all.RemoveAt(i);
+                Monitor?.Log("Removed ID 1348000 from allClickableComponents", LogLevel.Info);
+                break;
+            }
+        }
+
+        // คำนวณ bounds ของปุ่มที่เราจะวาดเอง
+        _btnBounds = new Rectangle(
+            page.xPositionOnScreen - 80,
+            page.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12,
+            64, 64);
+    }
+
+    // วาดปุ่ม + เอง
+    public static void DrawPostfix(InventoryPage __instance, SpriteBatch b)
+    {
+        if (_btnBounds == Rectangle.Empty) return;
+
+        // โหลด texture เดิมของ SpaceCore
         try
         {
-            // วิธี 1: ผ่าน SpaceCore comps (PC style)
-            var compsField = AccessTools.TypeByName("SpaceCore.InventoryPageConstructorPatch")
-                ?.GetField("comps", BindingFlags.Public | BindingFlags.Static);
-            var comps = compsField?.GetValue(null);
-            var getOrCreateValue = comps?.GetType().GetMethod("GetOrCreateValue");
-            var holder = getOrCreateValue?.Invoke(comps, new object[] { instance });
-            var btn = holder?.GetType()
-                .GetField("Value", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(holder) as ClickableTextureComponent;
+            var tex = Game1.content.Load<Texture2D>("spacechase0.SpaceCore/ExtraEquipmentIcon");
+            b.Draw(tex, new Vector2(_btnBounds.X, _btnBounds.Y),
+                new Rectangle(0, 0, 16, 16), Color.White,
+                0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+        }
+        catch { }
+    }
 
-            FileLog($"[{source}] click=({x},{y}) btn={(btn == null ? "null" : $"{btn.bounds}")}");
+    static void TryOpenEquipmentMenu(int x, int y, string source)
+    {
+        if (_btnBounds == Rectangle.Empty) return;
+        if (!_btnBounds.Contains(x, y)) return;
 
-            bool hitBtn = false;
+        FileLog($"[{source}] Hit! ({x},{y}) bounds={_btnBounds}");
+        try
+        {
+            var equipmentMenuType = AccessTools.TypeByName("SpaceCore.EquipmentMenu");
+            FileLog($"[{source}] type={equipmentMenuType?.FullName ?? "null"}");
+            if (equipmentMenuType == null) return;
 
-            // เช็ควิธี 1: bounds จาก SpaceCore
-            if (btn != null && btn.bounds.Contains(x, y))
-            {
-                FileLog($"[{source}] Hit via SpaceCore bounds");
-                hitBtn = true;
-            }
+            FileLog($"[{source}] Calling constructor...");
+            var menu = Activator.CreateInstance(equipmentMenuType);
+            FileLog($"[{source}] Constructor OK!");
 
-            // เช็ควิธี 2: เช็ค component ID 1348000 ใน allClickableComponents
-            if (!hitBtn)
-            {
-                var allComponents = instance.allClickableComponents;
-                if (allComponents != null)
-                {
-                    foreach (var comp in allComponents)
-                    {
-                        if (comp.myID == 1348000 && comp.containsPoint(x, y))
-                        {
-                            FileLog($"[{source}] Hit via ID 1348000 bounds={comp.bounds}");
-                            hitBtn = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (!hitBtn) return false;
-
-            // ลอง open EquipmentMenu
-            FileLog($"[{source}] Opening EquipmentMenu...");
-            try
-            {
-                var equipmentMenuType = AccessTools.TypeByName("SpaceCore.EquipmentMenu");
-                FileLog($"[{source}] type={equipmentMenuType?.FullName ?? "null"}");
-                if (equipmentMenuType == null) return true;
-
-                FileLog($"[{source}] Calling constructor...");
-                var menu = Activator.CreateInstance(equipmentMenuType);
-                FileLog($"[{source}] Constructor OK!");
-
-                var setChildMenu = typeof(IClickableMenu).GetMethod("SetChildMenu",
-                    BindingFlags.Public | BindingFlags.Instance);
-                setChildMenu?.Invoke(Game1.activeClickableMenu, new object[] { menu });
-                FileLog($"[{source}] SetChildMenu OK!");
-            }
-            catch (Exception ex)
-            {
-                FileLog($"[{source}] CRASH: {ex.GetType().Name}: {ex.Message}");
-                if (ex.InnerException != null)
-                    FileLog($"[{source}] Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
-                FileLog($"[{source}] Stack: {ex.StackTrace}");
-            }
-
-            return true;
+            var setChildMenu = typeof(IClickableMenu).GetMethod("SetChildMenu",
+                BindingFlags.Public | BindingFlags.Instance);
+            setChildMenu?.Invoke(Game1.activeClickableMenu, new object[] { menu });
+            FileLog($"[{source}] SetChildMenu OK!");
         }
         catch (Exception ex)
         {
-            FileLog($"[{source}] Error: {ex.Message}");
-            return false;
+            FileLog($"[{source}] CRASH: {ex.GetType().Name}: {ex.Message}");
+            if (ex.InnerException != null)
+                FileLog($"[{source}] Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+            FileLog($"[{source}] Stack: {ex.StackTrace}");
         }
     }
 
-    public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
+    public static void ReceiveLeftClickPostfix(InventoryPage __instance, int x, int y)
     {
         FileLog($"receiveLeftClick ({x},{y})");
-        if (TryHandleEquipmentButton(__instance, x, y, "receive"))
-            return false;
-        return true;
+        TryOpenEquipmentMenu(x, y, "receive");
     }
 
-    public static bool ReleaseLeftClickPrefix(InventoryPage __instance, int x, int y)
+    public static void ReleaseLeftClickPostfix(InventoryPage __instance, int x, int y)
     {
         FileLog($"releaseLeftClick ({x},{y})");
-        if (TryHandleEquipmentButton(__instance, x, y, "release"))
-            return false;
-        return true;
+        TryOpenEquipmentMenu(x, y, "release");
     }
 }
