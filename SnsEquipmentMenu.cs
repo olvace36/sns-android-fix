@@ -16,9 +16,6 @@ public class SnsEquipmentMenu : IClickableMenu
 {
     internal static IMonitor? Monitor;
 
-    // เก็บ GameMenu ก่อนเปิด SnsEquipmentMenu
-    public static IClickableMenu? PreviousMenu;
-
     private static string? _armorSlotId;
     private static string? _offhandSlotId;
 
@@ -49,7 +46,10 @@ public class SnsEquipmentMenu : IClickableMenu
 
             if (equipmentSlots == null) { Monitor?.Log("InitSlotIds: EquipmentSlots null", LogLevel.Warn); return; }
 
-            var keys = equipmentSlots.GetType().GetProperty("Keys")?.GetValue(equipmentSlots) as IEnumerable<string>;
+            var keys = equipmentSlots.GetType()
+                .GetProperty("Keys")
+                ?.GetValue(equipmentSlots) as IEnumerable<string>;
+
             if (keys != null)
             {
                 foreach (var key in keys)
@@ -59,6 +59,7 @@ public class SnsEquipmentMenu : IClickableMenu
                     if (key.EndsWith("_Offhand")) _offhandSlotId = key;
                 }
             }
+
             Monitor?.Log($"InitSlotIds: armor={_armorSlotId ?? "null"} offhand={_offhandSlotId ?? "null"}", LogLevel.Info);
         }
         catch (Exception ex) { Monitor?.Log($"InitSlotIds error: {ex.Message}", LogLevel.Error); }
@@ -139,7 +140,6 @@ public class SnsEquipmentMenu : IClickableMenu
         _invBorderW = totalWidth + IClickableMenu.borderWidth * 2;
         _invBorderH = totalHeight + IClickableMenu.borderWidth * 2;
 
-        // ปุ่ม X mobile
         var closeButton = new ClickableTextureComponent(
             new Rectangle(vw - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
             Game1.mobileSpriteSheet, new Rectangle(62, 0, 17, 17), 4f, true);
@@ -185,10 +185,12 @@ public class SnsEquipmentMenu : IClickableMenu
             var equipmentSlots = spaceCoreType
                 ?.GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
                 ?.GetValue(null);
+
             if (equipmentSlots == null) return null;
 
             var tryGetValue = equipmentSlots.GetType()
                 .GetMethod("TryGetValue", new[] { typeof(string), equipmentSlots.GetType().GetGenericArguments()[1].MakeByRefType() });
+
             object?[] args = new object?[] { slotId, null };
             bool found = (bool)(tryGetValue?.Invoke(equipmentSlots, args) ?? false);
             if (!found || args[1] == null) return null;
@@ -215,6 +217,8 @@ public class SnsEquipmentMenu : IClickableMenu
         return Game1.player.Items[selected];
     }
 
+    // แก้ข้อ 4: ถ้าไม่มี item selected → ถอด item ออกจาก slot
+    // ถ้ามี item selected → swap item เข้า slot
     void TryEquipItem(string? slotId, ClickableTextureComponent slot, bool playSound)
     {
         if (slotId == null) return;
@@ -223,7 +227,7 @@ public class SnsEquipmentMenu : IClickableMenu
 
         if (selectedItem == null)
         {
-            // ถอด item ออกจาก slot
+            // ถอด item ออกจาก slot → ใส่กลับ inventory
             var existing = GetSlotItem(slotId);
             if (existing == null) return;
             if (Game1.player.addItemToInventoryBool(existing))
@@ -236,6 +240,7 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
+        // swap item เข้า slot
         if (!IsValidForSlot(slotId, selectedItem)) return;
 
         int selected = _inventory.currentlySelectedItem;
@@ -251,14 +256,11 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void receiveLeftClick(int x, int y, bool playSound = true)
     {
-        // ปุ่ม X — restore GameMenu กลับ
         var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
         if (closeBtn != null && closeBtn.containsPoint(x, y))
         {
-            Game1.activeClickableMenu = PreviousMenu;
-            PreviousMenu = null;
-            Monitor?.Log("SnsEquipmentMenu closed, restored GameMenu", LogLevel.Info);
+            exitThisMenu();
             return;
         }
 
@@ -279,6 +281,7 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void leftClickHeld(int x, int y)
     {
+        Monitor?.Log($"SnsEquipmentMenu.leftClickHeld ({x},{y})", LogLevel.Info);
         _inventory.leftClickHeld(x, y);
     }
 
@@ -320,13 +323,5 @@ public class SnsEquipmentMenu : IClickableMenu
         if (!Game1.options.hardwareCursor) drawMouse(b);
     }
 
-    public override void emergencyShutDown()
-    {
-        if (PreviousMenu != null)
-        {
-            Game1.activeClickableMenu = PreviousMenu;
-            PreviousMenu = null;
-        }
-        base.emergencyShutDown();
-    }
+    public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
