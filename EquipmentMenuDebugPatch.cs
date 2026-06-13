@@ -16,7 +16,6 @@ public class EquipmentMenuDebugPatch
 
     public static void Apply(Harmony harmony)
     {
-        // 1. ลบปุ่ม + ออกจาก allClickableComponents + fix leftNeighborID
         var populate = typeof(IClickableMenu).GetMethod("populateClickableComponentList",
             BindingFlags.Public | BindingFlags.Instance);
         if (populate != null)
@@ -27,7 +26,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched populateClickableComponentList", LogLevel.Info);
         }
 
-        // 2. ปิด SpaceCore InventoryPageLeftClickPatch
         var spaceCorePrefix = AccessTools.TypeByName("SpaceCore.InventoryPageLeftClickPatch")
             ?.GetMethod("Prefix", BindingFlags.Public | BindingFlags.Static);
         if (spaceCorePrefix != null)
@@ -37,9 +35,7 @@ public class EquipmentMenuDebugPatch
                     .GetMethod(nameof(BlockSpaceCorePrefix))));
             Monitor?.Log("patched SpaceCore.InventoryPageLeftClickPatch.Prefix", LogLevel.Info);
         }
-        else Monitor?.Log("SpaceCore.InventoryPageLeftClickPatch.Prefix not found!", LogLevel.Warn);
 
-        // 3. ปิด SpaceCore InventoryPageDrawTooltipPatch (ลบปุ่มวาด)
         var spaceCoreDrawPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageDrawTooltipPatch")
             ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
         if (spaceCoreDrawPostfix != null)
@@ -49,9 +45,7 @@ public class EquipmentMenuDebugPatch
                     .GetMethod(nameof(BlockSpaceCorePrefix))));
             Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix", LogLevel.Info);
         }
-        else Monitor?.Log("SpaceCore.InventoryPageDrawTooltipPatch.Postfix not found!", LogLevel.Warn);
 
-        // 4. patch getComponentWithID
         var getComp = typeof(IClickableMenu).GetMethod("getComponentWithID",
             BindingFlags.Public | BindingFlags.Instance);
         if (getComp != null)
@@ -62,7 +56,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched getComponentWithID", LogLevel.Info);
         }
 
-        // 5. วาดปุ่มใหม่ใน InventoryPage.draw
         var draw = typeof(InventoryPage).GetMethod("draw",
             new[] { typeof(SpriteBatch) });
         if (draw != null)
@@ -73,7 +66,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
         }
 
-        // 6. handle click
         var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
             BindingFlags.Public | BindingFlags.Instance);
         if (receiveLeftClick != null)
@@ -114,10 +106,20 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched GameMenu.releaseLeftClick", LogLevel.Info);
         }
 
+        // แก้ข้อ 1, 3: patch GameMenu.leftClickHeld ส่งต่อให้ child menu
+        var gameMenuHeld = typeof(GameMenu).GetMethod("leftClickHeld",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (gameMenuHeld != null)
+        {
+            harmony.Patch(gameMenuHeld,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch)
+                    .GetMethod(nameof(GameMenuLeftClickHeldPostfix))));
+            Monitor?.Log("patched GameMenu.leftClickHeld", LogLevel.Info);
+        }
+
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
-    // ปิด SpaceCore handler
     public static bool BlockSpaceCorePrefix() => false;
 
     public static void PopulatePostfix(IClickableMenu __instance)
@@ -153,7 +155,6 @@ public class EquipmentMenuDebugPatch
             }
         }
 
-        // ปุ่มใหม่ขยับขึ้น 100px จากตำแหน่งเดิม
         _btnBounds = new Rectangle(
             page.xPositionOnScreen - 80,
             page.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12 + 100,
@@ -198,8 +199,6 @@ public class EquipmentMenuDebugPatch
         catch (Exception ex)
         {
             Monitor?.Log($"[{source}] CRASH: {ex.GetType().Name}: {ex.Message}", LogLevel.Error);
-            if (ex.InnerException != null)
-                Monitor?.Log($"[{source}] Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}", LogLevel.Error);
         }
     }
 
@@ -216,11 +215,28 @@ public class EquipmentMenuDebugPatch
     public static void GameMenuReceivePostfix(GameMenu __instance, int x, int y)
     {
         TryOpenEquipmentMenu(x, y, "gm-receive");
+
+        // ส่งต่อให้ child menu ถ้าเป็น SnsEquipmentMenu
+        var child = __instance.GetChildMenu();
+        if (child is SnsEquipmentMenu sns)
+            sns.receiveLeftClick(x, y);
     }
 
     public static void GameMenuReleasePostfix(GameMenu __instance, int x, int y)
     {
         TryOpenEquipmentMenu(x, y, "gm-release");
+
+        // แก้ข้อ 1, 3: ส่งต่อ releaseLeftClick ให้ child menu
+        var child = __instance.GetChildMenu();
+        if (child is SnsEquipmentMenu sns)
+            sns.releaseLeftClick(x, y);
+    }
+
+    // แก้ข้อ 1, 3: ส่งต่อ leftClickHeld ให้ child menu
+    public static void GameMenuLeftClickHeldPostfix(GameMenu __instance, int x, int y)
+    {
+        var child = __instance.GetChildMenu();
+        if (child is SnsEquipmentMenu sns)
+            sns.leftClickHeld(x, y);
     }
 }
-
