@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using StardewModdingAPI;
-using StardewModdingAPI.Events;
 using StardewValley;
 
 namespace SnsAndroidFix;
@@ -12,6 +11,14 @@ namespace SnsAndroidFix;
 public class SkillRingsPatch
 {
     internal static IMonitor? Monitor;
+    private static string[] _snsSkillIds = new[]
+    {
+        "DestyNova.SwordAndSorcery.Rogue",
+        "DestyNova.SwordAndSorcery.Druidics",
+        "DestyNova.SwordAndSorcery.Bardics",
+        "DestyNova.SwordAndSorcery.Sorcery",
+        "DestyNova.SwordAndSorcery.Paladin"
+    };
 
     public static void Apply(IModHelper helper, Harmony harmony)
     {
@@ -31,12 +38,34 @@ public class SkillRingsPatch
         }
 
         harmony.Patch(onUpdateTicked,
+            prefix: new HarmonyMethod(typeof(SkillRingsPatch)
+                .GetMethod(nameof(OnUpdateTickedPrefix))),
             transpiler: new HarmonyMethod(typeof(SkillRingsPatch)
                 .GetMethod(nameof(OnUpdateTickedTranspiler))));
 
         Monitor?.Log("SkillRingsPatch applied!", LogLevel.Info);
     }
 
+    // remove buff เก่าทุก SNS skill ก่อน onUpdateTicked ทำงาน
+    public static void OnUpdateTickedPrefix(object __instance, object sender, object e)
+    {
+        if (e == null) return;
+        var isOneSecond = (bool?)e.GetType()
+            .GetProperty("IsOneSecond")?.GetValue(e) ?? false;
+        if (!isOneSecond) return;
+
+        foreach (var skillId in _snsSkillIds)
+        {
+            string buffId = $"AlphaMeece.SkillRings_{skillId}Buff";
+            if (Game1.player.hasBuff(buffId))
+            {
+                Game1.player.buffs.Remove(buffId);
+                Monitor?.Log($"Prefix: removed buff {buffId}", LogLevel.Info);
+            }
+        }
+    }
+
+    // ลบเงื่อนไข IsPlayerFree
     public static IEnumerable<CodeInstruction> OnUpdateTickedTranspiler(
         IEnumerable<CodeInstruction> instructions)
     {
@@ -48,11 +77,8 @@ public class SkillRingsPatch
 
         for (int i = 0; i < codes.Count - 2; i++)
         {
-            // หา pattern: call IsPlayerFree -> brfalse/brtrue
             if (codes[i].Calls(isPlayerFreeGetter))
             {
-                // ลบ call IsPlayerFree และ branch instruction ที่ตามมา
-                // แทนด้วย nop
                 codes[i] = new CodeInstruction(OpCodes.Nop);
                 if (i + 1 < codes.Count && (
                     codes[i + 1].opcode == OpCodes.Brfalse ||
