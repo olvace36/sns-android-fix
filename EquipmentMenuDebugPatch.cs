@@ -44,10 +44,11 @@ public class EquipmentMenuDebugPatch
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
-    static bool TryOpenEquipmentMenu(InventoryPage instance, int x, int y, string source)
+    static bool TryHandleEquipmentButton(InventoryPage instance, int x, int y, string source)
     {
         try
         {
+            // วิธี 1: ผ่าน SpaceCore comps (PC style)
             var compsField = AccessTools.TypeByName("SpaceCore.InventoryPageConstructorPatch")
                 ?.GetField("comps", BindingFlags.Public | BindingFlags.Static);
             var comps = compsField?.GetValue(null);
@@ -57,32 +58,53 @@ public class EquipmentMenuDebugPatch
                 .GetField("Value", BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(holder) as ClickableTextureComponent;
 
-            if (btn == null)
+            FileLog($"[{source}] click=({x},{y}) btn={(btn == null ? "null" : $"{btn.bounds}")}");
+
+            bool hitBtn = false;
+
+            // เช็ควิธี 1: bounds จาก SpaceCore
+            if (btn != null && btn.bounds.Contains(x, y))
             {
-                FileLog($"[{source}] btn=null");
-                return false;
+                FileLog($"[{source}] Hit via SpaceCore bounds");
+                hitBtn = true;
             }
 
-            FileLog($"[{source}] btn bounds={btn.bounds}, click=({x},{y}), contains={btn.bounds.Contains(x, y)}");
+            // เช็ควิธี 2: เช็ค component ID 1348000 ใน allClickableComponents
+            if (!hitBtn)
+            {
+                var allComponents = instance.allClickableComponents;
+                if (allComponents != null)
+                {
+                    foreach (var comp in allComponents)
+                    {
+                        if (comp.myID == 1348000 && comp.containsPoint(x, y))
+                        {
+                            FileLog($"[{source}] Hit via ID 1348000 bounds={comp.bounds}");
+                            hitBtn = true;
+                            break;
+                        }
+                    }
+                }
+            }
 
-            if (!btn.bounds.Contains(x, y)) return false;
+            if (!hitBtn) return false;
 
-            FileLog($"[{source}] Equipment button clicked! Opening menu...");
-
+            // ลอง open EquipmentMenu
+            FileLog($"[{source}] Opening EquipmentMenu...");
             try
             {
                 var equipmentMenuType = AccessTools.TypeByName("SpaceCore.EquipmentMenu");
-                FileLog($"[{source}] EquipmentMenu type={equipmentMenuType?.FullName ?? "null"}");
+                FileLog($"[{source}] type={equipmentMenuType?.FullName ?? "null"}");
                 if (equipmentMenuType == null) return true;
 
                 FileLog($"[{source}] Calling constructor...");
                 var menu = Activator.CreateInstance(equipmentMenuType);
-                FileLog($"[{source}] Constructor done!");
+                FileLog($"[{source}] Constructor OK!");
 
                 var setChildMenu = typeof(IClickableMenu).GetMethod("SetChildMenu",
                     BindingFlags.Public | BindingFlags.Instance);
                 setChildMenu?.Invoke(Game1.activeClickableMenu, new object[] { menu });
-                FileLog($"[{source}] SetChildMenu done!");
+                FileLog($"[{source}] SetChildMenu OK!");
             }
             catch (Exception ex)
             {
@@ -96,7 +118,7 @@ public class EquipmentMenuDebugPatch
         }
         catch (Exception ex)
         {
-            FileLog($"[{source}] Prefix error: {ex.Message}");
+            FileLog($"[{source}] Error: {ex.Message}");
             return false;
         }
     }
@@ -104,7 +126,7 @@ public class EquipmentMenuDebugPatch
     public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
     {
         FileLog($"receiveLeftClick ({x},{y})");
-        if (TryOpenEquipmentMenu(__instance, x, y, "receive"))
+        if (TryHandleEquipmentButton(__instance, x, y, "receive"))
             return false;
         return true;
     }
@@ -112,7 +134,7 @@ public class EquipmentMenuDebugPatch
     public static bool ReleaseLeftClickPrefix(InventoryPage __instance, int x, int y)
     {
         FileLog($"releaseLeftClick ({x},{y})");
-        if (TryOpenEquipmentMenu(__instance, x, y, "release"))
+        if (TryHandleEquipmentButton(__instance, x, y, "release"))
             return false;
         return true;
     }
