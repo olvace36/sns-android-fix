@@ -24,8 +24,12 @@ public class ModEntry : Mod
         ShieldSigilMenuPatch.Apply(harmony);
         SkillsPagePatch.Apply(helper, Monitor, harmony);
 
-        bool _revalidated = false;
+        helper.Events.GameLoop.SaveLoaded += (s, e) =>
+        {
+            RevalidateHealthPatch.Reset();
+        };
 
+        bool _revalidated = false;
         helper.Events.GameLoop.DayStarted += (s, e) =>
         {
             if (_revalidated) return;
