@@ -45,7 +45,6 @@ public class SnsEquipmentMenu : IClickableMenu
         int vw = Game1.uiViewport.Width;
         int vh = Game1.uiViewport.Height;
 
-        // กล่อง slot บน
         int menuX = vw / 2 - 350 - IClickableMenu.borderWidth;
         int menuW = 700 + IClickableMenu.borderWidth * 2;
         int menuY = vh / 2 - 150 - 100 - IClickableMenu.borderWidth;
@@ -59,7 +58,6 @@ public class SnsEquipmentMenu : IClickableMenu
         int slotAreaX = menuX + IClickableMenu.borderWidth;
         int slotAreaY = menuY + IClickableMenu.borderWidth;
 
-        // Armor slot
         _armorSlot = new ClickableTextureComponent(
             new Rectangle(slotAreaX + 40, slotAreaY + 60, 64, 64),
             LoadTexture("DN.SnS/ArmorSlot"),
@@ -70,7 +68,6 @@ public class SnsEquipmentMenu : IClickableMenu
             item  = GetSlotItem(ArmorSlotId)
         };
 
-        // Offhand slot
         _offhandSlot = new ClickableTextureComponent(
             new Rectangle(slotAreaX + 40 + 216, slotAreaY + 60, 64, 64),
             LoadTexture("DN.SnS/OffhandSlot"),
@@ -81,7 +78,6 @@ public class SnsEquipmentMenu : IClickableMenu
             item  = GetSlotItem(OffhandSlotId)
         };
 
-        // inventory — เหมือน ArsenalMenuPatch
         int newSq = 80;
         int hGap = 8;
         int verticalGap = 8;
@@ -125,13 +121,11 @@ public class SnsEquipmentMenu : IClickableMenu
             }
         }
 
-        // กรอบ inventory — เหมือน ArsenalMenuPatch ใช้ totalHeight - 44
         _invBorderX = startX - IClickableMenu.borderWidth;
         _invBorderY = startY - IClickableMenu.borderWidth;
         _invBorderW = totalWidth + IClickableMenu.borderWidth * 2;
         _invBorderH = totalHeight + IClickableMenu.borderWidth * 2;
 
-        // ปุ่ม X mobile
         var closeButton = new ClickableTextureComponent(
             new Rectangle(vw - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
             Game1.mobileSpriteSheet,
@@ -169,62 +163,88 @@ public class SnsEquipmentMenu : IClickableMenu
         catch (Exception ex) { Monitor?.Log($"SetSlotItem error: {ex.Message}", LogLevel.Error); }
     }
 
-    bool IsArmorItem(Item? item)
+    // ดึง validator จาก SpaceCore โดยตรง
+    static Func<Item, bool>? GetSlotValidator(string slotId)
     {
-        if (item == null) return true;
-        var method = item.GetType().GetMethod("IsArmorItem", BindingFlags.Public | BindingFlags.Instance);
-        return method != null && (bool)(method.Invoke(item, null) ?? false) && item is not MeleeWeapon;
+        try
+        {
+            var equipmentSlots = AccessTools.TypeByName("SpaceCore.SpaceCore")
+                ?.GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
+                ?.GetValue(null);
+            if (equipmentSlots == null) return null;
+            var slotData = equipmentSlots.GetType()
+                .GetMethod("get_Item")
+                ?.Invoke(equipmentSlots, new object[] { slotId });
+            if (slotData == null) return null;
+            return slotData.GetType()
+                .GetProperty("SlotValidator", BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(slotData) as Func<Item, bool>;
+        }
+        catch { return null; }
     }
 
-    bool IsOffhandItem(Item? item)
+    bool IsValidForSlot(string slotId, Item? item)
     {
         if (item == null) return true;
-        return item is MeleeWeapon;
+        var validator = GetSlotValidator(slotId);
+        if (validator == null) return false;
+        return validator.Invoke(item);
+    }
+
+    // ดึง item ที่ user เลือกไว้ใน inventory (highlight สีแดง)
+    Item? GetSelectedItem()
+    {
+        int selected = _inventory.currentlySelectedItem;
+        if (selected < 0 || selected >= Game1.player.Items.Count) return null;
+        return Game1.player.Items[selected];
+    }
+
+    void TryEquipItem(string slotId, ClickableTextureComponent slot, bool playSound)
+    {
+        var selectedItem = GetSelectedItem();
+        if (selectedItem == null) return;
+        if (!IsValidForSlot(slotId, selectedItem)) return;
+
+        int selected = _inventory.currentlySelectedItem;
+        var old = GetSlotItem(slotId);
+        SetSlotItem(slotId, selectedItem);
+        Game1.player.Items[selected] = old;
+        slot.item = GetSlotItem(slotId);
+        _inventory.currentlySelectedItem = -1;
+
+        if (playSound) Game1.playSound(old != null ? "dwop" : "crit");
+        Monitor?.Log($"Equipped {selectedItem.DisplayName} to {slotId}", LogLevel.Info);
     }
 
     public override void receiveLeftClick(int x, int y, bool playSound = true)
     {
+        // ปุ่ม X
         var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
         if (closeBtn != null && closeBtn.containsPoint(x, y))
         {
-            ReturnHeldItem();
             exitThisMenu();
             return;
         }
 
-        // armor slot — ใช้ CursorSlotItem เหมือน ArsenalMenu
+        // armor slot
         if (_armorSlot.containsPoint(x, y))
         {
-            if (Game1.player.CursorSlotItem == null || IsArmorItem(Game1.player.CursorSlotItem))
-            {
-                var old = GetSlotItem(ArmorSlotId);
-                SetSlotItem(ArmorSlotId, Game1.player.CursorSlotItem);
-                Game1.player.CursorSlotItem = old;
-                _armorSlot.item = GetSlotItem(ArmorSlotId);
-                if (playSound) Game1.playSound(Game1.player.CursorSlotItem != null ? "dwop" : "crit");
-            }
+            TryEquipItem(ArmorSlotId, _armorSlot, playSound);
             return;
         }
 
         // offhand slot
         if (_offhandSlot.containsPoint(x, y))
         {
-            if (Game1.player.CursorSlotItem == null || IsOffhandItem(Game1.player.CursorSlotItem))
-            {
-                var old = GetSlotItem(OffhandSlotId);
-                SetSlotItem(OffhandSlotId, Game1.player.CursorSlotItem);
-                Game1.player.CursorSlotItem = old;
-                _offhandSlot.item = GetSlotItem(OffhandSlotId);
-                if (playSound) Game1.playSound(Game1.player.CursorSlotItem != null ? "dwop" : "crit");
-            }
+            TryEquipItem(OffhandSlotId, _offhandSlot, playSound);
             return;
         }
 
-        // inventory — ใช้ CursorSlotItem เหมือน ArsenalMenu
+        // inventory — ให้ Android จัดการ touch style เอง
         if (_inventory.isWithinBounds(x, y))
         {
-            Game1.player.CursorSlotItem = _inventory.leftClick(x, y, Game1.player.CursorSlotItem, playSound);
+            _inventory.receiveLeftClick(x, y, playSound);
             return;
         }
 
@@ -233,16 +253,14 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void releaseLeftClick(int x, int y)
     {
-        // ไม่ทำอะไร ป้องกัน menu ปิดเมื่อปล่อยนิ้ว
+        if (_inventory.isWithinBounds(x, y))
+            _inventory.releaseLeftClick(x, y);
     }
 
-    void ReturnHeldItem()
+    public override void leftClickHeld(int x, int y)
     {
-        if (Game1.player.CursorSlotItem == null) return;
-        if (!Game1.player.addItemToInventoryBool(Game1.player.CursorSlotItem))
-            Game1.createItemDebris(Game1.player.CursorSlotItem, Game1.player.getStandingPosition(),
-                Game1.player.FacingDirection);
-        Game1.player.CursorSlotItem = null;
+        if (_inventory.isWithinBounds(x, y))
+            _inventory.leftClickHeld(x, y);
     }
 
     public override void performHoverAction(int x, int y)
@@ -264,11 +282,11 @@ public class SnsEquipmentMenu : IClickableMenu
             _hoveredItem = _offhandSlot.item;
             _hoverText   = _offhandSlot.item.getDescription();
         }
-        else if (_inventory.hover(x, y, Game1.player.CursorSlotItem) is Item hovered)
-        {
-            _hoveredItem = hovered;
-            _hoverText   = hovered.getDescription();
-        }
+    }
+
+    public override void update(GameTime time)
+    {
+        _inventory.update(time);
     }
 
     public override void draw(SpriteBatch b)
@@ -299,13 +317,8 @@ public class SnsEquipmentMenu : IClickableMenu
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
         closeBtn?.draw(b);
 
-        // CursorSlotItem ลอยตามนิ้ว
-        Game1.player.CursorSlotItem?.drawInMenu(b,
-            new Vector2(Game1.getOldMouseX() + 8, Game1.getOldMouseY() + 8), 1f);
-
         if (_hoveredItem != null)
-            IClickableMenu.drawToolTip(b, _hoverText, _hoveredItem.DisplayName,
-                _hoveredItem, Game1.player.CursorSlotItem != null);
+            IClickableMenu.drawToolTip(b, _hoverText, _hoveredItem.DisplayName, _hoveredItem, false);
 
         if (!Game1.options.hardwareCursor)
             drawMouse(b);
@@ -313,7 +326,6 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void emergencyShutDown()
     {
-        ReturnHeldItem();
         base.emergencyShutDown();
     }
 }
