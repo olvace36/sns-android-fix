@@ -96,15 +96,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched GameMenu.releaseLeftClick", LogLevel.Info);
         }
 
-        var gameMenuHeld = typeof(GameMenu).GetMethod("leftClickHeld",
-            BindingFlags.Public | BindingFlags.Instance);
-        if (gameMenuHeld != null)
-        {
-            harmony.Patch(gameMenuHeld,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuLeftClickHeldPostfix))));
-            Monitor?.Log("patched GameMenu.leftClickHeld", LogLevel.Info);
-        }
-
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
@@ -167,18 +158,29 @@ public class EquipmentMenuDebugPatch
         catch { }
     }
 
-    // แก้ข้อ 1 และ 3: เปิด SnsEquipmentMenu เป็น activeClickableMenu แทน child menu
-    // เพื่อให้ receiveLeftClick, leftClickHeld, releaseLeftClick ทำงานได้โดยตรง
     static void TryOpenEquipmentMenu(int x, int y, string source)
     {
         if (_btnBounds == Rectangle.Empty) return;
         if (!_btnBounds.Contains(x, y)) return;
+        if (Game1.activeClickableMenu?.GetChildMenu() is SnsEquipmentMenu) return;
 
-        Monitor?.Log($"[{source}] Hit! Opening SnsEquipmentMenu...", LogLevel.Info);
+        // log chain เพื่อ debug ว่า child ถูก set ที่ไหน
+        var menu = Game1.activeClickableMenu;
+        var chain = menu?.GetType().Name ?? "null";
+        var cur = menu;
+        while (cur?.GetChildMenu() != null)
+        {
+            cur = cur.GetChildMenu();
+            chain += $" → {cur.GetType().Name}";
+        }
+        Monitor?.Log($"[{source}] activeClickableMenu chain: {chain}", LogLevel.Info);
+        Monitor?.Log($"[{source}] SetChildMenu on: {cur?.GetType().Name ?? "null"}", LogLevel.Info);
+
         try
         {
-            Game1.activeClickableMenu = new SnsEquipmentMenu();
-            Monitor?.Log($"[{source}] SnsEquipmentMenu opened as activeClickableMenu!", LogLevel.Info);
+            // set child บน node สุดท้ายของ chain เพื่อให้ Game1 traverse เจอ
+            cur?.SetChildMenu(new SnsEquipmentMenu());
+            Monitor?.Log($"[{source}] SnsEquipmentMenu opened as child!", LogLevel.Info);
         }
         catch (Exception ex)
         {
@@ -188,26 +190,26 @@ public class EquipmentMenuDebugPatch
 
     public static void ReceiveLeftClickPostfix(InventoryPage __instance, int x, int y)
     {
+        if (Game1.activeClickableMenu?.GetChildMenu() is SnsEquipmentMenu) return;
         TryOpenEquipmentMenu(x, y, "inv-receive");
     }
 
     public static void ReleaseLeftClickPostfix(InventoryPage __instance, int x, int y)
     {
+        if (Game1.activeClickableMenu?.GetChildMenu() is SnsEquipmentMenu) return;
         TryOpenEquipmentMenu(x, y, "inv-release");
     }
 
     public static void GameMenuReceivePostfix(GameMenu __instance, int x, int y)
     {
+        if (Game1.activeClickableMenu?.GetChildMenu() is SnsEquipmentMenu) return;
         TryOpenEquipmentMenu(x, y, "gm-receive");
     }
 
     public static void GameMenuReleasePostfix(GameMenu __instance, int x, int y)
     {
+        if (Game1.activeClickableMenu?.GetChildMenu() is SnsEquipmentMenu) return;
         TryOpenEquipmentMenu(x, y, "gm-release");
     }
-
-    public static void GameMenuLeftClickHeldPostfix(GameMenu __instance, int x, int y)
-    {
-        // ไม่ต้องทำอะไรแล้วเพราะ SnsEquipmentMenu เป็น activeClickableMenu จัดการเองได้
-    }
 }
+
