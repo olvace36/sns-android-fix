@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
+using Microsoft.Xna.Framework;
 using SpaceCore;
 using StardewModdingAPI;
 using StardewValley;
@@ -48,15 +50,36 @@ public class BuffedSkillLevelPatch
         {
             harmony.Patch(recalcMethod,
                 transpiler: new HarmonyMethod(typeof(BuffedSkillLevelPatch)
-                    .GetMethod(nameof(RecalculateAetherTranspiler))));
+                    .GetMethod(nameof(ReplaceSkillLevelTranspiler))));
             Monitor?.Log("RecalculateAether patch applied!", LogLevel.Info);
         }
-        else
-        {
-            Monitor?.Log("RecalculateAether not found!", LogLevel.Warn);
-        }
+        else Monitor?.Log("RecalculateAether not found!", LogLevel.Warn);
 
-        // 6. Aether regen — Druid, Bard, Sorcery (ModSnS.cs:2079)
+        // 6. Aether regen — Druid, Bard, Sorcery
+        var timeChangedMethod = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
+            ?.GetMethod("GameLoop_TimeChanged", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (timeChangedMethod != null)
+        {
+            harmony.Patch(timeChangedMethod,
+                transpiler: new HarmonyMethod(typeof(BuffedSkillLevelPatch)
+                    .GetMethod(nameof(ReplaceSkillLevelTranspiler))));
+            Monitor?.Log("GameLoop_TimeChanged patch applied!", LogLevel.Info);
+        }
+        else Monitor?.Log("GameLoop_TimeChanged not found!", LogLevel.Warn);
+
+        // 7. Spell damage — Sorcery
+        var spellsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.Framework.Abilities.Spells");
+        var getSpellDamage = spellsType?.GetMethod("GetSpellDamange",
+            BindingFlags.Public | BindingFlags.Static);
+        if (getSpellDamage != null)
+        {
+            harmony.Patch(getSpellDamage,
+                transpiler: new HarmonyMethod(typeof(BuffedSkillLevelPatch)
+                    .GetMethod(nameof(ReplaceSkillLevelStringTranspiler))));
+            Monitor?.Log("GetSpellDamange patch applied!", LogLevel.Info);
+        }
+        else Monitor?.Log("GetSpellDamange not found!", LogLevel.Warn);
+
         Monitor?.Log("BuffedSkillLevelPatch applied!", LogLevel.Info);
     }
 
@@ -89,7 +112,6 @@ public class BuffedSkillLevelPatch
         if (!__instance.IsBow()) return;
         int level = GetBuffedRogueLevel();
         __result = 25 + 5 * level;
-        Monitor?.Log($"SlingshotDamage: Rogue buffed={level}, damage={__result}", LogLevel.Trace);
     }
 
     // 2. Scythe drop essence
@@ -103,7 +125,6 @@ public class BuffedSkillLevelPatch
 
         float num = 0.05f;
         num += GetBuffedDruidLevel() * 0.001f;
-
         if (Game1.player.hasOrWillReceiveMail("BrokenCircletPower")) num += 0.01f;
 
         var profType = AccessTools.TypeByName("SwordAndSorcerySMAPI.Framework.ModSkills.DruidicsSkill");
@@ -113,24 +134,21 @@ public class BuffedSkillLevelPatch
             num += 0.01f;
 
         if (Game1.random.NextDouble() < (double)(2f * num))
-        {
             Game1.createItemDebris(
                 (Item)(object)new StardewValley.Object("DN.SnS_druidicessence", 1, false, -1, 0),
                 ((TerrainFeature)(object)__instance).Tile * 64f, -1, null, -1, false);
-        }
 
-        return false; // skip original
+        return false;
     }
 
     // 3. HoeDirt drop essence
-    public static void HoeDirtPostfix(GameLocation __instance, Microsoft.Xna.Framework.Vector2 tileLocation)
+    public static void HoeDirtPostfix(GameLocation __instance, Vector2 tileLocation)
     {
         if (!((NetHashSet<string>)(object)Game1.player.eventsSeen).Contains("SnS.Ch2.Hector.12") ||
             !__instance.IsFarm) return;
 
         float num = 0.025f;
         num += GetBuffedDruidLevel() * 0.001f;
-
         if (Game1.player.hasOrWillReceiveMail("BrokenCircletPower")) num += 0.01f;
 
         var profType = AccessTools.TypeByName("SwordAndSorcerySMAPI.Framework.ModSkills.DruidicsSkill");
@@ -140,11 +158,9 @@ public class BuffedSkillLevelPatch
             num += 0.01f;
 
         if (Game1.random.NextDouble() < (double)(4f * num))
-        {
             Game1.createItemDebris(
                 (Item)(object)new StardewValley.Object("DN.SnS_druidicessence", 1, false, -1, 0),
                 tileLocation * 64f, -1, null, -1, false);
-        }
     }
 
     // 4. Gem to Exquisite
@@ -182,8 +198,35 @@ public class BuffedSkillLevelPatch
         }
     }
 
-    // 5. RecalculateAether Transpiler — แทน GetCustomSkillLevel ด้วย GetCustomBuffedSkillLevel
-    public static IEnumerable<CodeInstruction> RecalculateAetherTranspiler(
+    // Transpiler สำหรับ method ที่ใช้ Skill object
+    public static IEnumerable<CodeInstruction> ReplaceSkillLevelTranspiler(
+        IEnumerable<CodeInstruction> instructions)
+    {
+        var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
+        var getSkillLevel = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomSkillLevel",
+            new[] { typeof(Farmer), skillType });
+        var getBuffedLevel = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomBuffedSkillLevel",
+            new[] { typeof(Farmer), skillType });
+
+        int replaced = 0;
+        foreach (var code in instructions)
+        {
+            if (code.Calls(getSkillLevel))
+            {
+                code.operand = getBuffedLevel;
+                replaced++;
+            }
+            yield return code;
+        }
+        Monitor?.Log($"ReplaceSkillLevelTranspiler: replaced {replaced} calls", LogLevel.Info);
+    }
+
+    // Transpiler สำหรับ method ที่ใช้ string
+    public static IEnumerable<CodeInstruction> ReplaceSkillLevelStringTranspiler(
         IEnumerable<CodeInstruction> instructions)
     {
         var getSkillLevel = AccessTools.Method(
@@ -205,7 +248,6 @@ public class BuffedSkillLevelPatch
             }
             yield return code;
         }
-
-        Monitor?.Log($"RecalculateAether: replaced {replaced} GetCustomSkillLevel calls", LogLevel.Info);
+        Monitor?.Log($"ReplaceSkillLevelStringTranspiler: replaced {replaced} calls", LogLevel.Info);
     }
 }
