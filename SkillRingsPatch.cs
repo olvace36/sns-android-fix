@@ -52,7 +52,8 @@ public class SkillRingsPatch
             }
             catch (Exception ex)
             {
-                Monitor?.Log($"SkillRings update failed: {ex.Message}", LogLevel.Warn);
+                var inner = ex.InnerException ?? ex;
+                Monitor?.Log($"SkillRings update failed: {inner.GetType().Name}: {inner.Message}", LogLevel.Warn);
             }
         };
     }
