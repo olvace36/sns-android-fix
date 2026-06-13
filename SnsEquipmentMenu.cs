@@ -24,17 +24,15 @@ public class SnsEquipmentMenu : IClickableMenu
     private ClickableTextureComponent _armorSlot  = null!;
     private ClickableTextureComponent _offhandSlot = null!;
     private InventoryMenu _inventory = null!;
-    private ClickableTextureComponent _closeButton = null!;
 
     private Item? _heldItem;
     private Item? _hoveredItem;
     private string _hoverText = "";
 
-    public SnsEquipmentMenu() : base(
-        Game1.uiViewport.Width  / 2 - 428,
-        Game1.uiViewport.Height / 2 - 328,
-        856,
-        656)
+    // กล่อง slot ด้านบน
+    private int _boxX, _boxY, _boxW, _boxH;
+
+    public SnsEquipmentMenu() : base(0, 0, 0, 0)
     {
         if (_getItem == null)
         {
@@ -45,12 +43,26 @@ public class SnsEquipmentMenu : IClickableMenu
                 new[] { typeof(Farmer), typeof(string), typeof(Item) });
         }
 
-        int cx = xPositionOnScreen + IClickableMenu.borderWidth;
-        int cy = yPositionOnScreen + IClickableMenu.borderWidth;
+        int vw = Game1.uiViewport.Width;
+        int vh = Game1.uiViewport.Height;
+
+        // กล่อง slot ด้านบน — เหมือน ArsenalMenu box
+        int menuX = vw / 2 - 350 - IClickableMenu.borderWidth;
+        int menuW = 700 + IClickableMenu.borderWidth * 2;
+        int menuY = vh / 2 - 150 - 100 - IClickableMenu.borderWidth;
+        int menuH = 300 + IClickableMenu.borderWidth * 2;
+
+        _boxX = menuX;
+        _boxY = menuY;
+        _boxW = menuW;
+        _boxH = menuH;
+
+        int slotAreaX = menuX + IClickableMenu.borderWidth;
+        int slotAreaY = menuY + IClickableMenu.borderWidth;
 
         // Armor slot
         _armorSlot = new ClickableTextureComponent(
-            new Rectangle(cx + 40, cy + 60, 64, 64),
+            new Rectangle(slotAreaX + 40, slotAreaY + 60, 64, 64),
             LoadTexture("DN.SnS/ArmorSlot"),
             new Rectangle(0, 0, 16, 16), 4f)
         {
@@ -61,7 +73,7 @@ public class SnsEquipmentMenu : IClickableMenu
 
         // Offhand slot
         _offhandSlot = new ClickableTextureComponent(
-            new Rectangle(cx + 40 + 216, cy + 60, 64, 64),
+            new Rectangle(slotAreaX + 40 + 216, slotAreaY + 60, 64, 64),
             LoadTexture("DN.SnS/OffhandSlot"),
             new Rectangle(0, 0, 16, 16), 4f)
         {
@@ -70,23 +82,48 @@ public class SnsEquipmentMenu : IClickableMenu
             item  = GetSlotItem(OffhandSlotId)
         };
 
-        // inventory — วาง x ให้ตรงกับ menu, y ต่ำกว่า slot
-        int invX = xPositionOnScreen + IClickableMenu.borderWidth;
-        int invY = cy + 200;
-        int invCols = 12;
-        _inventory = new InventoryMenu(invX, invY, false, null, null, invCols);
+        // inventory — เหมือน ArsenalMenuPatch
+        int newSq = 80;
+        int hGap = 8;
+        int verticalGap = 8;
+        int rows = 3;
+        int capacity = 36;
+        int cols = capacity / rows;
 
-        // close button
-        _closeButton = new ClickableTextureComponent(
-            new Rectangle(xPositionOnScreen + width - 36, yPositionOnScreen - 8, 48, 48),
-            Game1.mouseCursors,
-            new Rectangle(337, 494, 12, 12), 4f)
+        int totalWidth = cols * (newSq + hGap) - hGap;
+        int startX = menuX + (menuW - totalWidth) / 2;
+        int startY = menuY + menuH + 8;
+        int totalHeight = vh - startY - 44;
+
+        _inventory = new InventoryMenu(startX, startY, false, null, null, cols);
+
+        // rebuild slots ขนาดใหม่ เหมือน ArsenalMenuPatch
+        var invType = _inventory.GetType();
+        var inventorySlots = invType.GetField("inventory")?.GetValue(_inventory) as List<ClickableComponent>;
+        if (inventorySlots != null)
         {
-            myID = 999
-        };
+            for (int j = 0; j < inventorySlots.Count; j++)
+            {
+                int row = j / cols;
+                int col = j % cols;
+                inventorySlots[j].bounds.X = startX + col * (newSq + hGap);
+                inventorySlots[j].bounds.Y = startY + row * (newSq + verticalGap);
+                inventorySlots[j].bounds.Width = newSq + hGap;
+                inventorySlots[j].bounds.Height = newSq + verticalGap;
+            }
+        }
 
-        Monitor?.Log($"SnsEquipmentMenu created! pos=({xPositionOnScreen},{yPositionOnScreen}) size=({width},{height})", LogLevel.Info);
-        Monitor?.Log($"invX={invX} invY={invY}", LogLevel.Info);
+        // ปุ่ม X แบบ mobile เหมือน ArsenalMenuPatch
+        var closeButton = new ClickableTextureComponent(
+            new Rectangle(vw - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
+            Game1.mobileSpriteSheet,
+            new Rectangle(62, 0, 17, 17),
+            4f, true);
+        typeof(IClickableMenu).GetField("upperRightCloseButton",
+            BindingFlags.Public | BindingFlags.Instance)
+            ?.SetValue(this, closeButton);
+
+        Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY} totalHeight={totalHeight}", LogLevel.Info);
     }
 
     static object? GetSpaceCoreApi()
@@ -104,23 +141,14 @@ public class SnsEquipmentMenu : IClickableMenu
 
     Item? GetSlotItem(string slotId)
     {
-        try
-        {
-            return _getItem?.Invoke(GetSpaceCoreApi(), new object[] { Game1.player, slotId }) as Item;
-        }
+        try { return _getItem?.Invoke(GetSpaceCoreApi(), new object[] { Game1.player, slotId }) as Item; }
         catch { return null; }
     }
 
     void SetSlotItem(string slotId, Item? item)
     {
-        try
-        {
-            _setItem?.Invoke(GetSpaceCoreApi(), new object[] { Game1.player, slotId, item });
-        }
-        catch (Exception ex)
-        {
-            Monitor?.Log($"SetSlotItem error: {ex.Message}", LogLevel.Error);
-        }
+        try { _setItem?.Invoke(GetSpaceCoreApi(), new object[] { Game1.player, slotId, item }); }
+        catch (Exception ex) { Monitor?.Log($"SetSlotItem error: {ex.Message}", LogLevel.Error); }
     }
 
     bool IsArmorItem(Item? item)
@@ -138,13 +166,17 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void receiveLeftClick(int x, int y, bool playSound = true)
     {
-        if (_closeButton.containsPoint(x, y))
+        // ปุ่ม X
+        var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
+            BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
+        if (closeBtn != null && closeBtn.containsPoint(x, y))
         {
             ReturnHeldItem();
             exitThisMenu();
             return;
         }
 
+        // armor slot
         if (_armorSlot.containsPoint(x, y))
         {
             if (_heldItem == null || IsArmorItem(_heldItem))
@@ -158,6 +190,7 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
+        // offhand slot
         if (_offhandSlot.containsPoint(x, y))
         {
             if (_heldItem == null || IsOffhandItem(_heldItem))
@@ -171,24 +204,19 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
-        // inventory click
-        Item? fromInv = _inventory.getItemAt(x, y);
-        if (fromInv != null || _inventory.isWithinBounds(x, y))
+        // inventory
+        if (_inventory.isWithinBounds(x, y))
         {
             _heldItem = _inventory.leftClick(x, y, _heldItem);
             return;
         }
 
-        if (!isWithinBounds(x, y))
-        {
-            ReturnHeldItem();
-            exitThisMenu();
-        }
+        // กดนอก — ไม่ปิด menu
     }
 
     public override void releaseLeftClick(int x, int y)
     {
-        receiveLeftClick(x, y, playSound: false);
+        // ไม่ทำอะไร ป้องกัน menu ปิดเมื่อปล่อยนิ้ว
     }
 
     void ReturnHeldItem()
@@ -233,12 +261,10 @@ public class SnsEquipmentMenu : IClickableMenu
             Game1.graphics.GraphicsDevice.Viewport.Bounds,
             Color.Black * 0.4f);
 
-        // background
-        IClickableMenu.drawTextureBox(b,
-            xPositionOnScreen, yPositionOnScreen,
-            width, height, Color.White);
+        // กล่อง slot บน
+        IClickableMenu.drawTextureBox(b, _boxX, _boxY, _boxW, _boxH, Color.White);
 
-        // slot labels
+        // labels
         Utility.drawTextWithShadow(b, "Armor", Game1.smallFont,
             new Vector2(_armorSlot.bounds.X, _armorSlot.bounds.Y - 28),
             Game1.textColor);
@@ -252,11 +278,18 @@ public class SnsEquipmentMenu : IClickableMenu
         _offhandSlot.draw(b);
         _offhandSlot.drawItem(b, 0, 0);
 
-        // inventory
+        // กล่อง inventory
+        int invBorderX = _inventory.xPositionOnScreen - IClickableMenu.borderWidth;
+        int invBorderY = _inventory.yPositionOnScreen - IClickableMenu.borderWidth;
+        int invBorderW = _inventory.width + IClickableMenu.borderWidth * 2 + 8;
+        int invBorderH = Game1.uiViewport.Height - invBorderY - 36;
+        IClickableMenu.drawTextureBox(b, invBorderX, invBorderY, invBorderW, invBorderH, Color.White);
         _inventory.draw(b);
 
-        // close button
-        _closeButton.draw(b);
+        // ปุ่ม X
+        var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
+            BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
+        closeBtn?.draw(b);
 
         // held item
         _heldItem?.drawInMenu(b,
