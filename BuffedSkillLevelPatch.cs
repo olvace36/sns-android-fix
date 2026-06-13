@@ -106,10 +106,45 @@ public class BuffedSkillLevelPatch
         return (int)(getBuffed?.Invoke(null, new object[] { Game1.player, "DestyNova.SwordAndSorcery.Druidics" }) ?? 0);
     }
 
+    // ใช้ reflection แทน IsBow() ที่ไม่มีใน Android
+    static bool IsBow(Slingshot slingshot)
+    {
+        var method = typeof(Slingshot).GetMethod("IsBow",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (method != null)
+            return (bool)method.Invoke(slingshot, null);
+        // fallback: เช็ค itemId ถ้า IsBow ไม่มี
+        return slingshot.QualifiedItemId?.Contains("Bow") == true
+            || slingshot.Name?.Contains("Bow") == true;
+    }
+
+    // ใช้ reflection แทน NetHashSet<string> ที่ไม่มีใน Android
+    static bool PlayerEventsSeen(string eventId)
+    {
+        var eventsSeen = typeof(Farmer)
+            .GetField("eventsSeen", BindingFlags.Public | BindingFlags.Instance)
+            ?.GetValue(Game1.player);
+        if (eventsSeen == null) return false;
+        var containsMethod = eventsSeen.GetType()
+            .GetMethod("Contains", new[] { typeof(string) });
+        return (bool)(containsMethod?.Invoke(eventsSeen, new object[] { eventId }) ?? false);
+    }
+
+    // ใช้ reflection แทน Profession cast ที่ไม่มีใน Android
+    static bool HasProfession(object? prof)
+    {
+        if (prof == null) return false;
+        var hasProf = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "HasCustomProfession",
+            new[] { typeof(Farmer), AccessTools.TypeByName("SpaceCore.Skills+Profession") });
+        return (bool)(hasProf?.Invoke(null, new object[] { Game1.player, prof }) ?? false);
+    }
+
     // 1. Slingshot/Bow damage
     public static void SlingshotDamagePostfix(Slingshot __instance, ref int __result)
     {
-        if (!__instance.IsBow()) return;
+        if (!IsBow(__instance)) return;
         int level = GetBuffedRogueLevel();
         __result = 25 + 5 * level;
     }
@@ -117,7 +152,7 @@ public class BuffedSkillLevelPatch
     // 2. Scythe drop essence
     public static bool ScytheDropPrefix(Grass __instance, Tool t)
     {
-        if (!((NetHashSet<string>)(object)Game1.player.eventsSeen).Contains("SnS.Ch2.Hector.12") ||
+        if (!PlayerEventsSeen("SnS.Ch2.Hector.12") ||
             !((TerrainFeature)(object)__instance).Location.IsFarm) return true;
 
         var val = t as MeleeWeapon;
@@ -130,8 +165,7 @@ public class BuffedSkillLevelPatch
         var profType = AccessTools.TypeByName("SwordAndSorcerySMAPI.Framework.ModSkills.DruidicsSkill");
         var prof = profType?.GetProperty("ProfessionAgricultureYggdrasil",
             BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
-        if (prof != null && SkillExtensions.HasCustomProfession(Game1.player, (Profession)(object)prof))
-            num += 0.01f;
+        if (HasProfession(prof)) num += 0.01f;
 
         if (Game1.random.NextDouble() < (double)(2f * num))
             Game1.createItemDebris(
@@ -144,8 +178,7 @@ public class BuffedSkillLevelPatch
     // 3. HoeDirt drop essence
     public static void HoeDirtPostfix(GameLocation __instance, Vector2 tileLocation)
     {
-        if (!((NetHashSet<string>)(object)Game1.player.eventsSeen).Contains("SnS.Ch2.Hector.12") ||
-            !__instance.IsFarm) return;
+        if (!PlayerEventsSeen("SnS.Ch2.Hector.12") || !__instance.IsFarm) return;
 
         float num = 0.025f;
         num += GetBuffedDruidLevel() * 0.001f;
@@ -154,8 +187,7 @@ public class BuffedSkillLevelPatch
         var profType = AccessTools.TypeByName("SwordAndSorcerySMAPI.Framework.ModSkills.DruidicsSkill");
         var prof = profType?.GetProperty("ProfessionAgricultureYggdrasil",
             BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
-        if (prof != null && SkillExtensions.HasCustomProfession(Game1.player, (Profession)(object)prof))
-            num += 0.01f;
+        if (HasProfession(prof)) num += 0.01f;
 
         if (Game1.random.NextDouble() < (double)(4f * num))
             Game1.createItemDebris(
@@ -251,3 +283,4 @@ public class BuffedSkillLevelPatch
         Monitor?.Log($"ReplaceSkillLevelStringTranspiler: replaced {replaced} calls", LogLevel.Info);
     }
 }
+
