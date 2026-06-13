@@ -281,6 +281,7 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void leftClickHeld(int x, int y)
     {
+        Monitor?.Log($"SnsEquipmentMenu.leftClickHeld ({x},{y})", LogLevel.Info);
         _inventory.leftClickHeld(x, y);
     }
 
@@ -324,4 +325,3 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
-
