@@ -45,27 +45,14 @@ public class SkillRingsPatch
             if (_skillRingsInstance == null || _onUpdateTicked == null) return;
 
             Monitor?.Log("InventoryChanged: forcing SkillRings update", LogLevel.Info);
-
-            // สร้าง UpdateTickedEventArgs ด้วย reflection
-            var argsType = AccessTools.TypeByName("StardewModdingAPI.Events.UpdateTickedEventArgs");
-            if (argsType == null)
+            try
             {
-                Monitor?.Log("UpdateTickedEventArgs type not found", LogLevel.Warn);
-                return;
+                _onUpdateTicked.Invoke(_skillRingsInstance, new object[] { null, null });
             }
-
-            var argsConstructor = argsType.GetConstructor(
-                BindingFlags.NonPublic | BindingFlags.Instance,
-                null, new[] { typeof(uint), typeof(bool) }, null);
-
-            if (argsConstructor == null)
+            catch (Exception ex)
             {
-                Monitor?.Log("UpdateTickedEventArgs constructor not found", LogLevel.Warn);
-                return;
+                Monitor?.Log($"SkillRings update failed: {ex.Message}", LogLevel.Warn);
             }
-
-            var args = argsConstructor.Invoke(new object[] { (uint)60, true });
-            _onUpdateTicked.Invoke(_skillRingsInstance, new object[] { null, args });
         };
     }
 }
