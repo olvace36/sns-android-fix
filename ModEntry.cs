@@ -17,6 +17,7 @@ public class ModEntry : Mod
         FancyAlchemyMenuPatch.Monitor = Monitor;
         ShieldSigilMenuPatch.Monitor = Monitor;
         BuffedSkillLevelPatch.Monitor = Monitor;
+
         var harmony = new Harmony(ModManifest.UniqueID);
         LevelUpMenuTranspilerFix.Apply(harmony);
         harmony.PatchAll();
@@ -25,6 +26,27 @@ public class ModEntry : Mod
         ShieldSigilMenuPatch.Apply(harmony);
         SkillsPagePatch.Apply(helper, Monitor, harmony);
         BuffedSkillLevelPatch.Apply(harmony);
+
+        // cache ไว้ใช้ใน UpdateTicked — lookup ครั้งเดียว
+        var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
+        var getBuffedLevel = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomBuffedSkillLevel",
+            new[] { typeof(Farmer), skillType });
+
+        object? rogueSkill = null;
+        object? paladinSkill = null;
+
+        helper.Events.GameLoop.GameLaunched += (s, e) =>
+        {
+            rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
+                ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+            paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
+                ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+            Monitor.Log($"GameLaunched: rogueSkill={rogueSkill?.GetType().Name ?? "null"}, paladinSkill={paladinSkill?.GetType().Name ?? "null"}", LogLevel.Info);
+        };
 
         helper.Events.GameLoop.SaveLoaded += (s, e) =>
         {
@@ -38,24 +60,12 @@ public class ModEntry : Mod
             LevelUpMenu.RevalidateHealth(Game1.player);
         };
 
-        int _lastRogueBuffed = 0;
-        int _lastPaladinBuffed = 0;
+        int lastRogueBuffed = 0;
+        int lastPaladinBuffed = 0;
 
         helper.Events.GameLoop.UpdateTicked += (s, e) =>
         {
             if (!Context.IsWorldReady) return;
-
-            var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
-            var getBuffedLevel = AccessTools.Method(
-                AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-                "GetCustomBuffedSkillLevel",
-                new[] { typeof(Farmer), skillType });
-            var rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
-                ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
-            var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
-                ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
 
             int rogueBuffed = rogueSkill != null
                 ? (int)(getBuffedLevel?.Invoke(null, new object[] { Game1.player, rogueSkill }) ?? 0)
@@ -64,12 +74,10 @@ public class ModEntry : Mod
                 ? (int)(getBuffedLevel?.Invoke(null, new object[] { Game1.player, paladinSkill }) ?? 0)
                 : 0;
 
-            bool buffChanged = rogueBuffed != _lastRogueBuffed || paladinBuffed != _lastPaladinBuffed;
-
-            if (buffChanged)
+            if (rogueBuffed != lastRogueBuffed || paladinBuffed != lastPaladinBuffed)
             {
-                _lastRogueBuffed = rogueBuffed;
-                _lastPaladinBuffed = paladinBuffed;
+                lastRogueBuffed = rogueBuffed;
+                lastPaladinBuffed = paladinBuffed;
                 Monitor.Log($"UpdateTicked: buffChanged=True, Rogue={rogueBuffed}, Paladin={paladinBuffed}", LogLevel.Info);
                 LevelUpMenu.RevalidateHealth(Game1.player);
             }
