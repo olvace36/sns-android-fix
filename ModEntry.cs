@@ -16,6 +16,7 @@ public class ModEntry : Mod
         SkillsPagePatch.Monitor = Monitor;
         FancyAlchemyMenuPatch.Monitor = Monitor;
         ShieldSigilMenuPatch.Monitor = Monitor;
+        SkillRingsPatch.Monitor = Monitor;
         var harmony = new Harmony(ModManifest.UniqueID);
         LevelUpMenuTranspilerFix.Apply(harmony);
         harmony.PatchAll();
@@ -23,6 +24,7 @@ public class ModEntry : Mod
         FancyAlchemyMenuPatch.Apply(harmony);
         ShieldSigilMenuPatch.Apply(harmony);
         SkillsPagePatch.Apply(helper, Monitor, harmony);
+        SkillRingsPatch.Apply(helper, harmony);
 
         helper.Events.GameLoop.SaveLoaded += (s, e) =>
         {
