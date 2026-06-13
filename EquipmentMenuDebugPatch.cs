@@ -35,13 +35,13 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix", LogLevel.Info);
         }
 
-        // intercept SpaceCore click — เปิด SnsEquipmentMenu เป็น activeClickableMenu แทน
+        // block SpaceCore click handler ป้องกัน crash
         var spaceCoreClickPrefix = AccessTools.TypeByName("SpaceCore.InventoryPageLeftClickPatch")
             ?.GetMethod("Prefix", BindingFlags.Public | BindingFlags.Static);
         if (spaceCoreClickPrefix != null)
         {
             harmony.Patch(spaceCoreClickPrefix,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(SpaceCoreClickPrefix))));
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockSpaceCoreClickPrefix))));
             Monitor?.Log("patched SpaceCore.InventoryPageLeftClickPatch.Prefix", LogLevel.Info);
         }
 
@@ -62,46 +62,26 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
         }
 
+        // ใช้ ReceiveLeftClickPrefix เหมือนเดิม แต่เปิดเป็น activeClickableMenu
+        var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (receiveLeftClick != null)
+        {
+            harmony.Patch(receiveLeftClick,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(ReceiveLeftClickPrefix))));
+            Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
+        }
+
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
     public static bool BlockDrawPrefix() => false;
 
-    // intercept SpaceCore ก่อน — เปิด SnsEquipmentMenu เป็น activeClickableMenu แทน EquipmentMenu ที่ crash
-    public static bool SpaceCoreClickPrefix(InventoryPage __instance, int x, int y, ref bool __result)
+    // block SpaceCore เสมอ ป้องกัน EquipmentMenu crash
+    public static bool BlockSpaceCoreClickPrefix(ref bool __result)
     {
-        try
-        {
-            var compsField = AccessTools.TypeByName("SpaceCore.InventoryPageConstructorPatch")
-                ?.GetField("comps", BindingFlags.Public | BindingFlags.Static);
-            var comps = compsField?.GetValue(null);
-            // ใช้ TryGetValue แทน GetOrCreateValue เพราะ Android SMAPI rewrite signature
-            var tryGet = comps?.GetType().GetMethod("TryGetValue");
-            object?[] tgArgs = new object?[] { __instance, null };
-            bool tgFound = (bool)(tryGet?.Invoke(comps, tgArgs) ?? false);
-            var holder = tgFound ? tgArgs[1] : null;
-            var btn = holder?.GetType()
-                .GetField("Value", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(holder) as ClickableTextureComponent;
-
-            if (btn == null) return true;
-            if (!btn.bounds.Contains(x, y)) return true;
-
-            Monitor?.Log("SpaceCoreClickPrefix: Hit! Opening SnsEquipmentMenu as activeClickableMenu", LogLevel.Info);
-
-            // เก็บ GameMenu ไว้ก่อน แล้วเปิด SnsEquipmentMenu แทน
-            SnsEquipmentMenu.PreviousMenu = Game1.activeClickableMenu;
-            Game1.activeClickableMenu = new SnsEquipmentMenu();
-            Monitor?.Log("SnsEquipmentMenu opened as activeClickableMenu!", LogLevel.Info);
-
-            __result = false;
-            return false;
-        }
-        catch (Exception ex)
-        {
-            Monitor?.Log($"SpaceCoreClickPrefix error: {ex.Message}", LogLevel.Error);
-            return true;
-        }
+        __result = false;
+        return false;
     }
 
     public static void PopulatePostfix(IClickableMenu __instance)
@@ -160,4 +140,18 @@ public class EquipmentMenuDebugPatch
         }
         catch { }
     }
+
+    // เช็ค bounds ปุ่มใหม่เอง เปิด SnsEquipmentMenu เป็น activeClickableMenu
+    public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
+    {
+        if (_btnBounds == Rectangle.Empty) return true;
+        if (!_btnBounds.Contains(x, y)) return true;
+
+        Monitor?.Log($"Hit! Opening SnsEquipmentMenu as activeClickableMenu", LogLevel.Info);
+        SnsEquipmentMenu.PreviousMenu = Game1.activeClickableMenu;
+        Game1.activeClickableMenu = new SnsEquipmentMenu();
+        Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
+        return false;
+    }
 }
+
