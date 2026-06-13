@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
@@ -10,51 +12,65 @@ namespace SnsAndroidFix;
 public class SkillRingsPatch
 {
     internal static IMonitor? Monitor;
-    private static object? _skillRingsInstance;
-    private static MethodInfo? _onUpdateTicked;
 
     public static void Apply(IModHelper helper, Harmony harmony)
     {
-        helper.Events.GameLoop.GameLaunched += (s, e) =>
+        var skillRingsType = AccessTools.TypeByName("SkillRings.ModEntry");
+        if (skillRingsType == null)
         {
-            var skillRingsType = AccessTools.TypeByName("SkillRings.ModEntry");
-            if (skillRingsType == null)
-            {
-                Monitor?.Log("SkillRings not found", LogLevel.Warn);
-                return;
-            }
+            Monitor?.Log("SkillRings not found", LogLevel.Warn);
+            return;
+        }
 
-            foreach (var mod in helper.ModRegistry.GetAll())
+        var onUpdateTicked = skillRingsType.GetMethod("onUpdateTicked",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        if (onUpdateTicked == null)
+        {
+            Monitor?.Log("onUpdateTicked not found", LogLevel.Warn);
+            return;
+        }
+
+        harmony.Patch(onUpdateTicked,
+            transpiler: new HarmonyMethod(typeof(SkillRingsPatch)
+                .GetMethod(nameof(OnUpdateTickedTranspiler))));
+
+        Monitor?.Log("SkillRingsPatch applied!", LogLevel.Info);
+    }
+
+    public static IEnumerable<CodeInstruction> OnUpdateTickedTranspiler(
+        IEnumerable<CodeInstruction> instructions)
+    {
+        var isPlayerFreeGetter = AccessTools.PropertyGetter(
+            typeof(StardewModdingAPI.Context), "IsPlayerFree");
+
+        var codes = new List<CodeInstruction>(instructions);
+        bool found = false;
+
+        for (int i = 0; i < codes.Count - 2; i++)
+        {
+            // หา pattern: call IsPlayerFree -> brfalse/brtrue
+            if (codes[i].Calls(isPlayerFreeGetter))
             {
-                var modObj = mod.GetType()
-                    .GetProperty("Mod", BindingFlags.Public | BindingFlags.Instance)
-                    ?.GetValue(mod);
-                if (modObj?.GetType().FullName == "SkillRings.ModEntry")
+                // ลบ call IsPlayerFree และ branch instruction ที่ตามมา
+                // แทนด้วย nop
+                codes[i] = new CodeInstruction(OpCodes.Nop);
+                if (i + 1 < codes.Count && (
+                    codes[i + 1].opcode == OpCodes.Brfalse ||
+                    codes[i + 1].opcode == OpCodes.Brfalse_S ||
+                    codes[i + 1].opcode == OpCodes.Brtrue ||
+                    codes[i + 1].opcode == OpCodes.Brtrue_S))
                 {
-                    _skillRingsInstance = modObj;
-                    _onUpdateTicked = skillRingsType.GetMethod("onUpdateTicked",
-                        BindingFlags.NonPublic | BindingFlags.Instance);
-                    Monitor?.Log($"SkillRings instance found! onUpdateTicked={_onUpdateTicked != null}", LogLevel.Info);
-                    break;
+                    codes[i + 1] = new CodeInstruction(OpCodes.Nop);
                 }
+                found = true;
+                Monitor?.Log("Removed IsPlayerFree check from SkillRings", LogLevel.Info);
+                break;
             }
-        };
+        }
 
-        helper.Events.Player.InventoryChanged += (s, e) =>
-        {
-            if (!Context.IsWorldReady) return;
-            if (_skillRingsInstance == null || _onUpdateTicked == null) return;
+        if (!found)
+            Monitor?.Log("IsPlayerFree check not found in SkillRings!", LogLevel.Warn);
 
-            Monitor?.Log("InventoryChanged: forcing SkillRings update", LogLevel.Info);
-            try
-            {
-                _onUpdateTicked.Invoke(_skillRingsInstance, new object[] { null, null });
-            }
-            catch (Exception ex)
-            {
-                var inner = ex.InnerException ?? ex;
-                Monitor?.Log($"SkillRings update failed: {inner.GetType().Name}: {inner.Message}", LogLevel.Warn);
-            }
-        };
+        return codes;
     }
 }
