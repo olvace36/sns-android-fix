@@ -151,3 +151,4 @@ public class EquipmentMenuDebugPatch
         TryOpenEquipmentMenu(x, y, "release");
     }
 }
+
