@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
@@ -8,322 +6,178 @@ using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
-using StardewValley.Tools;
 
 namespace SnsAndroidFix;
 
-public class SnsEquipmentMenu : IClickableMenu
+public class EquipmentMenuDebugPatch
 {
     internal static IMonitor? Monitor;
+    private static Rectangle _btnBounds = Rectangle.Empty;
 
-    private static string? _armorSlotId;
-    private static string? _offhandSlotId;
-
-    private static MethodInfo? _getItem;
-    private static MethodInfo? _setItem;
-
-    private ClickableTextureComponent _armorSlot  = null!;
-    private ClickableTextureComponent _offhandSlot = null!;
-    private InventoryMenu _inventory = null!;
-
-    private Item? _hoveredItem;
-    private string _hoverText = "";
-
-    private int _boxX, _boxY, _boxW, _boxH;
-    private int _invBorderX, _invBorderY, _invBorderW, _invBorderH;
-
-    public static void InitSlotIds()
+    public static void Apply(Harmony harmony)
     {
-        try
+        var populate = typeof(IClickableMenu).GetMethod("populateClickableComponentList",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (populate != null)
         {
-            var spaceCoreType = AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
-                .FirstOrDefault(t => t.FullName == "SpaceCore.SpaceCore");
+            harmony.Patch(populate,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(PopulatePostfix))));
+            Monitor?.Log("patched populateClickableComponentList", LogLevel.Info);
+        }
 
-            var equipmentSlots = spaceCoreType
-                ?.GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
-                ?.GetValue(null);
+        var spaceCorePrefix = AccessTools.TypeByName("SpaceCore.InventoryPageLeftClickPatch")
+            ?.GetMethod("Prefix", BindingFlags.Public | BindingFlags.Static);
+        if (spaceCorePrefix != null)
+        {
+            harmony.Patch(spaceCorePrefix,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockSpaceCorePrefix))));
+            Monitor?.Log("patched SpaceCore.InventoryPageLeftClickPatch.Prefix", LogLevel.Info);
+        }
 
-            if (equipmentSlots == null) { Monitor?.Log("InitSlotIds: EquipmentSlots null", LogLevel.Warn); return; }
+        var spaceCoreDrawPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageDrawTooltipPatch")
+            ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
+        if (spaceCoreDrawPostfix != null)
+        {
+            harmony.Patch(spaceCoreDrawPostfix,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockSpaceCorePrefix))));
+            Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix", LogLevel.Info);
+        }
 
-            var keys = equipmentSlots.GetType()
-                .GetProperty("Keys")
-                ?.GetValue(equipmentSlots) as IEnumerable<string>;
+        var getComp = typeof(IClickableMenu).GetMethod("getComponentWithID",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (getComp != null)
+        {
+            harmony.Patch(getComp,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GetComponentWithIDPrefix))));
+            Monitor?.Log("patched getComponentWithID", LogLevel.Info);
+        }
 
-            if (keys != null)
+        var draw = typeof(InventoryPage).GetMethod("draw", new[] { typeof(SpriteBatch) });
+        if (draw != null)
+        {
+            harmony.Patch(draw,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(DrawPostfix))));
+            Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
+        }
+
+        // แก้ข้อ 1: เปลี่ยนเป็น prefix แทน postfix และลบ releaseLeftClick ออก
+        var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (receiveLeftClick != null)
+        {
+            harmony.Patch(receiveLeftClick,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(ReceiveLeftClickPrefix))));
+            Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
+        }
+
+        var gameMenuReceive = typeof(GameMenu).GetMethod("receiveLeftClick",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (gameMenuReceive != null)
+        {
+            harmony.Patch(gameMenuReceive,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuReceivePrefix))));
+            Monitor?.Log("patched GameMenu.receiveLeftClick (prefix)", LogLevel.Info);
+        }
+
+        Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
+    }
+
+    public static bool BlockSpaceCorePrefix() => false;
+
+    public static void PopulatePostfix(IClickableMenu __instance)
+    {
+        if (__instance is not InventoryPage page) return;
+
+        var all = __instance.allClickableComponents;
+        if (all != null)
+        {
+            for (int i = all.Count - 1; i >= 0; i--)
             {
-                foreach (var key in keys)
+                if (all[i].myID == 1348000)
                 {
-                    Monitor?.Log($"EquipmentSlots key: {key}", LogLevel.Info);
-                    if (key.EndsWith("_Armor")) _armorSlotId = key;
-                    if (key.EndsWith("_Offhand")) _offhandSlotId = key;
+                    all.RemoveAt(i);
+                    Monitor?.Log("Removed ID 1348000 from allClickableComponents", LogLevel.Info);
+                    break;
                 }
             }
-
-            Monitor?.Log($"InitSlotIds: armor={_armorSlotId ?? "null"} offhand={_offhandSlotId ?? "null"}", LogLevel.Info);
-        }
-        catch (Exception ex) { Monitor?.Log($"InitSlotIds error: {ex.Message}", LogLevel.Error); }
-    }
-
-    public SnsEquipmentMenu() : base(0, 0, 0, 0)
-    {
-        if (_getItem == null)
-        {
-            var api = GetSpaceCoreApi();
-            _getItem = api?.GetType().GetMethod("GetItemInEquipmentSlot", new[] { typeof(Farmer), typeof(string) });
-            _setItem = api?.GetType().GetMethod("SetItemInEquipmentSlot", new[] { typeof(Farmer), typeof(string), typeof(Item) });
         }
 
-        int vw = Game1.uiViewport.Width;
-        int vh = Game1.uiViewport.Height;
-
-        int menuX = vw / 2 - 350 - IClickableMenu.borderWidth;
-        int menuW = 700 + IClickableMenu.borderWidth * 2;
-        int menuY = vh / 2 - 150 - 100 - IClickableMenu.borderWidth;
-        int menuH = 300 + IClickableMenu.borderWidth * 2;
-
-        _boxX = menuX; _boxY = menuY; _boxW = menuW; _boxH = menuH;
-
-        int slotAreaX = menuX + IClickableMenu.borderWidth;
-        int slotAreaY = menuY + IClickableMenu.borderWidth;
-
-        _armorSlot = new ClickableTextureComponent(
-            new Rectangle(slotAreaX + 40, slotAreaY + 60, 64, 64),
-            LoadTexture("DN.SnS/ArmorSlot"), new Rectangle(0, 0, 16, 16), 4f)
-        { myID = 200, label = "Armor", item = _armorSlotId != null ? GetSlotItem(_armorSlotId) : null };
-
-        _offhandSlot = new ClickableTextureComponent(
-            new Rectangle(slotAreaX + 40 + 216, slotAreaY + 60, 64, 64),
-            LoadTexture("DN.SnS/OffhandSlot"), new Rectangle(0, 0, 16, 16), 4f)
-        { myID = 201, label = "Offhand", item = _offhandSlotId != null ? GetSlotItem(_offhandSlotId) : null };
-
-        int newSq = 80; int hGap = 8; int verticalGap = 8;
-        int capacity = 36; int cols = capacity / 3;
-        int totalWidth = cols * (newSq + hGap) - hGap;
-        int startX = menuX + (menuW - totalWidth) / 2;
-        int startY = menuY + menuH + 8;
-        int totalHeight = vh - startY - 44;
-
-        _inventory = new InventoryMenu(startX, startY, true);
-
-        var invMenu = (object)_inventory;
-        var type = invMenu.GetType();
-        type.GetField("squareSide")?.SetValue(invMenu, newSq);
-        type.GetField("scaleFactor")?.SetValue(invMenu, (float)newSq / 64f);
-        type.GetField("yPositionOnScreen")?.SetValue(invMenu, startY);
-        type.GetField("xPositionOnScreen")?.SetValue(invMenu, startX);
-        type.GetField("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, totalWidth);
-        type.GetField("height", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, totalHeight);
-        type.GetField("xOffset")?.SetValue(invMenu, 0);
-        type.GetField("yOffset")?.SetValue(invMenu, 0);
-        type.GetField("hGap")?.SetValue(invMenu, hGap);
-        type.GetField("drawSlots", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, true);
-        type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
-        type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
-        type.GetField("tapHoldTime", BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, 0f);
-
-        var inventorySlots = type.GetField("inventory")?.GetValue(invMenu) as List<ClickableComponent>;
-        if (inventorySlots != null)
+        var equipmentIcons = typeof(InventoryPage)
+            .GetField("equipmentIcons", BindingFlags.Public | BindingFlags.Instance)
+            ?.GetValue(page) as System.Collections.Generic.List<ClickableComponent>;
+        if (equipmentIcons != null)
         {
-            for (int j = 0; j < inventorySlots.Count; j++)
+            foreach (var icon in equipmentIcons)
             {
-                int row = j / cols; int col = j % cols;
-                inventorySlots[j].bounds.X = startX + col * (newSq + hGap);
-                inventorySlots[j].bounds.Y = startY + row * (newSq + verticalGap);
-                inventorySlots[j].bounds.Width = newSq + hGap;
-                inventorySlots[j].bounds.Height = newSq + verticalGap;
+                if (icon.leftNeighborID == 1348000)
+                {
+                    icon.leftNeighborID = -1;
+                    Monitor?.Log("Fixed leftNeighborID 1348000 → -1", LogLevel.Info);
+                }
             }
         }
 
-        _invBorderX = startX - IClickableMenu.borderWidth;
-        _invBorderY = startY - IClickableMenu.borderWidth;
-        _invBorderW = totalWidth + IClickableMenu.borderWidth * 2;
-        _invBorderH = totalHeight + IClickableMenu.borderWidth * 2;
-
-        var closeButton = new ClickableTextureComponent(
-            new Rectangle(vw - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
-            Game1.mobileSpriteSheet, new Rectangle(62, 0, 17, 17), 4f, true);
-        typeof(IClickableMenu).GetField("upperRightCloseButton", BindingFlags.Public | BindingFlags.Instance)
-            ?.SetValue(this, closeButton);
-
-        Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY}", LogLevel.Info);
+        _btnBounds = new Rectangle(
+            page.xPositionOnScreen - 80,
+            page.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12 + 100,
+            64, 64);
     }
 
-    static object? GetSpaceCoreApi()
+    public static bool GetComponentWithIDPrefix(int id, ref ClickableComponent __result)
     {
-        return AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
-            ?.GetProperty("SpaceCore", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null);
+        if (id == 1348000) { __result = null; return false; }
+        return true;
     }
 
-    static Texture2D? LoadTexture(string assetName)
+    public static void DrawPostfix(InventoryPage __instance, SpriteBatch b)
     {
-        try { return Game1.content.Load<Texture2D>(assetName); }
-        catch { return null; }
-    }
-
-    Item? GetSlotItem(string slotId)
-    {
-        try { return _getItem?.Invoke(GetSpaceCoreApi(), new object[] { Game1.player, slotId }) as Item; }
-        catch { return null; }
-    }
-
-    void SetSlotItem(string slotId, Item? item)
-    {
-        try { _setItem?.Invoke(GetSpaceCoreApi(), new object[] { Game1.player, slotId, item }); }
-        catch (Exception ex) { Monitor?.Log($"SetSlotItem error: {ex.Message}", LogLevel.Error); }
-    }
-
-    static Func<Item, bool>? GetSlotValidator(string slotId)
-    {
+        if (_btnBounds == Rectangle.Empty) return;
         try
         {
-            var spaceCoreType = AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
-                .FirstOrDefault(t => t.FullName == "SpaceCore.SpaceCore");
-
-            var equipmentSlots = spaceCoreType
-                ?.GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
-                ?.GetValue(null);
-
-            if (equipmentSlots == null) return null;
-
-            var tryGetValue = equipmentSlots.GetType()
-                .GetMethod("TryGetValue", new[] { typeof(string), equipmentSlots.GetType().GetGenericArguments()[1].MakeByRefType() });
-
-            object?[] args = new object?[] { slotId, null };
-            bool found = (bool)(tryGetValue?.Invoke(equipmentSlots, args) ?? false);
-            if (!found || args[1] == null) return null;
-
-            return args[1].GetType()
-                .GetProperty("SlotValidator", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(args[1]) as Func<Item, bool>;
+            var tex = Game1.content.Load<Texture2D>("spacechase0.SpaceCore/ExtraEquipmentIcon");
+            b.Draw(tex, new Vector2(_btnBounds.X, _btnBounds.Y),
+                new Rectangle(0, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
         }
-        catch { return null; }
+        catch { }
     }
 
-    bool IsValidForSlot(string slotId, Item? item)
+    static bool TryOpenEquipmentMenu(int x, int y, string source)
     {
-        if (item == null) return true;
-        var validator = GetSlotValidator(slotId);
-        if (validator == null) return false;
-        return validator.Invoke(item);
-    }
+        if (_btnBounds == Rectangle.Empty) return false;
+        if (!_btnBounds.Contains(x, y)) return false;
+        if (Game1.activeClickableMenu?.GetChildMenu() is SnsEquipmentMenu) return false;
 
-    Item? GetSelectedItem()
-    {
-        int selected = _inventory.currentlySelectedItem;
-        if (selected < 0 || selected >= Game1.player.Items.Count) return null;
-        return Game1.player.Items[selected];
-    }
-
-    // แก้ข้อ 4: ถ้าไม่มี item selected → ถอด item ออกจาก slot
-    // ถ้ามี item selected → swap item เข้า slot
-    void TryEquipItem(string? slotId, ClickableTextureComponent slot, bool playSound)
-    {
-        if (slotId == null) return;
-
-        var selectedItem = GetSelectedItem();
-
-        if (selectedItem == null)
+        var menu = Game1.activeClickableMenu;
+        var chain = menu?.GetType().Name ?? "null";
+        var cur = menu;
+        while (cur?.GetChildMenu() != null)
         {
-            // ถอด item ออกจาก slot → ใส่กลับ inventory
-            var existing = GetSlotItem(slotId);
-            if (existing == null) return;
-            if (Game1.player.addItemToInventoryBool(existing))
-            {
-                SetSlotItem(slotId, null);
-                slot.item = null;
-                if (playSound) Game1.playSound("dwop");
-                Monitor?.Log($"Unequipped {existing.DisplayName} from {slotId}", LogLevel.Info);
-            }
-            return;
+            cur = cur.GetChildMenu();
+            chain += $" → {cur.GetType().Name}";
         }
+        Monitor?.Log($"[{source}] chain: {chain} | SetChildMenu on: {cur?.GetType().Name ?? "null"}", LogLevel.Info);
 
-        // swap item เข้า slot
-        if (!IsValidForSlot(slotId, selectedItem)) return;
-
-        int selected = _inventory.currentlySelectedItem;
-        var old = GetSlotItem(slotId);
-        SetSlotItem(slotId, selectedItem);
-        Game1.player.Items[selected] = old;
-        slot.item = GetSlotItem(slotId);
-        _inventory.currentlySelectedItem = -1;
-
-        if (playSound) Game1.playSound(old != null ? "dwop" : "crit");
-        Monitor?.Log($"Equipped {selectedItem.DisplayName} → {slotId}", LogLevel.Info);
-    }
-
-    public override void receiveLeftClick(int x, int y, bool playSound = true)
-    {
-        var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
-            BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
-        if (closeBtn != null && closeBtn.containsPoint(x, y))
+        try
         {
-            exitThisMenu();
-            return;
+            cur?.SetChildMenu(new SnsEquipmentMenu());
+            Monitor?.Log($"[{source}] SnsEquipmentMenu opened as child!", LogLevel.Info);
+            return true;
         }
-
-        if (_armorSlot.containsPoint(x, y)) { TryEquipItem(_armorSlotId, _armorSlot, playSound); return; }
-        if (_offhandSlot.containsPoint(x, y)) { TryEquipItem(_offhandSlotId, _offhandSlot, playSound); return; }
-
-        if (_inventory.isWithinBounds(x, y))
+        catch (Exception ex)
         {
-            _inventory.receiveLeftClick(x, y, playSound);
-            return;
+            Monitor?.Log($"[{source}] CRASH: {ex.GetType().Name}: {ex.Message}", LogLevel.Error);
+            return false;
         }
     }
 
-    public override void releaseLeftClick(int x, int y)
+    // แก้ข้อ 1: prefix แทน postfix — ถ้าเปิด SnsEquipmentMenu ได้ return false หยุด original method
+    public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
     {
-        _inventory.releaseLeftClick(x, y);
+        return !TryOpenEquipmentMenu(x, y, "inv-receive");
     }
 
-    public override void leftClickHeld(int x, int y)
+    public static bool GameMenuReceivePrefix(GameMenu __instance, int x, int y)
     {
-        Monitor?.Log($"SnsEquipmentMenu.leftClickHeld ({x},{y})", LogLevel.Info);
-        _inventory.leftClickHeld(x, y);
+        return !TryOpenEquipmentMenu(x, y, "gm-receive");
     }
-
-    public override void performHoverAction(int x, int y)
-    {
-        _hoveredItem = null; _hoverText = "";
-        _armorSlot.tryHover(x, y, 0.1f);
-        _offhandSlot.tryHover(x, y, 0.1f);
-        _inventory.performHoverAction(x, y);
-
-        if (_armorSlot.containsPoint(x, y) && _armorSlot.item != null)
-        { _hoveredItem = _armorSlot.item; _hoverText = _armorSlot.item.getDescription(); }
-        else if (_offhandSlot.containsPoint(x, y) && _offhandSlot.item != null)
-        { _hoveredItem = _offhandSlot.item; _hoverText = _offhandSlot.item.getDescription(); }
-    }
-
-    public override void update(GameTime time) { _inventory.update(time); }
-
-    public override void draw(SpriteBatch b)
-    {
-        b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.4f);
-
-        IClickableMenu.drawTextureBox(b, _boxX, _boxY, _boxW, _boxH, Color.White);
-        Utility.drawTextWithShadow(b, "Armor", Game1.smallFont, new Vector2(_armorSlot.bounds.X, _armorSlot.bounds.Y - 28), Game1.textColor);
-        Utility.drawTextWithShadow(b, "Offhand", Game1.smallFont, new Vector2(_offhandSlot.bounds.X, _offhandSlot.bounds.Y - 28), Game1.textColor);
-        _armorSlot.draw(b); _armorSlot.drawItem(b, 0, 0);
-        _offhandSlot.draw(b); _offhandSlot.drawItem(b, 0, 0);
-
-        IClickableMenu.drawTextureBox(b, _invBorderX, _invBorderY, _invBorderW, _invBorderH, Color.White);
-        _inventory.draw(b);
-
-        var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
-            BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
-        closeBtn?.draw(b);
-
-        if (_hoveredItem != null)
-            IClickableMenu.drawToolTip(b, _hoverText, _hoveredItem.DisplayName, _hoveredItem, false);
-
-        if (!Game1.options.hardwareCursor) drawMouse(b);
-    }
-
-    public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
-
-
