@@ -344,5 +344,13 @@ public class SnsEquipmentMenu : IClickableMenu
         if (!Game1.options.hardwareCursor) drawMouse(b);
     }
 
+    // วาดเฉพาะ inventory (รวม drag item) โดยไม่วาด background
+    // ใช้ใน RenderedActiveMenu เพื่อให้ drag item อยู่บนสุด
+    public void DrawInventoryOnly(SpriteBatch b)
+    {
+        _inventory.draw(b);
+        if (!Game1.options.hardwareCursor) drawMouse(b);
+    }
+
     public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
