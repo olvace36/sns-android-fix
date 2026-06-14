@@ -253,10 +253,7 @@ public class SnsEquipmentMenu : IClickableMenu
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
         if (closeBtn != null && closeBtn.containsPoint(x, y))
         {
-            // ปิด SnsEquipmentMenu และ restore GameMenu กลับ
-            Game1.activeClickableMenu = PreviousMenu;
-            PreviousMenu = null;
-            Monitor?.Log("SnsEquipmentMenu closed, restored GameMenu", LogLevel.Info);
+            exitThisMenu();
             return;
         }
 
@@ -320,11 +317,6 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void emergencyShutDown()
     {
-        if (PreviousMenu != null)
-        {
-            Game1.activeClickableMenu = PreviousMenu;
-            PreviousMenu = null;
-        }
         base.emergencyShutDown();
     }
 }
