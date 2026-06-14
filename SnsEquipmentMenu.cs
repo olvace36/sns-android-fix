@@ -8,7 +8,6 @@ using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
-using StardewValley.Tools;
 
 namespace SnsAndroidFix;
 
@@ -16,7 +15,6 @@ public class SnsEquipmentMenu : IClickableMenu
 {
     internal static IMonitor? Monitor;
 
-    // เก็บ GameMenu ไว้ก่อนเปิด SnsEquipmentMenu
     public static IClickableMenu? PreviousMenu;
 
     private static string? _armorSlotId;
@@ -148,6 +146,21 @@ public class SnsEquipmentMenu : IClickableMenu
         Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY}", LogLevel.Info);
     }
 
+    void LogInventoryState(string context)
+    {
+        try
+        {
+            var t = _inventory.GetType();
+            int held = (int)(t.GetField("inventoryItemHeld", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? -1);
+            int drag = (int)(t.GetField("dragItem", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? -1);
+            int dragX = (int)(t.GetField("dragX", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? -1);
+            int dragY = (int)(t.GetField("dragY", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? -1);
+            float dragScale = (float)(t.GetField("dragScale", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? 0f);
+            Monitor?.Log($"[{context}] inventoryItemHeld={held} dragItem={drag} dragX={dragX} dragY={dragY} dragScale={dragScale:F2}", LogLevel.Info);
+        }
+        catch (Exception ex) { Monitor?.Log($"LogInventoryState error: {ex.Message}", LogLevel.Error); }
+    }
+
     static object? GetSpaceCoreApi()
     {
         return AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
@@ -262,24 +275,32 @@ public class SnsEquipmentMenu : IClickableMenu
 
         if (_inventory.isWithinBounds(x, y))
         {
-            // ใช้ coordinate จาก mouse state จริงๆ ไม่ใช่จาก Game1 child loop ที่ค้าง
             int mx = Game1.getMouseX();
             int my = Game1.getMouseY();
-            Monitor?.Log($"inventory receiveLeftClick original=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
+            Monitor?.Log($"inventory receiveLeftClick param=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
             _inventory.receiveLeftClick(mx, my, playSound);
+            LogInventoryState("after receiveLeftClick");
             return;
         }
     }
 
     public override void releaseLeftClick(int x, int y)
     {
-        _inventory.releaseLeftClick(x, y);
+        int mx = Game1.getMouseX();
+        int my = Game1.getMouseY();
+        Monitor?.Log($"releaseLeftClick param=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
+        _inventory.releaseLeftClick(mx, my);
+        LogInventoryState("after releaseLeftClick");
     }
 
     public override void leftClickHeld(int x, int y)
     {
-        Monitor?.Log($"SnsEquipmentMenu.leftClickHeld ({x},{y})", LogLevel.Info);
-        _inventory.leftClickHeld(x, y);
+        int mx = Game1.getMouseX();
+        int my = Game1.getMouseY();
+        Monitor?.Log($"leftClickHeld param=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
+        LogInventoryState("before leftClickHeld");
+        _inventory.leftClickHeld(mx, my);
+        LogInventoryState("after leftClickHeld");
     }
 
     public override void performHoverAction(int x, int y)
@@ -320,9 +341,6 @@ public class SnsEquipmentMenu : IClickableMenu
         if (!Game1.options.hardwareCursor) drawMouse(b);
     }
 
-    public override void emergencyShutDown()
-    {
-        base.emergencyShutDown();
-    }
+    public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
 
