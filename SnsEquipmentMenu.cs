@@ -326,3 +326,4 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
+
