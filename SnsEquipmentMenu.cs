@@ -262,7 +262,11 @@ public class SnsEquipmentMenu : IClickableMenu
 
         if (_inventory.isWithinBounds(x, y))
         {
-            _inventory.receiveLeftClick(x, y, playSound);
+            // ใช้ coordinate จาก mouse state จริงๆ ไม่ใช่จาก Game1 child loop ที่ค้าง
+            int mx = Game1.getMouseX();
+            int my = Game1.getMouseY();
+            Monitor?.Log($"inventory receiveLeftClick original=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
+            _inventory.receiveLeftClick(mx, my, playSound);
             return;
         }
     }
@@ -321,3 +325,4 @@ public class SnsEquipmentMenu : IClickableMenu
         base.emergencyShutDown();
     }
 }
+
