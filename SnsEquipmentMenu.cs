@@ -281,17 +281,6 @@ public class SnsEquipmentMenu : IClickableMenu
             Monitor?.Log($"inventory receiveLeftClick param=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
             _inventory.receiveLeftClick(mx, my, playSound);
             LogInventoryState("after receiveLeftClick");
-
-            // วิธี 3: force set startDragX/Y ให้ต่างจาก coordinate ที่จะได้รับใน leftClickHeld
-            // ทำให้ Math.Abs(x - startDragX) >= 16 ผ่านทันที ไม่ต้องพึ่ง coordinate update
-            try
-            {
-                var t = _inventory.GetType();
-                t.GetField("startDragX", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)?.SetValue(_inventory, mx - 100);
-                t.GetField("startDragY", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)?.SetValue(_inventory, my - 100);
-                Monitor?.Log($"Force set startDragX={mx-100} startDragY={my-100}", LogLevel.Info);
-            }
-            catch (Exception ex) { Monitor?.Log($"startDragX set error: {ex.Message}", LogLevel.Error); }
             return;
         }
     }
@@ -311,9 +300,7 @@ public class SnsEquipmentMenu : IClickableMenu
         int my = Game1.getMouseY();
         Monitor?.Log($"leftClickHeld param=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
         LogInventoryState("before leftClickHeld");
-        // ใช้ x,y จาก parameter ซึ่งส่งมาจาก InventoryPageLeftClickHeldPostfix
-        // ไม่ใช้ getMouseX/Y ที่ค้าง
-        _inventory.leftClickHeld(x, y);
+        _inventory.leftClickHeld(mx, my);
         LogInventoryState("after leftClickHeld");
     }
 
@@ -334,7 +321,6 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void draw(SpriteBatch b)
     {
-        LogInventoryState("draw");
         b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.4f);
 
         IClickableMenu.drawTextureBox(b, _boxX, _boxY, _boxW, _boxH, Color.White);
@@ -358,4 +344,3 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
-
