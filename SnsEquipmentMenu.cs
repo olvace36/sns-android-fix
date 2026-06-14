@@ -334,6 +334,7 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void draw(SpriteBatch b)
     {
+        LogInventoryState("draw");
         b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.4f);
 
         IClickableMenu.drawTextureBox(b, _boxX, _boxY, _boxW, _boxH, Color.White);
@@ -357,3 +358,4 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
+
