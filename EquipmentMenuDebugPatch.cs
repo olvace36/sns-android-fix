@@ -67,14 +67,16 @@ public class EquipmentMenuDebugPatch
 
     public static bool BlockDrawPrefix() => false;
 
-    // block SpaceCore เสมอ ไม่ให้เปิด EquipmentMenu ที่ crash
-    // ถ้ากดตรง _btnBounds (ปุ่มใหม่ที่เราวาด) → เปิด SnsEquipmentMenu แทน
-    // ไม่ใช้ reflection เลย ไม่มี exception
+    // intercept SpaceCore click:
+    // ถ้าโดนปุ่มใหม่ (+100) → เปิด SnsEquipmentMenu, block SpaceCore
+    // ถ้าโดนปุ่มเก่า (ไม่มี +100) → block ป้องกัน crash
+    // ถ้าไม่โดนทั้งคู่ → return true ให้ SpaceCore ทำงานปกติ
     public static bool SpaceCoreClickPrefix(InventoryPage __instance, int x, int y, ref bool __result)
     {
+        // ปุ่มใหม่ที่เราวาด (+100)
         if (_btnBounds != Rectangle.Empty && _btnBounds.Contains(x, y))
         {
-            Monitor?.Log($"SpaceCoreClickPrefix: Hit! Opening SnsEquipmentMenu", LogLevel.Info);
+            Monitor?.Log($"SpaceCoreClickPrefix: Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
             try
             {
                 var menu = Game1.activeClickableMenu;
@@ -88,13 +90,22 @@ public class EquipmentMenuDebugPatch
             {
                 Monitor?.Log($"SpaceCoreClickPrefix CRASH: {ex.Message}", LogLevel.Error);
             }
+            __result = false;
+            return false;
         }
-        else
+
+        // ปุ่มเก่าของ SpaceCore (ไม่มี +100) → block ป้องกัน crash
+        var oldBtnY = __instance.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12;
+        var oldBtnBounds = new Rectangle(__instance.xPositionOnScreen - 80, oldBtnY, 64, 64);
+        if (oldBtnBounds.Contains(x, y))
         {
-            Monitor?.Log($"SpaceCoreClickPrefix: blocked SpaceCore at ({x},{y})", LogLevel.Info);
+            Monitor?.Log($"SpaceCoreClickPrefix: blocked old btn at ({x},{y})", LogLevel.Info);
+            __result = false;
+            return false;
         }
-        __result = false;
-        return false;
+
+        // ไม่โดนทั้งคู่ → ให้ SpaceCore ทำงานปกติ
+        return true;
     }
 
     public static void PopulatePostfix(IClickableMenu __instance)
