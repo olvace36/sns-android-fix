@@ -71,6 +71,24 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
         }
 
+        var gameMenuHeld = typeof(GameMenu).GetMethod("leftClickHeld",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (gameMenuHeld != null)
+        {
+            harmony.Patch(gameMenuHeld,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuLeftClickHeldPostfix))));
+            Monitor?.Log("patched GameMenu.leftClickHeld", LogLevel.Info);
+        }
+
+        var gameMenuRelease = typeof(GameMenu).GetMethod("releaseLeftClick",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (gameMenuRelease != null)
+        {
+            harmony.Patch(gameMenuRelease,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuReleasePostfix))));
+            Monitor?.Log("patched GameMenu.releaseLeftClick", LogLevel.Info);
+        }
+
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
@@ -154,4 +172,19 @@ public class EquipmentMenuDebugPatch
         }
         return false;
     }
+    // ส่งต่อ leftClickHeld และ releaseLeftClick ให้ SnsEquipmentMenu
+    // เพราะ SnsEquipmentMenu เป็น activeClickableMenu ไม่ใช่ pages[currentTab]
+    // GameMenu จึงไม่ส่ง events ให้โดยตรง
+    public static void GameMenuLeftClickHeldPostfix(GameMenu __instance, int x, int y)
+    {
+        if (Game1.activeClickableMenu is SnsEquipmentMenu sns)
+            sns.leftClickHeld(x, y);
+    }
+
+    public static void GameMenuReleasePostfix(GameMenu __instance, int x, int y)
+    {
+        if (Game1.activeClickableMenu is SnsEquipmentMenu sns)
+            sns.releaseLeftClick(x, y);
+    }
 }
+
