@@ -3,6 +3,7 @@ using System.Reflection;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
@@ -13,11 +14,10 @@ public class EquipmentMenuDebugPatch
 {
     internal static IMonitor? Monitor;
     private static Rectangle _btnBounds = Rectangle.Empty;
-
-    // เก็บ coordinate ล่าสุดที่ถูกต้องจาก InventoryPage
     private static int _lastHeldX;
     private static int _lastHeldY;
     private static bool _isHolding;
+    private static int _updateLogThrottle = 0;
 
     public static void Apply(Harmony harmony)
     {
@@ -76,7 +76,7 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
         }
 
-        // วิธี 1: patch InventoryPage.leftClickHeld ส่งต่อ x,y ที่ถูกต้องให้ child
+        // วิธี 1: ส่งต่อ x,y ที่ถูกต้องจาก InventoryPage ให้ child SnsEquipmentMenu
         var invHeld = typeof(InventoryPage).GetMethod("leftClickHeld",
             BindingFlags.Public | BindingFlags.Instance);
         if (invHeld != null)
@@ -192,7 +192,7 @@ public class EquipmentMenuDebugPatch
         return false;
     }
 
-    // วิธี 1: ส่งต่อ x,y ที่ถูกต้องจาก InventoryPage ให้ child SnsEquipmentMenu
+    // วิธี 1: ส่งต่อ x,y จาก InventoryPage ให้ child SnsEquipmentMenu
     public static void InventoryPageLeftClickHeldPostfix(InventoryPage __instance, int x, int y)
     {
         _lastHeldX = x;
@@ -209,19 +209,18 @@ public class EquipmentMenuDebugPatch
     {
         _isHolding = false;
         var child = __instance.GetChildMenu();
+        Monitor?.Log($"InventoryPageRelease ({x},{y}) child={child?.GetType().Name ?? "null"}", LogLevel.Info);
         if (child is SnsEquipmentMenu sns)
             sns.releaseLeftClick(x, y);
     }
 
-    private static int _updateLogThrottle = 0;
-
-    // วิธี 2: ใช้ coordinate ล่าสุดที่เก็บไว้ส่งให้ SnsEquipmentMenu ใน update loop
+    // วิธี 2: ส่ง coordinate จาก mouse state ให้ SnsEquipmentMenu ทุก frame
     public static void UpdateActiveMenuPostfix()
     {
         var menu = Game1.activeClickableMenu;
         if (menu == null) return;
 
-        // log chain ทุก 60 frame เพื่อไม่ spam
+        // log chain ทุก 60 frame
         _updateLogThrottle++;
         if (_updateLogThrottle >= 60)
         {
@@ -242,13 +241,12 @@ public class EquipmentMenuDebugPatch
         {
             if (cur is SnsEquipmentMenu sns)
             {
-                // ใช้ getMouseX/Y โดยตรงแทน _isHolding
-                // เพราะ InventoryPage.leftClickHeld ไม่ถูกเรียกตอนมี child menu
-                var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
+                var mouseState = Mouse.GetState();
                 if ((int)mouseState.LeftButton == 1)
                 {
                     int mx = Game1.getMouseX();
                     int my = Game1.getMouseY();
+                    Monitor?.Log($"UpdateActiveMenu: sending leftClickHeld ({mx},{my}) to SnsEquipmentMenu", LogLevel.Info);
                     sns.leftClickHeld(mx, my);
                 }
                 return;
@@ -257,4 +255,3 @@ public class EquipmentMenuDebugPatch
         }
     }
 }
-
