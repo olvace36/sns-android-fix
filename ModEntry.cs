@@ -33,8 +33,10 @@ public class ModEntry : Mod
         // วาด HiddenChildMenu ทุก frame หลัง active menu วาดเสร็จ
         helper.Events.Display.RenderedActiveMenu += (s, e) =>
         {
-            // วาดเฉพาะ inventory (รวม drag item) บนสุดหลัง menu วาดเสร็จ
-            EquipmentMenuDebugPatch.HiddenChildMenu?.DrawInventoryOnly(e.SpriteBatch);
+            if (EquipmentMenuDebugPatch.HiddenChildMenu == null) return;
+            // วาดเฉพาะตอน GameMenu tab 0 (inventory) เปิดอยู่เท่านั้น
+            if (Game1.activeClickableMenu is GameMenu gm && gm.currentTab == 0)
+                EquipmentMenuDebugPatch.HiddenChildMenu.DrawInventoryOnly(e.SpriteBatch);
         };
 
         // cache ไว้ใช้ใน UpdateTicked — lookup ครั้งเดียว
