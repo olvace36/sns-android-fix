@@ -208,12 +208,13 @@ public class EquipmentMenuDebugPatch
 
     public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
     {
-        // ถ้า SnsEquipmentMenu เปิดอยู่ → ส่ง click ให้มัน
+        // ถ้า SnsEquipmentMenu เปิดอยู่ → ส่ง click ให้มัน แต่ return true
+        // เพื่อให้ SMAPI Android ยังส่ง coordinate ถูกต้องใน leftClickHeld
         if (HiddenChildMenu != null)
         {
             Monitor?.Log($"ReceiveLeftClick forwarding to HiddenChildMenu ({x},{y})", LogLevel.Info);
             HiddenChildMenu.receiveLeftClick(x, y);
-            return false;
+            return true;
         }
 
         if (_btnBounds == Rectangle.Empty) return true;
@@ -300,3 +301,4 @@ public class EquipmentMenuDebugPatch
         }
     }
 }
+
