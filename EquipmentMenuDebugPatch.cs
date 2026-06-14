@@ -16,6 +16,26 @@ public class EquipmentMenuDebugPatch
 
     public static void Apply(Harmony harmony)
     {
+        // ปิด SpaceCore ไม่ให้สร้างปุ่มเก่ามาตั้งแต่แรก
+        var constructorPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageConstructorPatch")
+            ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
+        if (constructorPostfix != null)
+        {
+            harmony.Patch(constructorPostfix,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockConstructorPostfix))));
+            Monitor?.Log("patched SpaceCore.InventoryPageConstructorPatch.Postfix (blocked)", LogLevel.Info);
+        }
+
+        // ปิด draw ของ SpaceCore
+        var spaceCoreDrawPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageDrawTooltipPatch")
+            ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
+        if (spaceCoreDrawPostfix != null)
+        {
+            harmony.Patch(spaceCoreDrawPostfix,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockDrawPrefix))));
+            Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix (blocked)", LogLevel.Info);
+        }
+
         var populate = typeof(IClickableMenu).GetMethod("populateClickableComponentList",
             BindingFlags.Public | BindingFlags.Instance);
         if (populate != null)
@@ -23,15 +43,6 @@ public class EquipmentMenuDebugPatch
             harmony.Patch(populate,
                 postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(PopulatePostfix))));
             Monitor?.Log("patched populateClickableComponentList", LogLevel.Info);
-        }
-
-        var spaceCoreDrawPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageDrawTooltipPatch")
-            ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
-        if (spaceCoreDrawPostfix != null)
-        {
-            harmony.Patch(spaceCoreDrawPostfix,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockDrawPrefix))));
-            Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix", LogLevel.Info);
         }
 
         var getComp = typeof(IClickableMenu).GetMethod("getComponentWithID",
@@ -51,8 +62,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
         }
 
-        // prefix บน InventoryPage.receiveLeftClick
-        // จัดการทั้งปุ่มใหม่ ปุ่มเก่า และปล่อยช่องเก็บของผ่าน
         var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
             BindingFlags.Public | BindingFlags.Instance);
         if (receiveLeftClick != null)
@@ -64,6 +73,9 @@ public class EquipmentMenuDebugPatch
 
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
+
+    // ปิดไม่ให้ SpaceCore สร้างปุ่มเก่า
+    public static bool BlockConstructorPostfix() => false;
 
     public static bool BlockDrawPrefix() => false;
 
@@ -126,37 +138,26 @@ public class EquipmentMenuDebugPatch
 
     public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
     {
-        // ปุ่มใหม่ (+100) → เปิด SnsEquipmentMenu แล้ว return false
-        if (_btnBounds != Rectangle.Empty && _btnBounds.Contains(x, y))
-        {
-            Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
-            try
-            {
-                if (Game1.activeClickableMenu != null)
-                {
-                    var cur = Game1.activeClickableMenu;
-                    while (cur.GetChildMenu() != null)
-                        cur = cur.GetChildMenu();
-                    cur.SetChildMenu(new SnsEquipmentMenu());
-                    Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
-                }
-            }
-            catch (Exception ex)
-            {
-                Monitor?.Log($"CRASH: {ex.Message}", LogLevel.Error);
-            }
-            return false;
-        }
+        if (_btnBounds == Rectangle.Empty) return true;
+        if (!_btnBounds.Contains(x, y)) return true;
 
-        // ปุ่มเก่าของ SpaceCore (ไม่มี +100) → return false ป้องกัน crash
-        var oldBtnY = __instance.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12;
-        if (new Rectangle(__instance.xPositionOnScreen - 80, oldBtnY, 64, 64).Contains(x, y))
+        Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
+        try
         {
-            Monitor?.Log($"Blocked old SpaceCore btn at ({x},{y})", LogLevel.Info);
-            return false;
+            if (Game1.activeClickableMenu != null)
+            {
+                var cur = Game1.activeClickableMenu;
+                while (cur.GetChildMenu() != null)
+                    cur = cur.GetChildMenu();
+                cur.SetChildMenu(new SnsEquipmentMenu());
+                Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
+            }
         }
-
-        // ที่อื่นทั้งหมด → ปล่อยให้ InventoryPage.receiveLeftClick ทำงานปกติ
-        return true;
+        catch (Exception ex)
+        {
+            Monitor?.Log($"CRASH: {ex.Message}", LogLevel.Error);
+        }
+        return false;
     }
 }
+
