@@ -14,9 +14,14 @@ public class EquipmentMenuDebugPatch
     internal static IMonitor? Monitor;
     private static Rectangle _btnBounds = Rectangle.Empty;
 
+    // เก็บ coordinate ล่าสุดที่ถูกต้องจาก InventoryPage
+    private static int _lastHeldX;
+    private static int _lastHeldY;
+    private static bool _isHolding;
+
     public static void Apply(Harmony harmony)
     {
-        // ปิด SpaceCore ไม่ให้สร้างปุ่มเก่ามาตั้งแต่แรก
+        // ปิด SpaceCore ไม่ให้สร้างปุ่มเก่า
         var constructorPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageConstructorPatch")
             ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
         if (constructorPostfix != null)
@@ -71,9 +76,7 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
         }
 
-        // patch InventoryPage.leftClickHeld และ releaseLeftClick
-        // เพื่อส่งต่อ x,y ที่ถูกต้องให้ SnsEquipmentMenu child menu
-        // GameMenu.leftClickHeld → pages[currentTab].leftClickHeld(x,y) → เราส่งต่อให้ child
+        // วิธี 1: patch InventoryPage.leftClickHeld ส่งต่อ x,y ที่ถูกต้องให้ child
         var invHeld = typeof(InventoryPage).GetMethod("leftClickHeld",
             BindingFlags.Public | BindingFlags.Instance);
         if (invHeld != null)
@@ -92,12 +95,20 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.releaseLeftClick", LogLevel.Info);
         }
 
+        // วิธี 2: patch Game1.updateActiveMenu ส่ง coordinate ล่าสุดให้ SnsEquipmentMenu
+        var updateActiveMenu = typeof(Game1).GetMethod("updateActiveMenu",
+            BindingFlags.Public | BindingFlags.Static);
+        if (updateActiveMenu != null)
+        {
+            harmony.Patch(updateActiveMenu,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(UpdateActiveMenuPostfix))));
+            Monitor?.Log("patched Game1.updateActiveMenu", LogLevel.Info);
+        }
+
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
-    // ปิดไม่ให้ SpaceCore สร้างปุ่มเก่า
     public static bool BlockConstructorPostfix() => false;
-
     public static bool BlockDrawPrefix() => false;
 
     public static void PopulatePostfix(IClickableMenu __instance)
@@ -162,17 +173,11 @@ public class EquipmentMenuDebugPatch
         if (_btnBounds == Rectangle.Empty) return true;
         if (!_btnBounds.Contains(x, y)) return true;
 
-        Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
+        Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu as child of InventoryPage", LogLevel.Info);
         try
         {
-            if (Game1.activeClickableMenu != null)
-            {
-                var cur = Game1.activeClickableMenu;
-                while (cur.GetChildMenu() != null)
-                    cur = cur.GetChildMenu();
-                cur.SetChildMenu(new SnsEquipmentMenu());
-                Monitor?.Log("SnsEquipmentMenu opened as child!", LogLevel.Info);
-            }
+            __instance.SetChildMenu(new SnsEquipmentMenu());
+            Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
         }
         catch (Exception ex)
         {
@@ -180,11 +185,15 @@ public class EquipmentMenuDebugPatch
         }
         return false;
     }
-    // InventoryPage.leftClickHeld ได้รับ x,y ที่ถูกต้องจาก GameMenu → pages[currentTab]
-    // ส่งต่อให้ SnsEquipmentMenu child menu ด้วย x,y เดียวกัน
+
+    // วิธี 1: ส่งต่อ x,y ที่ถูกต้องจาก InventoryPage ให้ child SnsEquipmentMenu
     public static void InventoryPageLeftClickHeldPostfix(InventoryPage __instance, int x, int y)
     {
-        var child = Game1.activeClickableMenu?.GetChildMenu();
+        _lastHeldX = x;
+        _lastHeldY = y;
+        _isHolding = true;
+
+        var child = __instance.GetChildMenu();
         Monitor?.Log($"InventoryPageLeftClickHeld ({x},{y}) child={child?.GetType().Name ?? "null"}", LogLevel.Info);
         if (child is SnsEquipmentMenu sns)
             sns.leftClickHeld(x, y);
@@ -192,9 +201,30 @@ public class EquipmentMenuDebugPatch
 
     public static void InventoryPageReleasePostfix(InventoryPage __instance, int x, int y)
     {
-        var child = Game1.activeClickableMenu?.GetChildMenu();
+        _isHolding = false;
+        var child = __instance.GetChildMenu();
         if (child is SnsEquipmentMenu sns)
             sns.releaseLeftClick(x, y);
+    }
+
+    // วิธี 2: ใช้ coordinate ล่าสุดที่เก็บไว้ส่งให้ SnsEquipmentMenu ใน update loop
+    public static void UpdateActiveMenuPostfix()
+    {
+        if (!_isHolding) return;
+        var menu = Game1.activeClickableMenu;
+        if (menu == null) return;
+
+        // traverse หา SnsEquipmentMenu ใน child chain
+        var cur = menu;
+        while (cur != null)
+        {
+            if (cur is SnsEquipmentMenu sns)
+            {
+                sns.leftClickHeld(_lastHeldX, _lastHeldY);
+                return;
+            }
+            cur = cur.GetChildMenu();
+        }
     }
 }
 
