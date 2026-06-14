@@ -71,22 +71,25 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
         }
 
-        var gameMenuHeld = typeof(GameMenu).GetMethod("leftClickHeld",
+        // patch InventoryPage.leftClickHeld และ releaseLeftClick
+        // เพื่อส่งต่อ x,y ที่ถูกต้องให้ SnsEquipmentMenu child menu
+        // GameMenu.leftClickHeld → pages[currentTab].leftClickHeld(x,y) → เราส่งต่อให้ child
+        var invHeld = typeof(InventoryPage).GetMethod("leftClickHeld",
             BindingFlags.Public | BindingFlags.Instance);
-        if (gameMenuHeld != null)
+        if (invHeld != null)
         {
-            harmony.Patch(gameMenuHeld,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuLeftClickHeldPostfix))));
-            Monitor?.Log("patched GameMenu.leftClickHeld", LogLevel.Info);
+            harmony.Patch(invHeld,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(InventoryPageLeftClickHeldPostfix))));
+            Monitor?.Log("patched InventoryPage.leftClickHeld", LogLevel.Info);
         }
 
-        var gameMenuRelease = typeof(GameMenu).GetMethod("releaseLeftClick",
+        var invRelease = typeof(InventoryPage).GetMethod("releaseLeftClick",
             BindingFlags.Public | BindingFlags.Instance);
-        if (gameMenuRelease != null)
+        if (invRelease != null)
         {
-            harmony.Patch(gameMenuRelease,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuReleasePostfix))));
-            Monitor?.Log("patched GameMenu.releaseLeftClick", LogLevel.Info);
+            harmony.Patch(invRelease,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(InventoryPageReleasePostfix))));
+            Monitor?.Log("patched InventoryPage.releaseLeftClick", LogLevel.Info);
         }
 
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
@@ -162,9 +165,14 @@ public class EquipmentMenuDebugPatch
         Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
         try
         {
-            SnsEquipmentMenu.PreviousMenu = Game1.activeClickableMenu;
-            Game1.activeClickableMenu = new SnsEquipmentMenu();
-            Monitor?.Log("SnsEquipmentMenu opened as activeClickableMenu!", LogLevel.Info);
+            if (Game1.activeClickableMenu != null)
+            {
+                var cur = Game1.activeClickableMenu;
+                while (cur.GetChildMenu() != null)
+                    cur = cur.GetChildMenu();
+                cur.SetChildMenu(new SnsEquipmentMenu());
+                Monitor?.Log("SnsEquipmentMenu opened as child!", LogLevel.Info);
+            }
         }
         catch (Exception ex)
         {
@@ -172,19 +180,19 @@ public class EquipmentMenuDebugPatch
         }
         return false;
     }
-    // ส่งต่อ leftClickHeld และ releaseLeftClick ให้ SnsEquipmentMenu
-    // เพราะ SnsEquipmentMenu เป็น activeClickableMenu ไม่ใช่ pages[currentTab]
-    // GameMenu จึงไม่ส่ง events ให้โดยตรง
-    public static void GameMenuLeftClickHeldPostfix(GameMenu __instance, int x, int y)
+    // InventoryPage.leftClickHeld ได้รับ x,y ที่ถูกต้องจาก GameMenu → pages[currentTab]
+    // ส่งต่อให้ SnsEquipmentMenu child menu ด้วย x,y เดียวกัน
+    public static void InventoryPageLeftClickHeldPostfix(InventoryPage __instance, int x, int y)
     {
-        if (Game1.activeClickableMenu is SnsEquipmentMenu sns)
+        var child = Game1.activeClickableMenu?.GetChildMenu();
+        if (child is SnsEquipmentMenu sns)
             sns.leftClickHeld(x, y);
     }
 
-    public static void GameMenuReleasePostfix(GameMenu __instance, int x, int y)
+    public static void InventoryPageReleasePostfix(InventoryPage __instance, int x, int y)
     {
-        if (Game1.activeClickableMenu is SnsEquipmentMenu sns)
+        var child = Game1.activeClickableMenu?.GetChildMenu();
+        if (child is SnsEquipmentMenu sns)
             sns.releaseLeftClick(x, y);
     }
 }
-
