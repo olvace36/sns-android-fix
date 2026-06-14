@@ -30,6 +30,12 @@ public class ModEntry : Mod
         BuffedSkillLevelPatch.Apply(harmony);
         EquipmentMenuDebugPatch.Apply(harmony);
 
+        // วาด HiddenChildMenu ทุก frame หลัง active menu วาดเสร็จ
+        helper.Events.Display.RenderedActiveMenu += (s, e) =>
+        {
+            EquipmentMenuDebugPatch.HiddenChildMenu?.draw(e.SpriteBatch);
+        };
+
         // cache ไว้ใช้ใน UpdateTicked — lookup ครั้งเดียว
         var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
         var getBuffedLevel = AccessTools.Method(
