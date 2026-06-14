@@ -167,29 +167,23 @@ public class ArsenalMenuClickPatch
     }
 }
 
-[HarmonyPatch(typeof(IClickableMenu), "leftClickHeld")]
+[HarmonyPatch(typeof(ArsenalMenu), "update")]
 public class ArsenalMenuHeldPatch
 {
-    static void Postfix(IClickableMenu __instance, int x, int y)
+    // ArsenalMenu.update ถูกเรียกทุก frame — ใช้ mouse state เช็คว่ากดค้างอยู่ไหม
+    static void Postfix(ArsenalMenu __instance, GameTime time)
     {
-        if (__instance is not ArsenalMenu) return;
-        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance) as InventoryMenu;
-        invMenu?.leftClickHeld(x, y);
-    }
-}
+        var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
+        if ((int)mouseState.LeftButton != 1) return;
 
-[HarmonyPatch(typeof(IClickableMenu), "releaseLeftClick")]
-public class ArsenalMenuReleasePatch
-{
-    static void Postfix(IClickableMenu __instance, int x, int y)
-    {
-        if (__instance is not ArsenalMenu) return;
         var invMenu = typeof(ArsenalMenu).GetField("invMenu",
             BindingFlags.NonPublic | BindingFlags.Instance)
             ?.GetValue(__instance) as InventoryMenu;
-        invMenu?.releaseLeftClick(x, y);
+        if (invMenu == null) return;
+
+        int x = Game1.getMouseX();
+        int y = Game1.getMouseY();
+        invMenu.leftClickHeld(x, y);
     }
 }
 
@@ -205,4 +199,3 @@ public class ArsenalMenuCleanupPatch
         }
     }
 }
-
