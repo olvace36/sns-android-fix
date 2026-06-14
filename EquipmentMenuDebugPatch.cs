@@ -34,17 +34,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix", LogLevel.Info);
         }
 
-        // block SpaceCore click เสมอ ป้องกัน EquipmentMenu crash
-        // แต่ถ้ากดปุ่มใหม่ (_btnBounds) → เปิด SnsEquipmentMenu แทน
-        var spaceCoreClickPrefix = AccessTools.TypeByName("SpaceCore.InventoryPageLeftClickPatch")
-            ?.GetMethod("Prefix", BindingFlags.Public | BindingFlags.Static);
-        if (spaceCoreClickPrefix != null)
-        {
-            harmony.Patch(spaceCoreClickPrefix,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(SpaceCoreClickPrefix))));
-            Monitor?.Log("patched SpaceCore.InventoryPageLeftClickPatch.Prefix", LogLevel.Info);
-        }
-
         var getComp = typeof(IClickableMenu).GetMethod("getComponentWithID",
             BindingFlags.Public | BindingFlags.Instance);
         if (getComp != null)
@@ -62,57 +51,21 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
         }
 
+        // prefix บน InventoryPage.receiveLeftClick
+        // จัดการทั้งปุ่มใหม่ ปุ่มเก่า และปล่อยช่องเก็บของผ่าน
+        var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (receiveLeftClick != null)
+        {
+            harmony.Patch(receiveLeftClick,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(ReceiveLeftClickPrefix))));
+            Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
+        }
+
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
     public static bool BlockDrawPrefix() => false;
-
-    // intercept SpaceCore click:
-    // ถ้าโดนปุ่มใหม่ (+100) → เปิด SnsEquipmentMenu, block SpaceCore
-    // ถ้าโดนปุ่มเก่า (ไม่มี +100) → block ป้องกัน crash
-    // ถ้าไม่โดนทั้งคู่ → return true ให้ SpaceCore ทำงานปกติ
-    public static bool SpaceCoreClickPrefix(InventoryPage __instance, int x, int y, ref bool __result)
-    {
-        // ปุ่มใหม่ที่เราวาด (+100)
-        if (_btnBounds != Rectangle.Empty && _btnBounds.Contains(x, y))
-        {
-            Monitor?.Log($"SpaceCoreClickPrefix: Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
-            try
-            {
-                if (Game1.activeClickableMenu != null)
-                {
-                    var cur = Game1.activeClickableMenu;
-                    while (cur.GetChildMenu() != null)
-                        cur = cur.GetChildMenu();
-                    cur.SetChildMenu(new SnsEquipmentMenu());
-                    Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
-                }
-                else
-                {
-                    Monitor?.Log("SpaceCoreClickPrefix: activeClickableMenu is null!", LogLevel.Warn);
-                }
-            }
-            catch (Exception ex)
-            {
-                Monitor?.Log($"SpaceCoreClickPrefix CRASH: {ex.Message}", LogLevel.Error);
-            }
-            __result = false;
-            return false;
-        }
-
-        // ปุ่มเก่าของ SpaceCore (ไม่มี +100) → block ป้องกัน crash
-        var oldBtnY = __instance.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12;
-        var oldBtnBounds = new Rectangle(__instance.xPositionOnScreen - 80, oldBtnY, 64, 64);
-        if (oldBtnBounds.Contains(x, y))
-        {
-            Monitor?.Log($"SpaceCoreClickPrefix: blocked old btn at ({x},{y})", LogLevel.Info);
-            __result = false;
-            return false;
-        }
-
-        // ไม่โดนทั้งคู่ → ให้ SpaceCore ทำงานปกติ
-        return true;
-    }
 
     public static void PopulatePostfix(IClickableMenu __instance)
     {
@@ -170,5 +123,40 @@ public class EquipmentMenuDebugPatch
         }
         catch { }
     }
-}
 
+    public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
+    {
+        // ปุ่มใหม่ (+100) → เปิด SnsEquipmentMenu แล้ว return false
+        if (_btnBounds != Rectangle.Empty && _btnBounds.Contains(x, y))
+        {
+            Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
+            try
+            {
+                if (Game1.activeClickableMenu != null)
+                {
+                    var cur = Game1.activeClickableMenu;
+                    while (cur.GetChildMenu() != null)
+                        cur = cur.GetChildMenu();
+                    cur.SetChildMenu(new SnsEquipmentMenu());
+                    Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                Monitor?.Log($"CRASH: {ex.Message}", LogLevel.Error);
+            }
+            return false;
+        }
+
+        // ปุ่มเก่าของ SpaceCore (ไม่มี +100) → return false ป้องกัน crash
+        var oldBtnY = __instance.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12;
+        if (new Rectangle(__instance.xPositionOnScreen - 80, oldBtnY, 64, 64).Contains(x, y))
+        {
+            Monitor?.Log($"Blocked old SpaceCore btn at ({x},{y})", LogLevel.Info);
+            return false;
+        }
+
+        // ที่อื่นทั้งหมด → ปล่อยให้ InventoryPage.receiveLeftClick ทำงานปกติ
+        return true;
+    }
+}
