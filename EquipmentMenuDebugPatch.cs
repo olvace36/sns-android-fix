@@ -79,12 +79,18 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log($"SpaceCoreClickPrefix: Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
             try
             {
-                var menu = Game1.activeClickableMenu;
-                var cur = menu;
-                while (cur?.GetChildMenu() != null)
-                    cur = cur.GetChildMenu();
-                cur?.SetChildMenu(new SnsEquipmentMenu());
-                Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
+                if (Game1.activeClickableMenu != null)
+                {
+                    var cur = Game1.activeClickableMenu;
+                    while (cur.GetChildMenu() != null)
+                        cur = cur.GetChildMenu();
+                    cur.SetChildMenu(new SnsEquipmentMenu());
+                    Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
+                }
+                else
+                {
+                    Monitor?.Log("SpaceCoreClickPrefix: activeClickableMenu is null!", LogLevel.Warn);
+                }
             }
             catch (Exception ex)
             {
