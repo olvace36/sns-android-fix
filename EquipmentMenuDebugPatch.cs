@@ -213,12 +213,30 @@ public class EquipmentMenuDebugPatch
             sns.releaseLeftClick(x, y);
     }
 
+    private static int _updateLogThrottle = 0;
+
     // วิธี 2: ใช้ coordinate ล่าสุดที่เก็บไว้ส่งให้ SnsEquipmentMenu ใน update loop
     public static void UpdateActiveMenuPostfix()
     {
-        if (!_isHolding) return;
         var menu = Game1.activeClickableMenu;
         if (menu == null) return;
+
+        // log chain ทุก 60 frame เพื่อไม่ spam
+        _updateLogThrottle++;
+        if (_updateLogThrottle >= 60)
+        {
+            _updateLogThrottle = 0;
+            var chain = menu.GetType().Name;
+            var c = menu;
+            while (c?.GetChildMenu() != null)
+            {
+                c = c.GetChildMenu();
+                chain += $" → {c.GetType().Name}";
+            }
+            Monitor?.Log($"UpdateActiveMenu chain: {chain} | isHolding={_isHolding}", LogLevel.Info);
+        }
+
+        if (!_isHolding) return;
 
         // traverse หา SnsEquipmentMenu ใน child chain
         var cur = menu;
@@ -226,11 +244,13 @@ public class EquipmentMenuDebugPatch
         {
             if (cur is SnsEquipmentMenu sns)
             {
+                Monitor?.Log($"UpdateActiveMenu: found SnsEquipmentMenu! sending ({_lastHeldX},{_lastHeldY})", LogLevel.Info);
                 sns.leftClickHeld(_lastHeldX, _lastHeldY);
                 return;
             }
             cur = cur.GetChildMenu();
         }
+        Monitor?.Log($"UpdateActiveMenu: SnsEquipmentMenu not found in chain!", LogLevel.Info);
     }
 }
 
