@@ -19,12 +19,10 @@ public class EquipmentMenuDebugPatch
     private static bool _isHolding;
     private static int _updateLogThrottle = 0;
 
-    // เก็บ SnsEquipmentMenu แยกต่างหาก ซ่อนจาก Game1 child menu chain
     internal static SnsEquipmentMenu? HiddenChildMenu;
 
     public static void Apply(Harmony harmony)
     {
-        // ปิด SpaceCore ไม่ให้สร้างปุ่มเก่า
         var constructorPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageConstructorPatch")
             ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
         if (constructorPostfix != null)
@@ -34,7 +32,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched SpaceCore.InventoryPageConstructorPatch.Postfix (blocked)", LogLevel.Info);
         }
 
-        // ปิด draw ของ SpaceCore
         var spaceCoreDrawPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageDrawTooltipPatch")
             ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
         if (spaceCoreDrawPostfix != null)
@@ -70,6 +67,7 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
         }
 
+        // return false เพื่อให้ SMAPI Android ไม่ lock coordinate
         var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
             BindingFlags.Public | BindingFlags.Instance);
         if (receiveLeftClick != null)
@@ -79,6 +77,7 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
         }
 
+        // ส่งต่อ leftClickHeld พร้อม coordinate ที่ถูกต้องให้ HiddenChildMenu
         var invHeld = typeof(InventoryPage).GetMethod("leftClickHeld",
             BindingFlags.Public | BindingFlags.Instance);
         if (invHeld != null)
@@ -111,7 +110,7 @@ public class EquipmentMenuDebugPatch
         if (gameMenuHeld != null)
         {
             harmony.Patch(gameMenuHeld,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuLeftClickHeldPrefix))));
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuLeftClickHeldPostfix))));
             Monitor?.Log("patched GameMenu.leftClickHeld", LogLevel.Info);
         }
 
@@ -196,12 +195,13 @@ public class EquipmentMenuDebugPatch
             }
             catch { }
         }
-
-        HiddenChildMenu?.draw(b);
     }
 
     public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
     {
+        // ถ้า SnsEquipmentMenu เปิดอยู่ → forward click และ return false
+        // return false ทำให้ SMAPI Android ไม่ lock coordinate
+        // ทำให้ InventoryPage.leftClickHeld ยังได้รับ coordinate ที่ update ตามนิ้ว
         if (HiddenChildMenu != null)
         {
             Monitor?.Log($"ReceiveLeftClick forwarding to HiddenChildMenu ({x},{y})", LogLevel.Info);
@@ -225,6 +225,8 @@ public class EquipmentMenuDebugPatch
         return false;
     }
 
+    // InventoryPage.leftClickHeld ได้ coordinate ถูกต้องจาก SMAPI Android
+    // forward ให้ HiddenChildMenu ด้วย coordinate เดียวกัน
     public static void InventoryPageLeftClickHeldPostfix(InventoryPage __instance, int x, int y)
     {
         _lastHeldX = x;
@@ -238,7 +240,6 @@ public class EquipmentMenuDebugPatch
     public static void InventoryPageReleasePostfix(InventoryPage __instance, int x, int y)
     {
         _isHolding = false;
-        Monitor?.Log($"InventoryPageRelease ({x},{y}) hidden={HiddenChildMenu != null}", LogLevel.Info);
         if (HiddenChildMenu != null)
             HiddenChildMenu.releaseLeftClick(x, y);
     }
@@ -248,19 +249,17 @@ public class EquipmentMenuDebugPatch
         HiddenChildMenu?.update(time);
     }
 
-    public static bool GameMenuLeftClickHeldPrefix(GameMenu __instance, int x, int y)
+    // GameMenu.leftClickHeld เป็น backup coordinate
+    public static void GameMenuLeftClickHeldPostfix(GameMenu __instance, int x, int y)
     {
         _lastHeldX = x;
         _lastHeldY = y;
         _isHolding = true;
-        Monitor?.Log($"GameMenuLeftClickHeld ({x},{y})", LogLevel.Info);
-        return true;
     }
 
     public static void GameMenuReleasePostfix(GameMenu __instance, int x, int y)
     {
         _isHolding = false;
-        Monitor?.Log($"GameMenuRelease ({x},{y})", LogLevel.Info);
     }
 
     public static void UpdateActiveMenuPostfix()
@@ -284,9 +283,7 @@ public class EquipmentMenuDebugPatch
 
         if (HiddenChildMenu != null && _isHolding)
         {
-            Monitor?.Log($"UpdateActiveMenu: backup leftClickHeld ({_lastHeldX},{_lastHeldY})", LogLevel.Info);
             HiddenChildMenu.leftClickHeld(_lastHeldX, _lastHeldY);
         }
     }
 }
-
