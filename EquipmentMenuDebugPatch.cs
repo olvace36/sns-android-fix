@@ -79,7 +79,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
         }
 
-        // patch InventoryPage.leftClickHeld ส่งต่อให้ HiddenChildMenu
         var invHeld = typeof(InventoryPage).GetMethod("leftClickHeld",
             BindingFlags.Public | BindingFlags.Instance);
         if (invHeld != null)
@@ -98,7 +97,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.releaseLeftClick", LogLevel.Info);
         }
 
-        // patch InventoryPage.update ส่งต่อให้ HiddenChildMenu
         var invUpdate = typeof(InventoryPage).GetMethod("update",
             BindingFlags.Public | BindingFlags.Instance);
         if (invUpdate != null)
@@ -108,7 +106,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.update", LogLevel.Info);
         }
 
-        // patch GameMenu.leftClickHeld เก็บ coordinate ที่ถูกต้อง
         var gameMenuHeld = typeof(GameMenu).GetMethod("leftClickHeld",
             BindingFlags.Public | BindingFlags.Instance);
         if (gameMenuHeld != null)
@@ -127,7 +124,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched GameMenu.releaseLeftClick", LogLevel.Info);
         }
 
-        // patch Game1.updateActiveMenu ส่ง coordinate ล่าสุดให้ HiddenChildMenu
         var updateActiveMenu = typeof(Game1).GetMethod("updateActiveMenu",
             BindingFlags.Public | BindingFlags.Static);
         if (updateActiveMenu != null)
@@ -135,6 +131,16 @@ public class EquipmentMenuDebugPatch
             harmony.Patch(updateActiveMenu,
                 postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(UpdateActiveMenuPostfix))));
             Monitor?.Log("patched Game1.updateActiveMenu", LogLevel.Info);
+        }
+
+        // patch Game1.DrawMenu เพื่อวาด HiddenChildMenu ใน SpriteBatch session ถูกต้อง
+        var drawMenu = typeof(Game1).GetMethod("DrawMenu",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (drawMenu != null)
+        {
+            harmony.Patch(drawMenu,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(DrawMenuPostfix))));
+            Monitor?.Log("patched Game1.DrawMenu", LogLevel.Info);
         }
 
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
@@ -190,7 +196,6 @@ public class EquipmentMenuDebugPatch
 
     public static void DrawPostfix(InventoryPage __instance, SpriteBatch b)
     {
-        // วาดปุ่มใหม่
         if (_btnBounds != Rectangle.Empty)
         {
             try
@@ -202,19 +207,16 @@ public class EquipmentMenuDebugPatch
             catch { }
         }
 
-        // วาด SnsEquipmentMenu ที่ซ่อนไว้
-        HiddenChildMenu?.draw(b);
+        // ไม่วาดที่นี่แล้ว ย้ายไป DrawMenuPostfix เพื่อให้อยู่ใน SpriteBatch session ถูกต้อง
     }
 
     public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
     {
-        // ถ้า SnsEquipmentMenu เปิดอยู่ → ส่ง click ให้มัน แต่ return true
-        // เพื่อให้ SMAPI Android ยังส่ง coordinate ถูกต้องใน leftClickHeld
         if (HiddenChildMenu != null)
         {
             Monitor?.Log($"ReceiveLeftClick forwarding to HiddenChildMenu ({x},{y})", LogLevel.Info);
             HiddenChildMenu.receiveLeftClick(x, y);
-            return true;
+            return false;
         }
 
         if (_btnBounds == Rectangle.Empty) return true;
@@ -233,8 +235,6 @@ public class EquipmentMenuDebugPatch
         return false;
     }
 
-    // InventoryPage.leftClickHeld ได้รับ coordinate ที่ถูกต้องจาก SMAPI Android
-    // ส่งต่อให้ HiddenChildMenu
     public static void InventoryPageLeftClickHeldPostfix(InventoryPage __instance, int x, int y)
     {
         _lastHeldX = x;
@@ -258,7 +258,6 @@ public class EquipmentMenuDebugPatch
         HiddenChildMenu?.update(time);
     }
 
-    // เก็บ coordinate จาก GameMenu.leftClickHeld
     public static bool GameMenuLeftClickHeldPrefix(GameMenu __instance, int x, int y)
     {
         _lastHeldX = x;
@@ -274,7 +273,28 @@ public class EquipmentMenuDebugPatch
         Monitor?.Log($"GameMenuRelease ({x},{y})", LogLevel.Info);
     }
 
-    // backup: ส่ง coordinate ล่าสุดให้ HiddenChildMenu ทุก frame
+    // วาด HiddenChildMenu ใน SpriteBatch session ของ DrawMenu
+    // ทำให้ drag item วาดได้ถูกต้องโดยไม่ conflict กับ SpriteBatch ของ InventoryPage
+    public static void DrawMenuPostfix(Game1 __instance, Microsoft.Xna.Framework.GameTime time)
+    {
+        if (HiddenChildMenu == null) return;
+        try
+        {
+            var sb = (SpriteBatch?)typeof(Game1).GetField("spriteBatch", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+            if (sb == null) return;
+            sb.Begin(Microsoft.Xna.Framework.Graphics.SpriteSortMode.Deferred,
+                Microsoft.Xna.Framework.Graphics.BlendState.AlphaBlend,
+                Microsoft.Xna.Framework.Graphics.SamplerState.PointClamp,
+                null, null, null, null);
+            HiddenChildMenu.draw(sb);
+            sb.End();
+        }
+        catch (Exception ex)
+        {
+            Monitor?.Log($"DrawMenuPostfix error: {ex.Message}", LogLevel.Error);
+        }
+    }
+
     public static void UpdateActiveMenuPostfix()
     {
         var menu = Game1.activeClickableMenu;
@@ -301,4 +321,3 @@ public class EquipmentMenuDebugPatch
         }
     }
 }
-
