@@ -37,7 +37,6 @@ public class RevalidateHealthPatch
 
         int newBonus = rogueBuffed * 3 + paladinBuffed * 5;
 
-        // ถ้ายังไม่รู้ baseMaxHealth ให้คำนวณจาก maxHealth ปัจจุบัน
         if (_baseMaxHealth < 0)
             _baseMaxHealth = farmer.maxHealth - newBonus;
 
@@ -63,9 +62,9 @@ public class RevalidateHealthPatch
     public static void InitFromBaseLevel(Farmer farmer)
     {
         var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
-        var getBaseLevel = AccessTools.Method(
+        var getBuffedLevel = AccessTools.Method(
             AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomSkillLevel",
+            "GetCustomBuffedSkillLevel",
             new[] { typeof(Farmer), skillType });
 
         var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
@@ -75,15 +74,16 @@ public class RevalidateHealthPatch
             ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
             ?.GetValue(null);
 
-        int paladinBase = paladinSkill != null
-            ? (int)(getBaseLevel?.Invoke(null, new object[] { farmer, paladinSkill }) ?? 0)
+        int paladinBuffed = paladinSkill != null
+            ? (int)(getBuffedLevel?.Invoke(null, new object[] { farmer, paladinSkill }) ?? 0)
             : 0;
-        int rogueBase = rogueSkill != null
-            ? (int)(getBaseLevel?.Invoke(null, new object[] { farmer, rogueSkill }) ?? 0)
+        int rogueBuffed = rogueSkill != null
+            ? (int)(getBuffedLevel?.Invoke(null, new object[] { farmer, rogueSkill }) ?? 0)
             : 0;
 
-        int baseBonus = rogueBase * 3 + paladinBase * 5;
-        _baseMaxHealth = farmer.maxHealth - baseBonus;
-        Monitor?.Log($"InitFromBaseLevel: Paladin base={paladinBase}, Rogue base={rogueBase}, baseBonus={baseBonus}, baseMaxHealth={_baseMaxHealth}", LogLevel.Info);
+        // ลบ buffed bonus ออกเพื่อหา baseMaxHealth จริงๆ
+        int buffedBonus = rogueBuffed * 3 + paladinBuffed * 5;
+        _baseMaxHealth = farmer.maxHealth - buffedBonus;
+        Monitor?.Log($"InitFromBaseLevel: Paladin buffed={paladinBuffed}, Rogue buffed={rogueBuffed}, buffedBonus={buffedBonus}, baseMaxHealth={_baseMaxHealth}", LogLevel.Info);
     }
 }
