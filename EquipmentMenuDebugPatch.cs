@@ -16,6 +16,26 @@ public class EquipmentMenuDebugPatch
 
     public static void Apply(Harmony harmony)
     {
+        // ปิด SpaceCore ไม่ให้สร้างปุ่มเก่ามาตั้งแต่แรก
+        var constructorPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageConstructorPatch")
+            ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
+        if (constructorPostfix != null)
+        {
+            harmony.Patch(constructorPostfix,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockConstructorPostfix))));
+            Monitor?.Log("patched SpaceCore.InventoryPageConstructorPatch.Postfix (blocked)", LogLevel.Info);
+        }
+
+        // ปิด draw ของ SpaceCore
+        var spaceCoreDrawPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageDrawTooltipPatch")
+            ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
+        if (spaceCoreDrawPostfix != null)
+        {
+            harmony.Patch(spaceCoreDrawPostfix,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockDrawPrefix))));
+            Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix (blocked)", LogLevel.Info);
+        }
+
         var populate = typeof(IClickableMenu).GetMethod("populateClickableComponentList",
             BindingFlags.Public | BindingFlags.Instance);
         if (populate != null)
@@ -23,26 +43,6 @@ public class EquipmentMenuDebugPatch
             harmony.Patch(populate,
                 postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(PopulatePostfix))));
             Monitor?.Log("patched populateClickableComponentList", LogLevel.Info);
-        }
-
-        var spaceCoreDrawPostfix = AccessTools.TypeByName("SpaceCore.InventoryPageDrawTooltipPatch")
-            ?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
-        if (spaceCoreDrawPostfix != null)
-        {
-            harmony.Patch(spaceCoreDrawPostfix,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(BlockDrawPrefix))));
-            Monitor?.Log("patched SpaceCore.InventoryPageDrawTooltipPatch.Postfix", LogLevel.Info);
-        }
-
-        // block SpaceCore click เสมอ ป้องกัน EquipmentMenu crash
-        // แต่ถ้ากดปุ่มใหม่ (_btnBounds) → เปิด SnsEquipmentMenu แทน
-        var spaceCoreClickPrefix = AccessTools.TypeByName("SpaceCore.InventoryPageLeftClickPatch")
-            ?.GetMethod("Prefix", BindingFlags.Public | BindingFlags.Static);
-        if (spaceCoreClickPrefix != null)
-        {
-            harmony.Patch(spaceCoreClickPrefix,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(SpaceCoreClickPrefix))));
-            Monitor?.Log("patched SpaceCore.InventoryPageLeftClickPatch.Prefix", LogLevel.Info);
         }
 
         var getComp = typeof(IClickableMenu).GetMethod("getComponentWithID",
@@ -62,51 +62,22 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.draw", LogLevel.Info);
         }
 
+        var receiveLeftClick = typeof(InventoryPage).GetMethod("receiveLeftClick",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (receiveLeftClick != null)
+        {
+            harmony.Patch(receiveLeftClick,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(ReceiveLeftClickPrefix))));
+            Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
+        }
+
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
+    // ปิดไม่ให้ SpaceCore สร้างปุ่มเก่า
+    public static bool BlockConstructorPostfix() => false;
+
     public static bool BlockDrawPrefix() => false;
-
-    // intercept SpaceCore click:
-    // ถ้าโดนปุ่มใหม่ (+100) → เปิด SnsEquipmentMenu, block SpaceCore
-    // ถ้าโดนปุ่มเก่า (ไม่มี +100) → block ป้องกัน crash
-    // ถ้าไม่โดนทั้งคู่ → return true ให้ SpaceCore ทำงานปกติ
-    public static bool SpaceCoreClickPrefix(InventoryPage __instance, int x, int y, ref bool __result)
-    {
-        // ปุ่มใหม่ที่เราวาด (+100)
-        if (_btnBounds != Rectangle.Empty && _btnBounds.Contains(x, y))
-        {
-            Monitor?.Log($"SpaceCoreClickPrefix: Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
-            try
-            {
-                var menu = Game1.activeClickableMenu;
-                var cur = menu;
-                while (cur?.GetChildMenu() != null)
-                    cur = cur.GetChildMenu();
-                cur?.SetChildMenu(new SnsEquipmentMenu());
-                Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
-            }
-            catch (Exception ex)
-            {
-                Monitor?.Log($"SpaceCoreClickPrefix CRASH: {ex.Message}", LogLevel.Error);
-            }
-            __result = false;
-            return false;
-        }
-
-        // ปุ่มเก่าของ SpaceCore (ไม่มี +100) → block ป้องกัน crash
-        var oldBtnY = __instance.yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 4 + 384 - 12;
-        var oldBtnBounds = new Rectangle(__instance.xPositionOnScreen - 80, oldBtnY, 64, 64);
-        if (oldBtnBounds.Contains(x, y))
-        {
-            Monitor?.Log($"SpaceCoreClickPrefix: blocked old btn at ({x},{y})", LogLevel.Info);
-            __result = false;
-            return false;
-        }
-
-        // ไม่โดนทั้งคู่ → ให้ SpaceCore ทำงานปกติ
-        return true;
-    }
 
     public static void PopulatePostfix(IClickableMenu __instance)
     {
@@ -163,5 +134,29 @@ public class EquipmentMenuDebugPatch
                 new Rectangle(0, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
         }
         catch { }
+    }
+
+    public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
+    {
+        if (_btnBounds == Rectangle.Empty) return true;
+        if (!_btnBounds.Contains(x, y)) return true;
+
+        Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
+        try
+        {
+            if (Game1.activeClickableMenu != null)
+            {
+                var cur = Game1.activeClickableMenu;
+                while (cur.GetChildMenu() != null)
+                    cur = cur.GetChildMenu();
+                cur.SetChildMenu(new SnsEquipmentMenu());
+                Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
+            }
+        }
+        catch (Exception ex)
+        {
+            Monitor?.Log($"CRASH: {ex.Message}", LogLevel.Error);
+        }
+        return false;
     }
 }
