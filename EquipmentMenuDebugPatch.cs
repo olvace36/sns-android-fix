@@ -173,11 +173,17 @@ public class EquipmentMenuDebugPatch
         if (_btnBounds == Rectangle.Empty) return true;
         if (!_btnBounds.Contains(x, y)) return true;
 
-        Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu as child of InventoryPage", LogLevel.Info);
+        Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
         try
         {
-            __instance.SetChildMenu(new SnsEquipmentMenu());
-            Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
+            if (Game1.activeClickableMenu != null)
+            {
+                var cur = Game1.activeClickableMenu;
+                while (cur.GetChildMenu() != null)
+                    cur = cur.GetChildMenu();
+                cur.SetChildMenu(new SnsEquipmentMenu());
+                Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
+            }
         }
         catch (Exception ex)
         {
@@ -227,3 +233,4 @@ public class EquipmentMenuDebugPatch
         }
     }
 }
+
