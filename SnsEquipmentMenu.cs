@@ -312,6 +312,7 @@ public class SnsEquipmentMenu : IClickableMenu
 
         IClickableMenu.drawTextureBox(b, _invBorderX, _invBorderY, _invBorderW, _invBorderH, Color.White);
         _inventory.draw(b);
+        _inventory.drawDragItem(b);
 
         var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
