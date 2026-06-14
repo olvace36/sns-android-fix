@@ -185,6 +185,7 @@ public class EquipmentMenuDebugPatch
     public static void InventoryPageLeftClickHeldPostfix(InventoryPage __instance, int x, int y)
     {
         var child = Game1.activeClickableMenu?.GetChildMenu();
+        Monitor?.Log($"InventoryPageLeftClickHeld ({x},{y}) child={child?.GetType().Name ?? "null"}", LogLevel.Info);
         if (child is SnsEquipmentMenu sns)
             sns.leftClickHeld(x, y);
     }
@@ -196,3 +197,4 @@ public class EquipmentMenuDebugPatch
             sns.releaseLeftClick(x, y);
     }
 }
+
