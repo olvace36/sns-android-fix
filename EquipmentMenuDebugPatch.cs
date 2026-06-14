@@ -95,6 +95,25 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.releaseLeftClick", LogLevel.Info);
         }
 
+        // เก็บ coordinate จาก GameMenu.leftClickHeld ซึ่ง update ตามนิ้วจริงๆ
+        var gameMenuHeld = typeof(GameMenu).GetMethod("leftClickHeld",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (gameMenuHeld != null)
+        {
+            harmony.Patch(gameMenuHeld,
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuLeftClickHeldPrefix))));
+            Monitor?.Log("patched GameMenu.leftClickHeld", LogLevel.Info);
+        }
+
+        var gameMenuRelease = typeof(GameMenu).GetMethod("releaseLeftClick",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (gameMenuRelease != null)
+        {
+            harmony.Patch(gameMenuRelease,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GameMenuReleasePostfix))));
+            Monitor?.Log("patched GameMenu.releaseLeftClick", LogLevel.Info);
+        }
+
         // วิธี 2: patch Game1.updateActiveMenu ส่ง coordinate ล่าสุดให้ SnsEquipmentMenu
         var updateActiveMenu = typeof(Game1).GetMethod("updateActiveMenu",
             BindingFlags.Public | BindingFlags.Static);
@@ -192,6 +211,22 @@ public class EquipmentMenuDebugPatch
         return false;
     }
 
+    // เก็บ coordinate จาก GameMenu.leftClickHeld ซึ่ง update ตามนิ้วจริงๆ
+    public static bool GameMenuLeftClickHeldPrefix(GameMenu __instance, int x, int y)
+    {
+        _lastHeldX = x;
+        _lastHeldY = y;
+        _isHolding = true;
+        Monitor?.Log($"GameMenuLeftClickHeld ({x},{y})", LogLevel.Info);
+        return true;
+    }
+
+    public static void GameMenuReleasePostfix(GameMenu __instance, int x, int y)
+    {
+        _isHolding = false;
+        Monitor?.Log($"GameMenuRelease ({x},{y})", LogLevel.Info);
+    }
+
     // วิธี 1: ส่งต่อ x,y จาก InventoryPage ให้ child SnsEquipmentMenu
     public static void InventoryPageLeftClickHeldPostfix(InventoryPage __instance, int x, int y)
     {
@@ -241,13 +276,13 @@ public class EquipmentMenuDebugPatch
         {
             if (cur is SnsEquipmentMenu sns)
             {
+                // ใช้ coordinate จาก InventoryPageLeftClickHeld ที่ update ตามนิ้วจริงๆ
+                // ไม่ใช้ getMouseX/Y ที่ค้างตอนอยู่ใน child menu
                 var mouseState = Mouse.GetState();
-                if ((int)mouseState.LeftButton == 1)
+                if ((int)mouseState.LeftButton == 1 && _isHolding)
                 {
-                    int mx = Game1.getMouseX();
-                    int my = Game1.getMouseY();
-                    Monitor?.Log($"UpdateActiveMenu: sending leftClickHeld ({mx},{my}) to SnsEquipmentMenu", LogLevel.Info);
-                    sns.leftClickHeld(mx, my);
+                    Monitor?.Log($"UpdateActiveMenu: sending leftClickHeld ({_lastHeldX},{_lastHeldY}) to SnsEquipmentMenu", LogLevel.Info);
+                    sns.leftClickHeld(_lastHeldX, _lastHeldY);
                 }
                 return;
             }
