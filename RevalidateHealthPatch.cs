@@ -11,7 +11,15 @@ namespace SnsAndroidFix;
 public class RevalidateHealthPatch
 {
     internal static IMonitor? Monitor;
-    private static int _baseMaxHealth = -1;
+
+    static int GetBaseMaxHealth(Farmer farmer, int rogueBase, int paladinBase)
+    {
+        // vanilla base = 100 + combat level * 5
+        int vanillaBase = 100 + farmer.CombatLevel * 5;
+        // SNS base bonus
+        int snsBonus = rogueBase * 3 + paladinBase * 5;
+        return vanillaBase + snsBonus;
+    }
 
     static void Postfix(Farmer farmer)
     {
@@ -19,6 +27,10 @@ public class RevalidateHealthPatch
         var getBuffedLevel = AccessTools.Method(
             AccessTools.TypeByName("SpaceCore.SkillExtensions"),
             "GetCustomBuffedSkillLevel",
+            new[] { typeof(Farmer), skillType });
+        var getBaseLevel = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomSkillLevel",
             new[] { typeof(Farmer), skillType });
 
         var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
@@ -28,26 +40,23 @@ public class RevalidateHealthPatch
             ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
             ?.GetValue(null);
 
+        int paladinBase = paladinSkill != null
+            ? (int)(getBaseLevel?.Invoke(null, new object[] { farmer, paladinSkill }) ?? 0) : 0;
+        int rogueBase = rogueSkill != null
+            ? (int)(getBaseLevel?.Invoke(null, new object[] { farmer, rogueSkill }) ?? 0) : 0;
         int paladinBuffed = paladinSkill != null
-            ? (int)(getBuffedLevel?.Invoke(null, new object[] { farmer, paladinSkill }) ?? 0)
-            : 0;
+            ? (int)(getBuffedLevel?.Invoke(null, new object[] { farmer, paladinSkill }) ?? 0) : 0;
         int rogueBuffed = rogueSkill != null
-            ? (int)(getBuffedLevel?.Invoke(null, new object[] { farmer, rogueSkill }) ?? 0)
-            : 0;
+            ? (int)(getBuffedLevel?.Invoke(null, new object[] { farmer, rogueSkill }) ?? 0) : 0;
 
-        int newBonus = rogueBuffed * 3 + paladinBuffed * 5;
+        // buff only bonus (จากแหวน)
+        int buffOnlyBonus = (rogueBuffed - rogueBase) * 3 + (paladinBuffed - paladinBase) * 5;
 
-        if (_baseMaxHealth < 0)
-        {
-            // รอ DayStarted set _baseMaxHealth ก่อน
-            if (newBonus == 0) return;
-            _baseMaxHealth = farmer.maxHealth - newBonus;
-        }
+        int baseMaxHealth = GetBaseMaxHealth(farmer, rogueBase, paladinBase);
+        int expectedMaxHealth = baseMaxHealth + buffOnlyBonus;
 
-        int expectedMaxHealth = _baseMaxHealth + newBonus;
-
-        Monitor?.Log($"Paladin buffed={paladinBuffed}, Rogue buffed={rogueBuffed}", LogLevel.Info);
-        Monitor?.Log($"RevalidateHealth: base={_baseMaxHealth}, newBonus={newBonus}, expected={expectedMaxHealth}, current={farmer.maxHealth}", LogLevel.Info);
+        Monitor?.Log($"Paladin base={paladinBase} buffed={paladinBuffed}, Rogue base={rogueBase} buffed={rogueBuffed}", LogLevel.Info);
+        Monitor?.Log($"RevalidateHealth: vanillaBase={100 + farmer.CombatLevel * 5}, snsBase={rogueBase * 3 + paladinBase * 5}, buffOnly={buffOnlyBonus}, expected={expectedMaxHealth}, current={farmer.maxHealth}", LogLevel.Info);
 
         if (farmer.maxHealth != expectedMaxHealth)
         {
@@ -58,35 +67,6 @@ public class RevalidateHealthPatch
         }
     }
 
-    public static void Reset()
-    {
-        _baseMaxHealth = -1;
-    }
-
-    public static void InitFromBaseLevel(Farmer farmer)
-    {
-        var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
-        var getBuffedLevel = AccessTools.Method(
-            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomBuffedSkillLevel",
-            new[] { typeof(Farmer), skillType });
-
-        var paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
-            ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null);
-        var rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
-            ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null);
-
-        int paladinBuffed = paladinSkill != null
-            ? (int)(getBuffedLevel?.Invoke(null, new object[] { farmer, paladinSkill }) ?? 0)
-            : 0;
-        int rogueBuffed = rogueSkill != null
-            ? (int)(getBuffedLevel?.Invoke(null, new object[] { farmer, rogueSkill }) ?? 0)
-            : 0;
-
-        int buffedBonus = rogueBuffed * 3 + paladinBuffed * 5;
-        _baseMaxHealth = farmer.maxHealth - buffedBonus;
-        Monitor?.Log($"InitFromBaseLevel: Paladin buffed={paladinBuffed}, Rogue buffed={rogueBuffed}, buffedBonus={buffedBonus}, baseMaxHealth={_baseMaxHealth}", LogLevel.Info);
-    }
+    public static void Reset() { }
+    public static void InitFromBaseLevel(Farmer farmer) { }
 }
