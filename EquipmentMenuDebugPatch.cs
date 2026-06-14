@@ -95,7 +95,21 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched InventoryPage.releaseLeftClick", LogLevel.Info);
         }
 
-        // เก็บ coordinate จาก GameMenu.leftClickHeld ซึ่ง update ตามนิ้วจริงๆ
+        // เก็บ SnsEquipmentMenu แยกต่างหาก ซ่อนจาก Game1 child menu chain
+    internal static SnsEquipmentMenu? HiddenChildMenu;
+
+    // ซ่อน SnsEquipmentMenu จาก GetChildMenu ทำให้ Game1 ไม่รู้ว่ามี child
+    // ทำให้ SMAPI Android ส่ง leftClickHeld ให้ InventoryPage โดยตรงแทน
+    public static void GetChildMenuPostfix(IClickableMenu __instance, ref IClickableMenu __result)
+    {
+        if (__instance is InventoryPage && __result is SnsEquipmentMenu)
+        {
+            HiddenChildMenu = __result as SnsEquipmentMenu;
+            __result = null; // ซ่อนจาก Game1
+        }
+    }
+
+    // เก็บ coordinate จาก GameMenu.leftClickHeld ซึ่ง update ตามนิ้วจริงๆ
         var gameMenuHeld = typeof(GameMenu).GetMethod("leftClickHeld",
             BindingFlags.Public | BindingFlags.Instance);
         if (gameMenuHeld != null)
@@ -122,6 +136,16 @@ public class EquipmentMenuDebugPatch
             harmony.Patch(updateActiveMenu,
                 postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(UpdateActiveMenuPostfix))));
             Monitor?.Log("patched Game1.updateActiveMenu", LogLevel.Info);
+        }
+
+        // ซ่อน child menu จาก Game1 ให้ InventoryPage.leftClickHeld ถูกเรียกได้
+        var getChildMenu = typeof(IClickableMenu).GetMethod("GetChildMenu",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (getChildMenu != null)
+        {
+            harmony.Patch(getChildMenu,
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(GetChildMenuPostfix))));
+            Monitor?.Log("patched IClickableMenu.GetChildMenu", LogLevel.Info);
         }
 
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
@@ -177,38 +201,60 @@ public class EquipmentMenuDebugPatch
 
     public static void DrawPostfix(InventoryPage __instance, SpriteBatch b)
     {
-        if (_btnBounds == Rectangle.Empty) return;
-        try
+        // วาดปุ่มใหม่
+        if (_btnBounds != Rectangle.Empty)
         {
-            var tex = Game1.content.Load<Texture2D>("spacechase0.SpaceCore/ExtraEquipmentIcon");
-            b.Draw(tex, new Vector2(_btnBounds.X, _btnBounds.Y),
-                new Rectangle(0, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+            try
+            {
+                var tex = Game1.content.Load<Texture2D>("spacechase0.SpaceCore/ExtraEquipmentIcon");
+                b.Draw(tex, new Vector2(_btnBounds.X, _btnBounds.Y),
+                    new Rectangle(0, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+            }
+            catch { }
         }
-        catch { }
+
+        // วาด SnsEquipmentMenu ที่ซ่อนไว้
+        HiddenChildMenu?.draw(b);
     }
 
     public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
     {
+        // ถ้า SnsEquipmentMenu เปิดอยู่ → ส่ง click ให้มัน
+        if (HiddenChildMenu != null)
+        {
+            Monitor?.Log($"ReceiveLeftClick forwarding to HiddenChildMenu ({x},{y})", LogLevel.Info);
+            HiddenChildMenu.receiveLeftClick(x, y);
+            return false;
+        }
+
         if (_btnBounds == Rectangle.Empty) return true;
         if (!_btnBounds.Contains(x, y)) return true;
 
         Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
         try
         {
-            if (Game1.activeClickableMenu != null)
-            {
-                var cur = Game1.activeClickableMenu;
-                while (cur.GetChildMenu() != null)
-                    cur = cur.GetChildMenu();
-                cur.SetChildMenu(new SnsEquipmentMenu());
-                Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
-            }
+            HiddenChildMenu = new SnsEquipmentMenu();
+            Monitor?.Log("SnsEquipmentMenu opened as HiddenChildMenu!", LogLevel.Info);
         }
         catch (Exception ex)
         {
             Monitor?.Log($"CRASH: {ex.Message}", LogLevel.Error);
         }
         return false;
+    }
+
+    // เก็บ SnsEquipmentMenu แยกต่างหาก ซ่อนจาก Game1 child menu chain
+    internal static SnsEquipmentMenu? HiddenChildMenu;
+
+    // ซ่อน SnsEquipmentMenu จาก GetChildMenu ทำให้ Game1 ไม่รู้ว่ามี child
+    // ทำให้ SMAPI Android ส่ง leftClickHeld ให้ InventoryPage โดยตรงแทน
+    public static void GetChildMenuPostfix(IClickableMenu __instance, ref IClickableMenu __result)
+    {
+        if (__instance is InventoryPage && __result is SnsEquipmentMenu)
+        {
+            HiddenChildMenu = __result as SnsEquipmentMenu;
+            __result = null; // ซ่อนจาก Game1
+        }
     }
 
     // เก็บ coordinate จาก GameMenu.leftClickHeld ซึ่ง update ตามนิ้วจริงๆ
@@ -227,26 +273,24 @@ public class EquipmentMenuDebugPatch
         Monitor?.Log($"GameMenuRelease ({x},{y})", LogLevel.Info);
     }
 
-    // วิธี 1: ส่งต่อ x,y จาก InventoryPage ให้ child SnsEquipmentMenu
+    // วิธี 1: ส่งต่อ x,y จาก InventoryPage ให้ HiddenChildMenu (SnsEquipmentMenu)
     public static void InventoryPageLeftClickHeldPostfix(InventoryPage __instance, int x, int y)
     {
         _lastHeldX = x;
         _lastHeldY = y;
         _isHolding = true;
 
-        var child = __instance.GetChildMenu();
-        Monitor?.Log($"InventoryPageLeftClickHeld ({x},{y}) child={child?.GetType().Name ?? "null"}", LogLevel.Info);
-        if (child is SnsEquipmentMenu sns)
-            sns.leftClickHeld(x, y);
+        Monitor?.Log($"InventoryPageLeftClickHeld ({x},{y}) hidden={HiddenChildMenu != null}", LogLevel.Info);
+        if (HiddenChildMenu != null)
+            HiddenChildMenu.leftClickHeld(x, y);
     }
 
     public static void InventoryPageReleasePostfix(InventoryPage __instance, int x, int y)
     {
         _isHolding = false;
-        var child = __instance.GetChildMenu();
-        Monitor?.Log($"InventoryPageRelease ({x},{y}) child={child?.GetType().Name ?? "null"}", LogLevel.Info);
-        if (child is SnsEquipmentMenu sns)
-            sns.releaseLeftClick(x, y);
+        Monitor?.Log($"InventoryPageRelease ({x},{y}) hidden={HiddenChildMenu != null}", LogLevel.Info);
+        if (HiddenChildMenu != null)
+            HiddenChildMenu.releaseLeftClick(x, y);
     }
 
     // วิธี 2: ส่ง coordinate จาก mouse state ให้ SnsEquipmentMenu ทุก frame
@@ -290,3 +334,4 @@ public class EquipmentMenuDebugPatch
         }
     }
 }
+
