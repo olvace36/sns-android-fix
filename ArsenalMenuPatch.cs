@@ -167,12 +167,12 @@ public class ArsenalMenuClickPatch
     }
 }
 
-// เพิ่ม leftClickHeld และ releaseLeftClick สำหรับ drag
-[HarmonyPatch(typeof(ArsenalMenu), "leftClickHeld")]
+[HarmonyPatch(typeof(IClickableMenu), "leftClickHeld")]
 public class ArsenalMenuHeldPatch
 {
-    static void Postfix(ArsenalMenu __instance, int x, int y)
+    static void Postfix(IClickableMenu __instance, int x, int y)
     {
+        if (__instance is not ArsenalMenu) return;
         var invMenu = typeof(ArsenalMenu).GetField("invMenu",
             BindingFlags.NonPublic | BindingFlags.Instance)
             ?.GetValue(__instance) as InventoryMenu;
@@ -180,11 +180,12 @@ public class ArsenalMenuHeldPatch
     }
 }
 
-[HarmonyPatch(typeof(ArsenalMenu), "releaseLeftClick")]
+[HarmonyPatch(typeof(IClickableMenu), "releaseLeftClick")]
 public class ArsenalMenuReleasePatch
 {
-    static void Postfix(ArsenalMenu __instance, int x, int y)
+    static void Postfix(IClickableMenu __instance, int x, int y)
     {
+        if (__instance is not ArsenalMenu) return;
         var invMenu = typeof(ArsenalMenu).GetField("invMenu",
             BindingFlags.NonPublic | BindingFlags.Instance)
             ?.GetValue(__instance) as InventoryMenu;
