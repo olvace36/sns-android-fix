@@ -27,9 +27,6 @@ public class ArsenalMenuPatch
 
         var type = invMenu.GetType();
 
-        int sq = (int)(type.GetField("squareSide")?.GetValue(invMenu) ?? 0);
-        if (sq != 0) return;
-
         int newSq = 80;
         int hGap = 8;
         int verticalGap = 8;
@@ -135,27 +132,9 @@ public class ArsenalMenuDrawPatch
     }
 }
 
-// แทน leftClick แบบ PC ด้วย receiveLeftClick แบบ Android
 [HarmonyPatch(typeof(ArsenalMenu), "receiveLeftClick")]
 public class ArsenalMenuClickPatch
 {
-    static bool Prefix(ArsenalMenu __instance, int x, int y, bool playSound)
-    {
-        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance) as InventoryMenu;
-        if (invMenu == null) return true;
-
-        // ถ้า click อยู่ใน invMenu → ใช้ receiveLeftClick แบบ Android แทน leftClick แบบ PC
-        if (invMenu.isWithinBounds(x, y))
-        {
-            invMenu.receiveLeftClick(x, y, playSound);
-            return false; // ไม่ให้ original receiveLeftClick เรียก leftClick แบบ PC
-        }
-
-        return true;
-    }
-
     static void Postfix(ArsenalMenu __instance, int x, int y, bool playSound)
     {
         // cleanup CursorSlotItem ถ้ามี
@@ -199,3 +178,4 @@ public class ArsenalMenuCleanupPatch
         }
     }
 }
+
