@@ -236,21 +236,25 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log($"UpdateActiveMenu chain: {chain} | isHolding={_isHolding}", LogLevel.Info);
         }
 
-        if (!_isHolding) return;
-
         // traverse หา SnsEquipmentMenu ใน child chain
         var cur = menu;
         while (cur != null)
         {
             if (cur is SnsEquipmentMenu sns)
             {
-                Monitor?.Log($"UpdateActiveMenu: found SnsEquipmentMenu! sending ({_lastHeldX},{_lastHeldY})", LogLevel.Info);
-                sns.leftClickHeld(_lastHeldX, _lastHeldY);
+                // ใช้ getMouseX/Y โดยตรงแทน _isHolding
+                // เพราะ InventoryPage.leftClickHeld ไม่ถูกเรียกตอนมี child menu
+                var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
+                if ((int)mouseState.LeftButton == 1)
+                {
+                    int mx = Game1.getMouseX();
+                    int my = Game1.getMouseY();
+                    sns.leftClickHeld(mx, my);
+                }
                 return;
             }
             cur = cur.GetChildMenu();
         }
-        Monitor?.Log($"UpdateActiveMenu: SnsEquipmentMenu not found in chain!", LogLevel.Info);
     }
 }
 
