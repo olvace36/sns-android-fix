@@ -8,14 +8,13 @@ using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
+using StardewValley.Tools;
 
 namespace SnsAndroidFix;
 
 public class SnsEquipmentMenu : IClickableMenu
 {
     internal static IMonitor? Monitor;
-
-    public static IClickableMenu? PreviousMenu;
 
     private static string? _armorSlotId;
     private static string? _offhandSlotId;
@@ -47,7 +46,10 @@ public class SnsEquipmentMenu : IClickableMenu
 
             if (equipmentSlots == null) { Monitor?.Log("InitSlotIds: EquipmentSlots null", LogLevel.Warn); return; }
 
-            var keys = equipmentSlots.GetType().GetProperty("Keys")?.GetValue(equipmentSlots) as IEnumerable<string>;
+            var keys = equipmentSlots.GetType()
+                .GetProperty("Keys")
+                ?.GetValue(equipmentSlots) as IEnumerable<string>;
+
             if (keys != null)
             {
                 foreach (var key in keys)
@@ -57,6 +59,7 @@ public class SnsEquipmentMenu : IClickableMenu
                     if (key.EndsWith("_Offhand")) _offhandSlotId = key;
                 }
             }
+
             Monitor?.Log($"InitSlotIds: armor={_armorSlotId ?? "null"} offhand={_offhandSlotId ?? "null"}", LogLevel.Info);
         }
         catch (Exception ex) { Monitor?.Log($"InitSlotIds error: {ex.Message}", LogLevel.Error); }
@@ -146,21 +149,6 @@ public class SnsEquipmentMenu : IClickableMenu
         Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY}", LogLevel.Info);
     }
 
-    void LogInventoryState(string context)
-    {
-        try
-        {
-            var t = _inventory.GetType();
-            int held = (int)(t.GetField("inventoryItemHeld", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? -1);
-            int drag = (int)(t.GetField("dragItem", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? -1);
-            int dragX = (int)(t.GetField("dragX", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? -1);
-            int dragY = (int)(t.GetField("dragY", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? -1);
-            float dragScale = (float)(t.GetField("dragScale", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(_inventory) ?? 0f);
-            Monitor?.Log($"[{context}] inventoryItemHeld={held} dragItem={drag} dragX={dragX} dragY={dragY} dragScale={dragScale:F2}", LogLevel.Info);
-        }
-        catch (Exception ex) { Monitor?.Log($"LogInventoryState error: {ex.Message}", LogLevel.Error); }
-    }
-
     static object? GetSpaceCoreApi()
     {
         return AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
@@ -197,10 +185,12 @@ public class SnsEquipmentMenu : IClickableMenu
             var equipmentSlots = spaceCoreType
                 ?.GetField("EquipmentSlots", BindingFlags.NonPublic | BindingFlags.Static)
                 ?.GetValue(null);
+
             if (equipmentSlots == null) return null;
 
             var tryGetValue = equipmentSlots.GetType()
                 .GetMethod("TryGetValue", new[] { typeof(string), equipmentSlots.GetType().GetGenericArguments()[1].MakeByRefType() });
+
             object?[] args = new object?[] { slotId, null };
             bool found = (bool)(tryGetValue?.Invoke(equipmentSlots, args) ?? false);
             if (!found || args[1] == null) return null;
@@ -227,6 +217,8 @@ public class SnsEquipmentMenu : IClickableMenu
         return Game1.player.Items[selected];
     }
 
+    // แก้ข้อ 4: ถ้าไม่มี item selected → ถอด item ออกจาก slot
+    // ถ้ามี item selected → swap item เข้า slot
     void TryEquipItem(string? slotId, ClickableTextureComponent slot, bool playSound)
     {
         if (slotId == null) return;
@@ -235,6 +227,7 @@ public class SnsEquipmentMenu : IClickableMenu
 
         if (selectedItem == null)
         {
+            // ถอด item ออกจาก slot → ใส่กลับ inventory
             var existing = GetSlotItem(slotId);
             if (existing == null) return;
             if (Game1.player.addItemToInventoryBool(existing))
@@ -247,6 +240,7 @@ public class SnsEquipmentMenu : IClickableMenu
             return;
         }
 
+        // swap item เข้า slot
         if (!IsValidForSlot(slotId, selectedItem)) return;
 
         int selected = _inventory.currentlySelectedItem;
@@ -266,8 +260,7 @@ public class SnsEquipmentMenu : IClickableMenu
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
         if (closeBtn != null && closeBtn.containsPoint(x, y))
         {
-            EquipmentMenuDebugPatch.HiddenChildMenu = null;
-            Monitor?.Log("SnsEquipmentMenu closed", LogLevel.Info);
+            exitThisMenu();
             return;
         }
 
@@ -276,30 +269,20 @@ public class SnsEquipmentMenu : IClickableMenu
 
         if (_inventory.isWithinBounds(x, y))
         {
-            Monitor?.Log($"inventory receiveLeftClick ({x},{y})", LogLevel.Info);
             _inventory.receiveLeftClick(x, y, playSound);
-            LogInventoryState("after receiveLeftClick");
             return;
         }
     }
 
     public override void releaseLeftClick(int x, int y)
     {
-        int mx = Game1.getMouseX();
-        int my = Game1.getMouseY();
-        Monitor?.Log($"releaseLeftClick param=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
-        _inventory.releaseLeftClick(mx, my);
-        LogInventoryState("after releaseLeftClick");
+        _inventory.releaseLeftClick(x, y);
     }
 
     public override void leftClickHeld(int x, int y)
     {
-        Monitor?.Log($"leftClickHeld ({x},{y})", LogLevel.Info);
-        LogInventoryState("before leftClickHeld");
-        // ใช้ x,y จาก parameter ซึ่งมาจาก InventoryPageLeftClickHeldPostfix
-        // ที่ได้ coordinate ถูกต้องจาก SMAPI Android
+        Monitor?.Log($"SnsEquipmentMenu.leftClickHeld ({x},{y})", LogLevel.Info);
         _inventory.leftClickHeld(x, y);
-        LogInventoryState("after leftClickHeld");
     }
 
     public override void performHoverAction(int x, int y)
@@ -328,6 +311,7 @@ public class SnsEquipmentMenu : IClickableMenu
         _offhandSlot.draw(b); _offhandSlot.drawItem(b, 0, 0);
 
         IClickableMenu.drawTextureBox(b, _invBorderX, _invBorderY, _invBorderW, _invBorderH, Color.White);
+        _inventory.draw(b);
 
         var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
@@ -336,17 +320,6 @@ public class SnsEquipmentMenu : IClickableMenu
         if (_hoveredItem != null)
             IClickableMenu.drawToolTip(b, _hoverText, _hoveredItem.DisplayName, _hoveredItem, false);
 
-        // วาด inventory หลังสุด เพื่อให้ drag item ลอยอยู่บนสุด
-        _inventory.draw(b);
-
-        if (!Game1.options.hardwareCursor) drawMouse(b);
-    }
-
-    // วาดเฉพาะ inventory (รวม drag item) โดยไม่วาด background
-    // ใช้ใน RenderedActiveMenu เพื่อให้ drag item อยู่บนสุด
-    public void DrawInventoryOnly(SpriteBatch b)
-    {
-        _inventory.draw(b);
         if (!Game1.options.hardwareCursor) drawMouse(b);
     }
 
