@@ -266,7 +266,8 @@ public class SnsEquipmentMenu : IClickableMenu
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
         if (closeBtn != null && closeBtn.containsPoint(x, y))
         {
-            exitThisMenu();
+            EquipmentMenuDebugPatch.HiddenChildMenu = null;
+            Monitor?.Log("SnsEquipmentMenu closed", LogLevel.Info);
             return;
         }
 
@@ -343,4 +344,3 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
-
