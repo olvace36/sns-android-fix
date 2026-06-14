@@ -133,16 +133,6 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log("patched Game1.updateActiveMenu", LogLevel.Info);
         }
 
-        // patch Game1.DrawMenu เพื่อวาด HiddenChildMenu ใน SpriteBatch session ถูกต้อง
-        var drawMenu = typeof(Game1).GetMethod("DrawMenu",
-            BindingFlags.Public | BindingFlags.Instance);
-        if (drawMenu != null)
-        {
-            harmony.Patch(drawMenu,
-                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(DrawMenuPostfix))));
-            Monitor?.Log("patched Game1.DrawMenu", LogLevel.Info);
-        }
-
         Monitor?.Log("EquipmentMenuDebugPatch applied!", LogLevel.Info);
     }
 
@@ -207,7 +197,7 @@ public class EquipmentMenuDebugPatch
             catch { }
         }
 
-        // ไม่วาดที่นี่แล้ว ย้ายไป DrawMenuPostfix เพื่อให้อยู่ใน SpriteBatch session ถูกต้อง
+        HiddenChildMenu?.draw(b);
     }
 
     public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
@@ -273,28 +263,6 @@ public class EquipmentMenuDebugPatch
         Monitor?.Log($"GameMenuRelease ({x},{y})", LogLevel.Info);
     }
 
-    // วาด HiddenChildMenu ใน SpriteBatch session ของ DrawMenu
-    // ทำให้ drag item วาดได้ถูกต้องโดยไม่ conflict กับ SpriteBatch ของ InventoryPage
-    public static void DrawMenuPostfix(Game1 __instance, Microsoft.Xna.Framework.GameTime time)
-    {
-        if (HiddenChildMenu == null) return;
-        try
-        {
-            var sb = (SpriteBatch?)typeof(Game1).GetField("spriteBatch", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
-            if (sb == null) return;
-            sb.Begin(Microsoft.Xna.Framework.Graphics.SpriteSortMode.Deferred,
-                Microsoft.Xna.Framework.Graphics.BlendState.AlphaBlend,
-                Microsoft.Xna.Framework.Graphics.SamplerState.PointClamp,
-                null, null, null, null);
-            HiddenChildMenu.draw(sb);
-            sb.End();
-        }
-        catch (Exception ex)
-        {
-            Monitor?.Log($"DrawMenuPostfix error: {ex.Message}", LogLevel.Error);
-        }
-    }
-
     public static void UpdateActiveMenuPostfix()
     {
         var menu = Game1.activeClickableMenu;
@@ -321,3 +289,4 @@ public class EquipmentMenuDebugPatch
         }
     }
 }
+
