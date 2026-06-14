@@ -300,7 +300,7 @@ public class SnsEquipmentMenu : IClickableMenu
         int my = Game1.getMouseY();
         Monitor?.Log($"leftClickHeld param=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
         LogInventoryState("before leftClickHeld");
-        _inventory.leftClickHeld(mx, my);
+        _inventory.leftClickHeld(x, y);
         LogInventoryState("after leftClickHeld");
     }
 
@@ -330,7 +330,6 @@ public class SnsEquipmentMenu : IClickableMenu
         _offhandSlot.draw(b); _offhandSlot.drawItem(b, 0, 0);
 
         IClickableMenu.drawTextureBox(b, _invBorderX, _invBorderY, _invBorderW, _invBorderH, Color.White);
-        _inventory.draw(b);
 
         var closeBtn = typeof(IClickableMenu).GetField("upperRightCloseButton",
             BindingFlags.Public | BindingFlags.Instance)?.GetValue(this) as ClickableTextureComponent;
@@ -338,6 +337,9 @@ public class SnsEquipmentMenu : IClickableMenu
 
         if (_hoveredItem != null)
             IClickableMenu.drawToolTip(b, _hoverText, _hoveredItem.DisplayName, _hoveredItem, false);
+
+        // วาด inventory หลังสุด เพื่อให้ drag item ลอยอยู่บนสุด
+        _inventory.draw(b);
 
         if (!Game1.options.hardwareCursor) drawMouse(b);
     }
