@@ -276,10 +276,8 @@ public class SnsEquipmentMenu : IClickableMenu
 
         if (_inventory.isWithinBounds(x, y))
         {
-            int mx = Game1.getMouseX();
-            int my = Game1.getMouseY();
-            Monitor?.Log($"inventory receiveLeftClick param=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
-            _inventory.receiveLeftClick(mx, my, playSound);
+            Monitor?.Log($"inventory receiveLeftClick ({x},{y})", LogLevel.Info);
+            _inventory.receiveLeftClick(x, y, playSound);
             LogInventoryState("after receiveLeftClick");
             return;
         }
@@ -296,10 +294,10 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void leftClickHeld(int x, int y)
     {
-        int mx = Game1.getMouseX();
-        int my = Game1.getMouseY();
-        Monitor?.Log($"leftClickHeld param=({x},{y}) mouse=({mx},{my})", LogLevel.Info);
+        Monitor?.Log($"leftClickHeld ({x},{y})", LogLevel.Info);
         LogInventoryState("before leftClickHeld");
+        // ใช้ x,y จาก parameter ซึ่งมาจาก InventoryPageLeftClickHeldPostfix
+        // ที่ได้ coordinate ถูกต้องจาก SMAPI Android
         _inventory.leftClickHeld(x, y);
         LogInventoryState("after leftClickHeld");
     }
