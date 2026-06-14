@@ -144,14 +144,9 @@ public class EquipmentMenuDebugPatch
         Monitor?.Log($"Hit new btn! Opening SnsEquipmentMenu", LogLevel.Info);
         try
         {
-            if (Game1.activeClickableMenu != null)
-            {
-                var cur = Game1.activeClickableMenu;
-                while (cur.GetChildMenu() != null)
-                    cur = cur.GetChildMenu();
-                cur.SetChildMenu(new SnsEquipmentMenu());
-                Monitor?.Log("SnsEquipmentMenu opened!", LogLevel.Info);
-            }
+            SnsEquipmentMenu.PreviousMenu = Game1.activeClickableMenu;
+            Game1.activeClickableMenu = new SnsEquipmentMenu();
+            Monitor?.Log("SnsEquipmentMenu opened as activeClickableMenu!", LogLevel.Info);
         }
         catch (Exception ex)
         {
@@ -160,4 +155,3 @@ public class EquipmentMenuDebugPatch
         return false;
     }
 }
-
