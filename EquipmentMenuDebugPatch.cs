@@ -75,8 +75,9 @@ public class EquipmentMenuDebugPatch
         if (receiveLeftClick != null)
         {
             harmony.Patch(receiveLeftClick,
-                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(ReceiveLeftClickPrefix))));
-            Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix)", LogLevel.Info);
+                prefix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(ReceiveLeftClickPrefix))),
+                postfix: new HarmonyMethod(typeof(EquipmentMenuDebugPatch).GetMethod(nameof(ReceiveLeftClickPostfix))));
+            Monitor?.Log("patched InventoryPage.receiveLeftClick (prefix+postfix)", LogLevel.Info);
         }
 
         // patch InventoryPage.leftClickHeld ส่งต่อให้ HiddenChildMenu
@@ -208,12 +209,14 @@ public class EquipmentMenuDebugPatch
 
     public static bool ReceiveLeftClickPrefix(InventoryPage __instance, int x, int y)
     {
-        // ถ้า SnsEquipmentMenu เปิดอยู่ → ส่ง click ให้มัน แต่ return true
-        // เพื่อให้ SMAPI Android ยังส่ง coordinate ถูกต้องใน leftClickHeld
+        // ถ้า SnsEquipmentMenu เปิดอยู่ → ส่ง click ให้มัน
         if (HiddenChildMenu != null)
         {
             Monitor?.Log($"ReceiveLeftClick forwarding to HiddenChildMenu ({x},{y})", LogLevel.Info);
             HiddenChildMenu.receiveLeftClick(x, y);
+            // return true เพื่อให้ SMAPI Android ยังส่ง coordinate ถูกต้องใน leftClickHeld
+            // แต่ถ้า InventoryPage.receiveLeftClick ทำงาน จะ reset inventoryItemHeld
+            // ดังนั้น restore state หลัง original ทำงาน
             return true;
         }
 
@@ -231,6 +234,17 @@ public class EquipmentMenuDebugPatch
             Monitor?.Log($"CRASH: {ex.Message}", LogLevel.Error);
         }
         return false;
+    }
+
+    // postfix บน InventoryPage.receiveLeftClick
+    // restore inventoryItemHeld ของ HiddenChildMenu หลัง original method reset ค่า
+    public static void ReceiveLeftClickPostfix(InventoryPage __instance, int x, int y)
+    {
+        if (HiddenChildMenu == null) return;
+        Monitor?.Log($"ReceiveLeftClickPostfix: restoring HiddenChildMenu state ({x},{y})", LogLevel.Info);
+        // forward ไปยัง HiddenChildMenu อีกครั้งหลัง InventoryPage ทำงาน
+        // เพื่อให้ inventoryItemHeld ถูก set ถูกต้อง
+        HiddenChildMenu.receiveLeftClick(x, y);
     }
 
     // InventoryPage.leftClickHeld ได้รับ coordinate ที่ถูกต้องจาก SMAPI Android
@@ -301,4 +315,3 @@ public class EquipmentMenuDebugPatch
         }
     }
 }
-
