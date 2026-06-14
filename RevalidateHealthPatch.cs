@@ -38,7 +38,11 @@ public class RevalidateHealthPatch
         int newBonus = rogueBuffed * 3 + paladinBuffed * 5;
 
         if (_baseMaxHealth < 0)
+        {
+            // รอ DayStarted set _baseMaxHealth ก่อน
+            if (newBonus == 0) return;
             _baseMaxHealth = farmer.maxHealth - newBonus;
+        }
 
         int expectedMaxHealth = _baseMaxHealth + newBonus;
 
@@ -81,7 +85,6 @@ public class RevalidateHealthPatch
             ? (int)(getBuffedLevel?.Invoke(null, new object[] { farmer, rogueSkill }) ?? 0)
             : 0;
 
-        // ลบ buffed bonus ออกเพื่อหา baseMaxHealth จริงๆ
         int buffedBonus = rogueBuffed * 3 + paladinBuffed * 5;
         _baseMaxHealth = farmer.maxHealth - buffedBonus;
         Monitor?.Log($"InitFromBaseLevel: Paladin buffed={paladinBuffed}, Rogue buffed={rogueBuffed}, buffedBonus={buffedBonus}, baseMaxHealth={_baseMaxHealth}", LogLevel.Info);
