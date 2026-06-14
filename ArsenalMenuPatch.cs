@@ -22,7 +22,7 @@ public class ArsenalMenuPatch
             BindingFlags.NonPublic | BindingFlags.Instance);
         if (field == null) return;
 
-        var invMenu = field.GetValue(__instance);
+        var invMenu = field.GetValue(__instance) as InventoryMenu;
         if (invMenu == null) return;
 
         var type = invMenu.GetType();
@@ -60,7 +60,7 @@ public class ArsenalMenuPatch
         type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
         type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
 
-        // Android style: กดแล้วไฮไลท์ทันที ลากได้ทันที
+        // Android: กดแล้ว highlight ทันที ลากได้ทันที
         type.GetField("tapHoldTime", BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, 0f);
 
         var closeButton = new ClickableTextureComponent(
@@ -125,46 +125,70 @@ public class ArsenalMenuDrawPatch
             ?.SetValue(invMenu, startX);
     }
 
-    // เพิ่ม drawDragItem หลัง draw เพื่อให้ drag item ลอยตามนิ้ว
+    // วาด drag item หลัง draw ปกติ
     static void Postfix(ArsenalMenu __instance, SpriteBatch b)
     {
-        var field = typeof(ArsenalMenu).GetField("invMenu",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field == null) return;
-
-        var invMenu = field.GetValue(__instance) as InventoryMenu;
+        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as InventoryMenu;
         invMenu?.drawDragItem(b);
     }
 }
 
+// แทน leftClick แบบ PC ด้วย receiveLeftClick แบบ Android
 [HarmonyPatch(typeof(ArsenalMenu), "receiveLeftClick")]
 public class ArsenalMenuClickPatch
 {
-    static void Prefix(ArsenalMenu __instance, int x, int y, ref Item __state)
+    static bool Prefix(ArsenalMenu __instance, int x, int y, bool playSound)
     {
-        __state = Game1.player.CursorSlotItem;
+        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as InventoryMenu;
+        if (invMenu == null) return true;
+
+        // ถ้า click อยู่ใน invMenu → ใช้ receiveLeftClick แบบ Android แทน leftClick แบบ PC
+        if (invMenu.isWithinBounds(x, y))
+        {
+            invMenu.receiveLeftClick(x, y, playSound);
+            return false; // ไม่ให้ original receiveLeftClick เรียก leftClick แบบ PC
+        }
+
+        return true;
     }
 
-    static void Postfix(ArsenalMenu __instance, int x, int y, Item __state)
+    static void Postfix(ArsenalMenu __instance, int x, int y, bool playSound)
     {
-        var field = typeof(ArsenalMenu).GetField("invMenu",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        var invMenu = field?.GetValue(__instance);
-        if (invMenu == null) return;
-
-        var type = invMenu.GetType();
-        var selectedField = type.GetField("currentlySelectedItem",
-            BindingFlags.Public | BindingFlags.Instance);
-        int selected = (int)(selectedField?.GetValue(invMenu) ?? -1);
-
-        if (selected != -1 && Game1.player.CursorSlotItem != __state)
+        // cleanup CursorSlotItem ถ้ามี
+        if (Game1.player.CursorSlotItem != null)
         {
-            if (Game1.player.CursorSlotItem != null)
-            {
-                Game1.player.addItemToInventory(Game1.player.CursorSlotItem);
-                Game1.player.CursorSlotItem = null;
-            }
+            Game1.player.addItemToInventory(Game1.player.CursorSlotItem);
+            Game1.player.CursorSlotItem = null;
         }
+    }
+}
+
+// เพิ่ม leftClickHeld และ releaseLeftClick สำหรับ drag
+[HarmonyPatch(typeof(ArsenalMenu), "leftClickHeld")]
+public class ArsenalMenuHeldPatch
+{
+    static void Postfix(ArsenalMenu __instance, int x, int y)
+    {
+        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as InventoryMenu;
+        invMenu?.leftClickHeld(x, y);
+    }
+}
+
+[HarmonyPatch(typeof(ArsenalMenu), "releaseLeftClick")]
+public class ArsenalMenuReleasePatch
+{
+    static void Postfix(ArsenalMenu __instance, int x, int y)
+    {
+        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as InventoryMenu;
+        invMenu?.releaseLeftClick(x, y);
     }
 }
 
@@ -180,3 +204,4 @@ public class ArsenalMenuCleanupPatch
         }
     }
 }
+
