@@ -56,12 +56,10 @@ public class ArsenalMenuPatch
         type.GetField("xOffset")?.SetValue(invMenu, 0);
         type.GetField("yOffset")?.SetValue(invMenu, 0);
         type.GetField("hGap")?.SetValue(invMenu, hGap);
-
         type.GetField("drawSlots", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, true);
         type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
         type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
 
-// เพิ่มปุ่ม X เหมือน IClickableMenu
         var closeButton = new ClickableTextureComponent(
             new Rectangle(Game1.uiViewport.Width - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
             Game1.mobileSpriteSheet,
@@ -84,8 +82,6 @@ public class ArsenalMenuPatch
                 inventorySlots[j].bounds.Height = newSq + verticalGap;
             }
         }
-
-        Monitor?.Log($"rebuilt: startX={startX}, startY={startY}, sq={newSq}, totalWidth={totalWidth}, totalHeight={totalHeight}", LogLevel.Info);
     }
 }
 
@@ -130,7 +126,6 @@ public class ArsenalMenuClickPatch
 {
     static void Prefix(ArsenalMenu __instance, int x, int y, ref Item __state)
     {
-        // เซฟ CursorSlotItem ก่อน
         __state = Game1.player.CursorSlotItem;
     }
 
@@ -146,10 +141,8 @@ public class ArsenalMenuClickPatch
             BindingFlags.Public | BindingFlags.Instance);
         int selected = (int)(selectedField?.GetValue(invMenu) ?? -1);
 
-        // ถ้ามีการ select item ใหม่ ให้ reset CursorSlotItem
         if (selected != -1 && Game1.player.CursorSlotItem != __state)
         {
-            // คืน item กลับ inventory แทนที่จะลอยติดนิ้ว
             if (Game1.player.CursorSlotItem != null)
             {
                 Game1.player.addItemToInventory(Game1.player.CursorSlotItem);
