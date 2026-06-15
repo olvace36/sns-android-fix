@@ -24,8 +24,6 @@ public class ShieldSigilMenuPatch
         harmony.Patch(constructor,
             postfix: new HarmonyMethod(typeof(ShieldSigilMenuPatch)
                 .GetMethod(nameof(ConstructorPostfix))));
-
-        Monitor?.Log("ShieldSigilMenuPatch applied!", LogLevel.Info);
     }
 
     public static void ConstructorPostfix(object __instance)
@@ -42,7 +40,5 @@ public class ShieldSigilMenuPatch
             4f);
 
         closeButtonField?.SetValue(menu, closeButton);
-
-        Monitor?.Log("ShieldSigilMenu close button added", LogLevel.Info);
     }
 }
