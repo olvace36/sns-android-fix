@@ -30,17 +30,17 @@ public class ModEntry : Mod
         BuffedSkillLevelPatch.Apply(harmony);
         EquipmentMenuDebugPatch.Apply(harmony);
 
-        var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
-        var getBuffedLevel = AccessTools.Method(
-            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomBuffedSkillLevel",
-            new[] { typeof(Farmer), skillType });
-
         object? rogueSkill = null;
         object? paladinSkill = null;
+        System.Reflection.MethodInfo? getBuffedLevel = null;
 
         helper.Events.GameLoop.GameLaunched += (s, e) =>
         {
+            var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
+            getBuffedLevel = AccessTools.Method(
+                AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+                "GetCustomBuffedSkillLevel",
+                new[] { typeof(Farmer), skillType });
             rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
                 ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
@@ -66,13 +66,13 @@ public class ModEntry : Mod
 
         helper.Events.GameLoop.UpdateTicked += (s, e) =>
         {
-            if (!Context.IsWorldReady) return;
+            if (!Context.IsWorldReady || getBuffedLevel == null) return;
 
             int rogueBuffed = rogueSkill != null
-                ? (int)(getBuffedLevel?.Invoke(null, new object[] { Game1.player, rogueSkill }) ?? 0)
+                ? (int)(getBuffedLevel.Invoke(null, new object[] { Game1.player, rogueSkill }) ?? 0)
                 : 0;
             int paladinBuffed = paladinSkill != null
-                ? (int)(getBuffedLevel?.Invoke(null, new object[] { Game1.player, paladinSkill }) ?? 0)
+                ? (int)(getBuffedLevel.Invoke(null, new object[] { Game1.player, paladinSkill }) ?? 0)
                 : 0;
 
             if (rogueBuffed != lastRogueBuffed || paladinBuffed != lastPaladinBuffed)
