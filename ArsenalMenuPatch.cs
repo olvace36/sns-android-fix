@@ -22,10 +22,13 @@ public class ArsenalMenuPatch
             BindingFlags.NonPublic | BindingFlags.Instance);
         if (field == null) return;
 
-        var invMenu = field.GetValue(__instance) as InventoryMenu;
+        var invMenu = field.GetValue(__instance);
         if (invMenu == null) return;
 
         var type = invMenu.GetType();
+
+        int sq = (int)(type.GetField("squareSide")?.GetValue(invMenu) ?? 0);
+        if (sq != 0) return;
 
         int newSq = 80;
         int hGap = 8;
@@ -53,13 +56,12 @@ public class ArsenalMenuPatch
         type.GetField("xOffset")?.SetValue(invMenu, 0);
         type.GetField("yOffset")?.SetValue(invMenu, 0);
         type.GetField("hGap")?.SetValue(invMenu, hGap);
+
         type.GetField("drawSlots", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, true);
         type.GetField("showTrash", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
         type.GetField("showOrganizeButton", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, false);
 
-        // Android: กดแล้ว highlight ทันที ลากได้ทันที
-        type.GetField("tapHoldTime", BindingFlags.NonPublic | BindingFlags.Instance)?.SetValue(invMenu, 0f);
-
+// เพิ่มปุ่ม X เหมือน IClickableMenu
         var closeButton = new ClickableTextureComponent(
             new Rectangle(Game1.uiViewport.Width - 68 - Game1.xEdge, 0, 68 + Game1.xEdge, 80),
             Game1.mobileSpriteSheet,
@@ -121,73 +123,38 @@ public class ArsenalMenuDrawPatch
         type.GetField("xPositionOnScreen", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             ?.SetValue(invMenu, startX);
     }
-
-    // วาด drag item หลัง draw ปกติ
-    static void Postfix(ArsenalMenu __instance, SpriteBatch b)
-    {
-        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance) as InventoryMenu;
-        invMenu?.drawDragItem(b);
-    }
 }
 
 [HarmonyPatch(typeof(ArsenalMenu), "receiveLeftClick")]
 public class ArsenalMenuClickPatch
 {
-    // block invMenu.leftClick (PC style) แล้วเรียก invMenu.receiveLeftClick (Android style) แทน
-    static bool Prefix(ArsenalMenu __instance, int x, int y, bool playSound)
+    static void Prefix(ArsenalMenu __instance, int x, int y, ref Item __state)
     {
-        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance) as InventoryMenu;
-        if (invMenu == null) return true;
-
-        if (invMenu.isWithinBounds(x, y))
-        {
-            // เรียก base receiveLeftClick ของ IClickableMenu ก่อน
-            typeof(IClickableMenu).GetMethod("receiveLeftClick")?
-                .Invoke(__instance, new object[] { x, y, playSound });
-            // แล้วเรียก invMenu.receiveLeftClick แบบ Android
-            invMenu.receiveLeftClick(x, y, playSound);
-            return false; // block original ที่จะเรียก leftClick แบบ PC
-        }
-        return true;
+        // เซฟ CursorSlotItem ก่อน
+        __state = Game1.player.CursorSlotItem;
     }
 
-    static void Postfix(ArsenalMenu __instance, int x, int y, bool playSound)
+    static void Postfix(ArsenalMenu __instance, int x, int y, Item __state)
     {
-        if (Game1.player.CursorSlotItem != null)
-        {
-            Game1.player.addItemToInventory(Game1.player.CursorSlotItem);
-            Game1.player.CursorSlotItem = null;
-        }
-    }
-}
-
-[HarmonyPatch(typeof(ArsenalMenu), "update")]
-public class ArsenalMenuHeldPatch
-{
-    static void Postfix(ArsenalMenu __instance, GameTime time)
-    {
-        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance) as InventoryMenu;
+        var field = typeof(ArsenalMenu).GetField("invMenu",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        var invMenu = field?.GetValue(__instance);
         if (invMenu == null) return;
 
-        // re-set tapHoldTime = 0f หลัง invMenu.update reset กลับ
-        invMenu.GetType().GetField("tapHoldTime", BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.SetValue(invMenu, 0f);
+        var type = invMenu.GetType();
+        var selectedField = type.GetField("currentlySelectedItem",
+            BindingFlags.Public | BindingFlags.Instance);
+        int selected = (int)(selectedField?.GetValue(invMenu) ?? -1);
 
-        // ส่ง leftClickHeld ถ้ากดค้างอยู่
-        var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
-        if ((int)mouseState.LeftButton == 1)
+        // ถ้ามีการ select item ใหม่ ให้ reset CursorSlotItem
+        if (selected != -1 && Game1.player.CursorSlotItem != __state)
         {
-            invMenu.leftClickHeld(Game1.getMouseX(), Game1.getMouseY());
-        }
-        else
-        {
-            invMenu.releaseLeftClick(Game1.getMouseX(), Game1.getMouseY());
+            // คืน item กลับ inventory แทนที่จะลอยติดนิ้ว
+            if (Game1.player.CursorSlotItem != null)
+            {
+                Game1.player.addItemToInventory(Game1.player.CursorSlotItem);
+                Game1.player.CursorSlotItem = null;
+            }
         }
     }
 }
@@ -204,4 +171,3 @@ public class ArsenalMenuCleanupPatch
         }
     }
 }
-
