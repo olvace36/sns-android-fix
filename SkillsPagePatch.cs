@@ -18,10 +18,32 @@ public class SkillsPagePatch
     private static FieldInfo? _xField;
     private static FieldInfo? _yField;
 
+    // cache reflection
+    private static System.Reflection.MethodInfo? _getSkillMethod;
+    private static System.Reflection.MethodInfo? _getBuffedLevel;
+    private static System.Reflection.MethodInfo? _getBaseLevel;
+    private static System.Reflection.MethodInfo? _getBuffAmount;
+
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
         Monitor = monitor;
         _newSkillsPageType = AccessTools.TypeByName("SpaceCore.Interface.NewSkillsPage");
+
+        // cache reflection ครั้งเดียว
+        var skillsType = AccessTools.TypeByName("SpaceCore.Skills");
+        _getSkillMethod = skillsType?.GetMethod("GetSkill", BindingFlags.Public | BindingFlags.Static);
+        _getBuffedLevel = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomBuffedSkillLevel",
+            new[] { typeof(Farmer), typeof(string) });
+        _getBaseLevel = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomSkillLevel",
+            new[] { typeof(Farmer), typeof(string) });
+        _getBuffAmount = AccessTools.Method(
+            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+            "GetCustomSkillBuffAmount",
+            new[] { typeof(Farmer), typeof(string), typeof(string) });
 
         if (_newSkillsPageType != null)
         {
@@ -137,25 +159,10 @@ public class SkillsPagePatch
             }
         }
 
-        var skillsType = AccessTools.TypeByName("SpaceCore.Skills");
-        var getSkillMethod = skillsType?.GetMethod("GetSkill", BindingFlags.Public | BindingFlags.Static);
-        var getBuffedLevel = AccessTools.Method(
-            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomBuffedSkillLevel",
-            new[] { typeof(Farmer), typeof(string) });
-        var getBaseLevel = AccessTools.Method(
-            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomSkillLevel",
-            new[] { typeof(Farmer), typeof(string) });
-        var getBuffAmount = AccessTools.Method(
-            AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-            "GetCustomSkillBuffAmount",
-            new[] { typeof(Farmer), typeof(string), typeof(string) });
-
         int row = 0;
         foreach (var name in visibleSkills)
         {
-            var skill = getSkillMethod?.Invoke(null, new object[] { name });
+            var skill = _getSkillMethod?.Invoke(null, new object[] { name });
             if (skill == null) { row++; continue; }
 
             var skillType = skill.GetType();
@@ -163,8 +170,8 @@ public class SkillsPagePatch
             var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
             int levels = expCurve?.Length ?? 10;
 
-            int buffedLevel = (int?)getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
-            int buffAmount = (int?)getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
+            int buffedLevel = (int?)_getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
+            int buffAmount = (int?)_getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
             bool hasBuff = buffAmount != 0;
 
             string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
