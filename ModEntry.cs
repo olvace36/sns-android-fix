@@ -32,7 +32,7 @@ public class ModEntry : Mod
 
         object? rogueSkill = null;
         object? paladinSkill = null;
-        System.Reflection.MethodInfo? getBuffedLevel = null;
+        MethodInfo? getBuffedLevel = null;
 
         helper.Events.GameLoop.GameLaunched += (s, e) =>
         {
@@ -47,6 +47,7 @@ public class ModEntry : Mod
             paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
                 ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
+            RevalidateHealthPatch.InitCache();
             SnsEquipmentMenu.InitSlotIds();
         };
 
