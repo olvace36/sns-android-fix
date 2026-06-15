@@ -54,7 +54,6 @@ public class SnsEquipmentMenu : IClickableMenu
             {
                 foreach (var key in keys)
                 {
-                    Monitor?.Log($"EquipmentSlots key: {key}", LogLevel.Info);
                     if (key.EndsWith("_Armor")) _armorSlotId = key;
                     if (key.EndsWith("_Offhand")) _offhandSlotId = key;
                 }
@@ -145,8 +144,6 @@ public class SnsEquipmentMenu : IClickableMenu
             Game1.mobileSpriteSheet, new Rectangle(62, 0, 17, 17), 4f, true);
         typeof(IClickableMenu).GetField("upperRightCloseButton", BindingFlags.Public | BindingFlags.Instance)
             ?.SetValue(this, closeButton);
-
-        Monitor?.Log($"SnsEquipmentMenu created! startX={startX} startY={startY}", LogLevel.Info);
     }
 
     static object? GetSpaceCoreApi()
@@ -217,8 +214,6 @@ public class SnsEquipmentMenu : IClickableMenu
         return Game1.player.Items[selected];
     }
 
-    // แก้ข้อ 4: ถ้าไม่มี item selected → ถอด item ออกจาก slot
-    // ถ้ามี item selected → swap item เข้า slot
     void TryEquipItem(string? slotId, ClickableTextureComponent slot, bool playSound)
     {
         if (slotId == null) return;
@@ -227,7 +222,6 @@ public class SnsEquipmentMenu : IClickableMenu
 
         if (selectedItem == null)
         {
-            // ถอด item ออกจาก slot → ใส่กลับ inventory
             var existing = GetSlotItem(slotId);
             if (existing == null) return;
             if (Game1.player.addItemToInventoryBool(existing))
@@ -235,12 +229,10 @@ public class SnsEquipmentMenu : IClickableMenu
                 SetSlotItem(slotId, null);
                 slot.item = null;
                 if (playSound) Game1.playSound("dwop");
-                Monitor?.Log($"Unequipped {existing.DisplayName} from {slotId}", LogLevel.Info);
             }
             return;
         }
 
-        // swap item เข้า slot
         if (!IsValidForSlot(slotId, selectedItem)) return;
 
         int selected = _inventory.currentlySelectedItem;
@@ -251,7 +243,6 @@ public class SnsEquipmentMenu : IClickableMenu
         _inventory.currentlySelectedItem = -1;
 
         if (playSound) Game1.playSound(old != null ? "dwop" : "crit");
-        Monitor?.Log($"Equipped {selectedItem.DisplayName} → {slotId}", LogLevel.Info);
     }
 
     public override void receiveLeftClick(int x, int y, bool playSound = true)
@@ -274,16 +265,8 @@ public class SnsEquipmentMenu : IClickableMenu
         }
     }
 
-    public override void releaseLeftClick(int x, int y)
-    {
-        _inventory.releaseLeftClick(x, y);
-    }
-
-    public override void leftClickHeld(int x, int y)
-    {
-        Monitor?.Log($"SnsEquipmentMenu.leftClickHeld ({x},{y})", LogLevel.Info);
-        _inventory.leftClickHeld(x, y);
-    }
+    public override void releaseLeftClick(int x, int y) { _inventory.releaseLeftClick(x, y); }
+    public override void leftClickHeld(int x, int y) { _inventory.leftClickHeld(x, y); }
 
     public override void performHoverAction(int x, int y)
     {
@@ -326,4 +309,3 @@ public class SnsEquipmentMenu : IClickableMenu
 
     public override void emergencyShutDown() { base.emergencyShutDown(); }
 }
-
