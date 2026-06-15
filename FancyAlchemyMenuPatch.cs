@@ -24,8 +24,6 @@ public class FancyAlchemyMenuPatch
         harmony.Patch(constructor,
             postfix: new HarmonyMethod(typeof(FancyAlchemyMenuPatch)
                 .GetMethod(nameof(ConstructorPostfix))));
-
-        Monitor?.Log("FancyAlchemyMenuPatch applied!", LogLevel.Info);
     }
 
     public static void ConstructorPostfix(object __instance)
@@ -42,7 +40,5 @@ public class FancyAlchemyMenuPatch
             4f);
 
         closeButtonField?.SetValue(menu, closeButton);
-
-        Monitor?.Log("FancyAlchemyMenu close button added", LogLevel.Info);
     }
 }
