@@ -72,15 +72,11 @@ public class RevalidateHealthPatch
         int buffOnlyBonus = (rogueBuffed - rogueBase) * 3 + (paladinBuffed - paladinBase) * 5;
         int expectedMaxHealth = vanillaBase + snsBaseBonus + buffOnlyBonus;
 
-        Monitor?.Log($"Paladin base={paladinBase} buffed={paladinBuffed}, Rogue base={rogueBase} buffed={rogueBuffed}", LogLevel.Info);
-        Monitor?.Log($"RevalidateHealth: vanilla={vanillaBase}, snsBase={snsBaseBonus}, buffOnly={buffOnlyBonus}, expected={expectedMaxHealth}, current={farmer.maxHealth}", LogLevel.Info);
-
         if (farmer.maxHealth != expectedMaxHealth)
         {
             int diff = expectedMaxHealth - farmer.maxHealth;
             farmer.maxHealth = expectedMaxHealth;
             farmer.health = Math.Min(farmer.health + diff, farmer.maxHealth);
-            Monitor?.Log($"maxHealth set to={farmer.maxHealth}", LogLevel.Info);
         }
     }
 
