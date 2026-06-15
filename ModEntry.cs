@@ -30,7 +30,6 @@ public class ModEntry : Mod
         BuffedSkillLevelPatch.Apply(harmony);
         EquipmentMenuDebugPatch.Apply(harmony);
 
-        // cache ไว้ใช้ใน UpdateTicked — lookup ครั้งเดียว
         var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
         var getBuffedLevel = AccessTools.Method(
             AccessTools.TypeByName("SpaceCore.SkillExtensions"),
@@ -49,7 +48,6 @@ public class ModEntry : Mod
                 ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
             SnsEquipmentMenu.InitSlotIds();
-            Monitor.Log($"GameLaunched: rogueSkill={rogueSkill?.GetType().Name ?? "null"}, paladinSkill={paladinSkill?.GetType().Name ?? "null"}", LogLevel.Info);
         };
 
         helper.Events.GameLoop.SaveLoaded += (s, e) =>
@@ -59,7 +57,6 @@ public class ModEntry : Mod
 
         helper.Events.GameLoop.DayStarted += (s, e) =>
         {
-            Monitor.Log("DayStarted: init from base level then RevalidateHealth", LogLevel.Info);
             RevalidateHealthPatch.InitFromBaseLevel(Game1.player);
             LevelUpMenu.RevalidateHealth(Game1.player);
         };
@@ -82,7 +79,6 @@ public class ModEntry : Mod
             {
                 lastRogueBuffed = rogueBuffed;
                 lastPaladinBuffed = paladinBuffed;
-                Monitor.Log($"UpdateTicked: buffChanged=True, Rogue={rogueBuffed}, Paladin={paladinBuffed}", LogLevel.Info);
                 LevelUpMenu.RevalidateHealth(Game1.player);
             }
         };
