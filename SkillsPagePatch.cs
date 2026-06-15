@@ -30,27 +30,18 @@ public class SkillsPagePatch
 
             var drawMethod = _newSkillsPageType.GetMethod("draw", new[] { typeof(SpriteBatch) });
             if (drawMethod != null)
-            {
                 harmony.Patch(drawMethod,
-                    postfix: new HarmonyMethod(typeof(SkillsPagePatch)
-                        .GetMethod(nameof(DrawPostfix))));
-            }
+                    postfix: new HarmonyMethod(typeof(SkillsPagePatch).GetMethod(nameof(DrawPostfix))));
 
             var hoverMethod = _newSkillsPageType.GetMethod("performHoverAction",
                 BindingFlags.Public | BindingFlags.Instance);
             if (hoverMethod != null)
-            {
                 harmony.Patch(hoverMethod,
-                    postfix: new HarmonyMethod(typeof(SkillsPagePatch)
-                        .GetMethod(nameof(HoverPostfix))));
-            }
+                    postfix: new HarmonyMethod(typeof(SkillsPagePatch).GetMethod(nameof(HoverPostfix))));
         }
 
         helper.Events.Display.MenuChanged += (s, e) =>
         {
-            if (e.NewMenu != null)
-                Monitor?.Log($"MenuChanged: {e.NewMenu.GetType().FullName}", LogLevel.Info);
-
             if (e.NewMenu is not GameMenu gameMenu) return;
             if (_newSkillsPageType == null) return;
 
@@ -75,18 +66,7 @@ public class SkillsPagePatch
             int h = oldPage.height;
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
-
-            var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
-                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(newPage) as string[];
-
-            Monitor?.Log($"pos: x={x}, y={y}, w={w}, h={h}", LogLevel.Info);
-            Monitor?.Log($"VisibleSkills={visibleSkills?.Length}", LogLevel.Info);
-            if (visibleSkills != null)
-                foreach (var skill in visibleSkills)
-                    Monitor?.Log($"  skill: {skill}", LogLevel.Info);
-
             pages[skillsTab] = newPage;
-            Monitor?.Log("SkillsPage replaced!", LogLevel.Info);
         };
     }
 
@@ -184,21 +164,16 @@ public class SkillsPagePatch
             int levels = expCurve?.Length ?? 10;
 
             int buffedLevel = (int?)getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
-            int baseLevel = (int?)getBaseLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
             int buffAmount = (int?)getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
             bool hasBuff = buffAmount != 0;
-
-            Monitor?.Log($"DrawPostfix: {name} base={baseLevel} buffed={buffedLevel}", LogLevel.Info);
 
             string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
             var skillIcon = skillType.GetProperty("SkillsPageIcon")?.GetValue(skill) as Texture2D;
 
             if (skillName.Length > 0)
-            {
                 b.DrawString(Game1.smallFont, skillName,
                     new Vector2((float)((double)((float)num - Game1.smallFont.MeasureString(skillName).X) + 4.0 - 64.0),
                     (float)(num2 + 4 + row * 56)), Game1.textColor);
-            }
 
             if (skillIcon != null)
             {
@@ -214,7 +189,6 @@ public class SkillsPagePatch
 
                 if ((l + 1) % 5 == 0)
                 {
-                    // milestone bar วาดเสมอ
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
                         new Rectangle(145, 338, 14, 9), Color.Black * 0.35f,
@@ -226,7 +200,6 @@ public class SkillsPagePatch
                 }
                 else
                 {
-                    // bar เล็กปกติ
                     b.Draw(Game1.mouseCursors,
                         new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
                         new Rectangle(129, 338, 8, 9), Color.Black * 0.35f,
@@ -260,8 +233,6 @@ public class SkillsPagePatch
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
 
         if (hoverText.Length > 0)
-        {
             IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1, hoverTitle.Length > 0 ? hoverTitle : null);
-        }
     }
 }
