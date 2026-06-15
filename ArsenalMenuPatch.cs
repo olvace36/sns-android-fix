@@ -135,9 +135,28 @@ public class ArsenalMenuDrawPatch
 [HarmonyPatch(typeof(ArsenalMenu), "receiveLeftClick")]
 public class ArsenalMenuClickPatch
 {
+    // block invMenu.leftClick (PC style) แล้วเรียก invMenu.receiveLeftClick (Android style) แทน
+    static bool Prefix(ArsenalMenu __instance, int x, int y, bool playSound)
+    {
+        var invMenu = typeof(ArsenalMenu).GetField("invMenu",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as InventoryMenu;
+        if (invMenu == null) return true;
+
+        if (invMenu.isWithinBounds(x, y))
+        {
+            // เรียก base receiveLeftClick ของ IClickableMenu ก่อน
+            typeof(IClickableMenu).GetMethod("receiveLeftClick")?
+                .Invoke(__instance, new object[] { x, y, playSound });
+            // แล้วเรียก invMenu.receiveLeftClick แบบ Android
+            invMenu.receiveLeftClick(x, y, playSound);
+            return false; // block original ที่จะเรียก leftClick แบบ PC
+        }
+        return true;
+    }
+
     static void Postfix(ArsenalMenu __instance, int x, int y, bool playSound)
     {
-        // cleanup CursorSlotItem ถ้ามี
         if (Game1.player.CursorSlotItem != null)
         {
             Game1.player.addItemToInventory(Game1.player.CursorSlotItem);
@@ -149,20 +168,27 @@ public class ArsenalMenuClickPatch
 [HarmonyPatch(typeof(ArsenalMenu), "update")]
 public class ArsenalMenuHeldPatch
 {
-    // ArsenalMenu.update ถูกเรียกทุก frame — ใช้ mouse state เช็คว่ากดค้างอยู่ไหม
     static void Postfix(ArsenalMenu __instance, GameTime time)
     {
-        var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
-        if ((int)mouseState.LeftButton != 1) return;
-
         var invMenu = typeof(ArsenalMenu).GetField("invMenu",
             BindingFlags.NonPublic | BindingFlags.Instance)
             ?.GetValue(__instance) as InventoryMenu;
         if (invMenu == null) return;
 
-        int x = Game1.getMouseX();
-        int y = Game1.getMouseY();
-        invMenu.leftClickHeld(x, y);
+        // re-set tapHoldTime = 0f หลัง invMenu.update reset กลับ
+        invMenu.GetType().GetField("tapHoldTime", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.SetValue(invMenu, 0f);
+
+        // ส่ง leftClickHeld ถ้ากดค้างอยู่
+        var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
+        if ((int)mouseState.LeftButton == 1)
+        {
+            invMenu.leftClickHeld(Game1.getMouseX(), Game1.getMouseY());
+        }
+        else
+        {
+            invMenu.releaseLeftClick(Game1.getMouseX(), Game1.getMouseY());
+        }
     }
 }
 
