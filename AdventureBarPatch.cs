@@ -62,11 +62,11 @@ public class AdventureBarPatch
         return (x, y, w, h);
     }
 
-    static Rectangle GetAetherOnlyBounds(int xPos, int width)
+    static Rectangle GetAetherOnlyBounds(int width)
     {
         int vh = Game1.uiViewport.Height;
-        int aetherY = vh / 2 - AetherBarHeight / 2;
-        return new Rectangle(xPos, aetherY, width, AetherBarHeight);
+        int aetherY = vh - AetherBarHeight - 16;
+        return new Rectangle(0, aetherY, width, AetherBarHeight);
     }
 
     static void DrawAetherBar(SpriteBatch b, int xPos, int yPos, int width)
@@ -113,7 +113,7 @@ public class AdventureBarPatch
         if (!AetherOnly) return true;
 
         var (xPos, yPos, width, height) = GetBounds(__instance);
-        var bounds = GetAetherOnlyBounds(xPos, width);
+        var bounds = GetAetherOnlyBounds(width);
         DrawAetherBar(b, bounds.X, bounds.Y, bounds.Width);
         return false;
     }
