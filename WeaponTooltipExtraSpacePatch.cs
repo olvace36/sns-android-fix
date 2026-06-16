@@ -19,33 +19,27 @@ public class WeaponTooltipExtraSpacePatch
     public static void Apply(Harmony harmony)
     {
         var extensionsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.ArsenalExtensions");
-        foreach (var m in extensionsType?.GetMethods(BindingFlags.Public | BindingFlags.Static) ?? Array.Empty<MethodInfo>())
+        if (extensionsType != null)
         {
-            var ps = m.GetParameters();
-            if (ps.Length != 1 || ps[0].ParameterType != typeof(MeleeWeapon)) continue;
-            if (m.Name == "GetBladeAlloying") _getAlloying = m;
-            if (m.Name == "GetBladeCoating") _getCoating = m;
-            if (m.Name == "GetExquisiteGemstone") _getGem = m;
+            foreach (var m in extensionsType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                var ps = m.GetParameters();
+                if (ps.Length != 1 || ps[0].ParameterType != typeof(MeleeWeapon)) continue;
+                if (m.Name == "GetBladeAlloying") _getAlloying = m;
+                if (m.Name == "GetBladeCoating") _getCoating = m;
+                if (m.Name == "GetExquisiteGemstone") _getGem = m;
+            }
         }
 
-        var patch1Type = AccessTools.TypeByName("SwordAndSorcerySMAPI.MeleeWeaponTooltipPatch1");
-        if (patch1Type == null)
-        {
-            Monitor?.Log("MeleeWeaponTooltipPatch1 not found!", LogLevel.Warn);
-            return;
-        }
+        // patch getExtraSpaceNeededForTooltipSpecialIcons ของ MeleeWeapon ตรงๆ
+        var extraSpacePostfix = new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
+            .GetMethod(nameof(ExtraSpacePostfix)));
+        extraSpacePostfix.priority = Priority.Low;
 
-        var postfix = patch1Type.GetMethod("Postfix",
-            BindingFlags.Public | BindingFlags.Static);
-        if (postfix == null)
-        {
-            Monitor?.Log("MeleeWeaponTooltipPatch1.Postfix not found!", LogLevel.Warn);
-            return;
-        }
-
-        harmony.Patch(postfix,
-            postfix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-                .GetMethod(nameof(ExtraSpacePostfix))));
+        harmony.Patch(
+            AccessTools.Method(typeof(MeleeWeapon),
+                "getExtraSpaceNeededForTooltipSpecialIcons"),
+            postfix: extraSpacePostfix);
 
         Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
     }
