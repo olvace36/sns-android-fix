@@ -21,8 +21,12 @@ public class AdventureBarPatch
     private static FieldInfo? _heightField;
     private static FieldInfo? _widthField;
 
+    // cache farmerExtData reflection
+    private static MethodInfo? _getFarmerExtData;
+    private static FieldInfo? _manaField;
+    private static FieldInfo? _maxManaField;
+
     private const int AetherBarHeight = 56;
-    private const int AetherBarOffsetFromBottom = 12;
 
     public static void Apply(Harmony harmony)
     {
@@ -45,6 +49,20 @@ public class AdventureBarPatch
         _widthField = typeof(IClickableMenu).GetField("width",
             BindingFlags.Public | BindingFlags.Instance);
 
+        // cache farmerExtData
+        var farmerExtDataType = AccessTools.TypeByName("SwordAndSorcerySMAPI.FarmerExtData");
+        _getFarmerExtData = AccessTools.Method(
+            AccessTools.TypeByName("SwordAndSorcerySMAPI.FarmerExtDataExtensions"),
+            "GetFarmerExtData",
+            new[] { typeof(Farmer) });
+        if (farmerExtDataType != null)
+        {
+            _manaField = farmerExtDataType.GetField("mana",
+                BindingFlags.Public | BindingFlags.Instance);
+            _maxManaField = farmerExtDataType.GetField("maxMana",
+                BindingFlags.Public | BindingFlags.Instance);
+        }
+
         var drawMethod = _adventureBarType.GetMethod("draw",
             new[] { typeof(SpriteBatch) });
         if (drawMethod != null)
@@ -62,44 +80,28 @@ public class AdventureBarPatch
         return (x, y, w, h);
     }
 
-    static Rectangle GetAetherOnlyBounds(int width)
-    {
-        int vh = Game1.uiViewport.Height;
-        int aetherY = vh - AetherBarHeight - 16;
-        return new Rectangle(0, aetherY, width, AetherBarHeight);
-    }
-
     static void DrawAetherBar(SpriteBatch b, int xPos, int yPos, int width)
     {
-        var farmerExtDataMethod = AccessTools.Method(
-            AccessTools.TypeByName("SwordAndSorcerySMAPI.FarmerExtDataExtensions"),
-            "GetFarmerExtData",
-            new[] { typeof(Farmer) });
-        if (farmerExtDataMethod == null) return;
+        if (_getFarmerExtData == null) return;
 
-        var farmerExtData = farmerExtDataMethod.Invoke(null, new object[] { Game1.player });
+        var farmerExtData = _getFarmerExtData.Invoke(null, new object[] { Game1.player });
         if (farmerExtData == null) return;
 
-        var manaField = farmerExtData.GetType()
-            .GetField("mana", BindingFlags.Public | BindingFlags.Instance);
-        var maxManaField = farmerExtData.GetType()
-            .GetField("maxMana", BindingFlags.Public | BindingFlags.Instance);
-
-        int mana = (int)(manaField?.GetValue(farmerExtData) ?? 0);
-        int maxMana = (int)(maxManaField?.GetValue(farmerExtData) ?? 0);
-
-        IClickableMenu.drawTextureBox(b, xPos, yPos, width, AetherBarHeight, Color.White);
+        int mana = (int)(_manaField?.GetValue(farmerExtData) ?? 0);
+        int maxMana = (int)(_maxManaField?.GetValue(farmerExtData) ?? 0);
 
         float num = maxMana > 0 ? Math.Min(1f, (float)mana / maxMana) : 0f;
+
+        // วาด bar ตาม original code — x=12 เสมอ
         if (num > 0f)
             b.Draw(Game1.staminaRect,
-                new Rectangle(xPos + 12, yPos + 8,
+                new Rectangle(12, yPos,
                     (int)((float)(width - 24) * num), 32), Color.Aqua);
 
         string text = $"{mana}/{maxMana}";
         b.DrawString(Game1.smallFont, text,
-            new Vector2(xPos + (float)(width / 2) - Game1.smallFont.MeasureString(text).X / 2f,
-            (float)(yPos + 10)), Color.Black);
+            new Vector2((float)(width / 2) - Game1.smallFont.MeasureString(text).X / 2f,
+            (float)(yPos + 2)), Color.Black);
     }
 
     public static bool DrawPrefix(object __instance, SpriteBatch b)
@@ -112,9 +114,12 @@ public class AdventureBarPatch
 
         if (!AetherOnly) return true;
 
+        // มุมซ้ายล่าง
         var (xPos, yPos, width, height) = GetBounds(__instance);
-        var bounds = GetAetherOnlyBounds(width);
-        DrawAetherBar(b, bounds.X, bounds.Y, bounds.Width);
+        int vh = Game1.uiViewport.Height;
+        int aetherY = vh - AetherBarHeight - 16;
+
+        DrawAetherBar(b, xPos, aetherY, width);
         return false;
     }
 }
