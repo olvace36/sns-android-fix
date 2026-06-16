@@ -98,10 +98,9 @@ public class WeaponTooltipExtraSpacePatch
         if (hoveredItem is not MeleeWeapon weapon) return true;
 
         int extra = CalcExtra(weapon);
-        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra}", LogLevel.Info);
+        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra} money={moneyAmountToShowAtBottom}", LogLevel.Info);
         if (extra == 0) return true;
 
-        // ส่ง -1 เพื่อไม่ให้รวมราคาใน vanillaSpace.Y
         Point vanillaSpace = weapon.getExtraSpaceNeededForTooltipSpecialIcons(
             Game1.smallFont, 0, 92, 0,
             new StringBuilder(weapon.description ?? ""),
