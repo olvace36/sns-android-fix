@@ -9,8 +9,12 @@ namespace SnsAndroidFix;
 
 public class ModEntry : Mod
 {
+    private ModConfig _config = new();
+
     public override void Entry(IModHelper helper)
     {
+        _config = helper.ReadConfig<ModConfig>();
+
         ArsenalMenuPatch.Monitor = Monitor;
         RevalidateHealthPatch.Monitor = Monitor;
         SkillsPagePatch.Monitor = Monitor;
@@ -85,6 +89,16 @@ public class ModEntry : Mod
                 lastRogueBuffed = rogueBuffed;
                 lastPaladinBuffed = paladinBuffed;
                 LevelUpMenu.RevalidateHealth(Game1.player);
+            }
+        };
+
+        helper.Events.Input.ButtonPressed += (s, e) =>
+        {
+            if (!Context.IsWorldReady) return;
+            if (e.Button == _config.ToggleAdventureBar)
+            {
+                AdventureBarPatch.AetherOnly = !AdventureBarPatch.AetherOnly;
+                Game1.playSound("smallSelect");
             }
         };
     }
