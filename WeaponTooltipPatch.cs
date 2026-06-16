@@ -79,7 +79,6 @@ public class WeaponTooltipPatch
         return lines;
     }
 
-    // signature ตรงกับ vanilla
     public static void ExtraSpacePostfix(MeleeWeapon __instance,
         SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight,
         StringBuilder descriptionText, string boldTitleText,
@@ -92,13 +91,14 @@ public class WeaponTooltipPatch
         __result = new Point(__result.X, __result.Y + extraHeight);
     }
 
-    // signature ตรงกับ SNS MeleeWeaponTooltipPatch2
     public static void DrawTooltipPostfix(MeleeWeapon __instance,
         SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font)
     {
         Monitor?.Log($"DrawTooltipPostfix called: {__instance.Name} x={x} y={y}", LogLevel.Info);
 
         string? alloyId = _getAlloying?.Invoke(null, new object[] { __instance }) as string;
+        Monitor?.Log($"alloyId={alloyId ?? "null"}", LogLevel.Info);
+
         if (alloyId != null)
         {
             string alloyText = alloyId switch
@@ -121,6 +121,8 @@ public class WeaponTooltipPatch
         }
 
         string? coatingId = _getCoating?.Invoke(null, new object[] { __instance }) as string;
+        Monitor?.Log($"coatingId={coatingId ?? "null"}", LogLevel.Info);
+
         if (coatingId != null)
         {
             string coatingText = coatingId switch
@@ -143,6 +145,8 @@ public class WeaponTooltipPatch
         }
 
         string? gemId = _getGem?.Invoke(null, new object[] { __instance }) as string;
+        Monitor?.Log($"gemId={gemId ?? "null"}", LogLevel.Info);
+
         if (gemId != null)
         {
             string gemText = gemId switch
