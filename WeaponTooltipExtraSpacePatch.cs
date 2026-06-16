@@ -31,10 +31,9 @@ public class WeaponTooltipExtraSpacePatch
             }
         }
 
-        // patch getExtraSpaceNeededForTooltipSpecialIcons ของ MeleeWeapon ตรงๆ
         var extraSpacePostfix = new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
             .GetMethod(nameof(ExtraSpacePostfix)));
-        extraSpacePostfix.priority = Priority.Low;
+        extraSpacePostfix.priority = Priority.High;
 
         harmony.Patch(
             AccessTools.Method(typeof(MeleeWeapon),
@@ -53,9 +52,12 @@ public class WeaponTooltipExtraSpacePatch
         int extra = 0;
         int lineHeight = Math.Max((int)font.MeasureString("TT").Y, 48);
 
-        if (GetId(__instance, _getAlloying) != null) extra += lineHeight;
-        if (GetId(__instance, _getCoating) != null) extra += lineHeight;
-        if (GetId(__instance, _getGem) != null) extra += lineHeight;
+        if (GetId(__instance, _getAlloying) != null) extra += lineHeight * 2;
+        if (GetId(__instance, _getCoating) != null) extra += lineHeight * 2;
+        if (GetId(__instance, _getGem) != null) extra += lineHeight * 2;
+
+        if (extra > 0)
+            Monitor?.Log($"ExtraSpacePostfix: {__instance.Name} extra={extra}", LogLevel.Info);
 
         __result = new Point(__result.X, __result.Y + extra);
     }
