@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
+using StardewValley.Enchantments;
 using StardewValley.Menus;
 using StardewValley.Tools;
 
@@ -35,29 +36,6 @@ public class WeaponTooltipExtraSpacePatch
             }
         }
 
-        var drawToolTipMethod = typeof(IClickableMenu).GetMethod(
-            "drawToolTip",
-            BindingFlags.Public | BindingFlags.Static,
-            null,
-            new[]
-            {
-                typeof(SpriteBatch), typeof(string), typeof(string),
-                typeof(Item), typeof(bool), typeof(int), typeof(int),
-                typeof(string), typeof(int), typeof(CraftingRecipe), typeof(int)
-            },
-            null);
-
-        if (drawToolTipMethod != null)
-        {
-            harmony.Patch(drawToolTipMethod,
-                prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-                    .GetMethod(nameof(DrawToolTipPrefix))));
-            Monitor?.Log("drawToolTip patch applied!", LogLevel.Info);
-        }
-        else
-            Monitor?.Log("drawToolTip not found!", LogLevel.Warn);
-
-        // Log IL ของ drawHoverText StringBuilder
         var drawHoverTextSB = typeof(IClickableMenu).GetMethod(
             "drawHoverText",
             BindingFlags.Public | BindingFlags.Static,
@@ -79,56 +57,71 @@ public class WeaponTooltipExtraSpacePatch
         {
             harmony.Patch(drawHoverTextSB,
                 transpiler: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-                    .GetMethod(nameof(LogILTranspiler))));
-            Monitor?.Log("IL logger applied!", LogLevel.Info);
+                    .GetMethod(nameof(DrawHoverTextTranspiler))));
+            Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
         }
         else
             Monitor?.Log("drawHoverText(StringBuilder) not found!", LogLevel.Warn);
     }
 
-    static int CalcExtra(Item? hoveredItem)
+    public static int CalcExtra(Item hoveredItem)
     {
         if (hoveredItem is not MeleeWeapon weapon) return 0;
         int extra = 0;
         if (_getAlloying?.Invoke(null, new object[] { weapon }) is string) extra += 48;
         if (_getCoating?.Invoke(null, new object[] { weapon }) is string) extra += 48;
         if (_getGem?.Invoke(null, new object[] { weapon }) is string) extra += 48;
+        Monitor?.Log($"CalcExtra: {weapon.Name} extra={extra}", LogLevel.Info);
         return extra;
     }
 
-    public static bool DrawToolTipPrefix(
-        SpriteBatch b, string hoverText, string hoverTitle,
-        Item hoveredItem, bool heldItem, int healAmountToDisplay,
-        int currencySymbol, string extraItemToShowIndex,
-        int extraItemToShowAmount, CraftingRecipe craftingIngredients,
-        int moneyAmountToShowAtBottom)
-    {
-        if (hoveredItem is not MeleeWeapon) return true;
-
-        int extra = CalcExtra(hoveredItem);
-        if (extra == 0) return true;
-
-        Monitor?.Log($"DrawToolTipPrefix: extra={extra}", LogLevel.Info);
-
-        IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont,
-            heldItem ? 40 : 0, heldItem ? 40 : 0,
-            moneyAmountToShowAtBottom, hoverTitle,
-            -1, null, hoveredItem, currencySymbol,
-            extraItemToShowIndex, extraItemToShowAmount,
-            -1, -1, 1f, craftingIngredients,
-            boxHeightOverride: extra);
-
-        return false;
-    }
-
-    public static IEnumerable<CodeInstruction> LogILTranspiler(
+    public static IEnumerable<CodeInstruction> DrawHoverTextTranspiler(
         IEnumerable<CodeInstruction> instructions)
     {
-        int i = 0;
-        foreach (var code in instructions)
+        var codes = new List<CodeInstruction>(instructions);
+        var calcExtra = AccessTools.Method(
+            typeof(WeaponTooltipExtraSpacePatch), "CalcExtra");
+
+        bool found = false;
+        bool firstGalaxySoul = false;
+
+        for (int i = 0; i < codes.Count; i++)
         {
-            Monitor?.Log($"IL[{i++}]: {code.opcode} {code.operand}", LogLevel.Info);
-            yield return code;
+            yield return codes[i];
+
+            // หา GetEnchantmentLevel<GalaxySoulEnchantment> ครั้งแรก โดยเช็ค string
+            if (!found && !firstGalaxySoul &&
+                codes[i].opcode == OpCodes.Callvirt &&
+                codes[i].operand?.ToString()?.Contains("GetEnchantmentLevel") == true &&
+                codes[i].operand?.ToString()?.Contains("GalaxySoul") == true)
+            {
+                firstGalaxySoul = true;
+                Monitor?.Log($"Found GalaxySoul at IL[{i}]", LogLevel.Info);
+
+                // เดิน forward หา stloc.3 (num3)
+                for (int j = i + 1; j < Math.Min(i + 15, codes.Count); j++)
+                {
+                    yield return codes[j];
+                    i = j;
+
+                    if (codes[j].opcode == OpCodes.Stloc_3)
+                    {
+                        // แทรก: num3 += CalcExtra(hoveredItem)
+                        yield return new CodeInstruction(OpCodes.Ldloc_3);
+                        yield return new CodeInstruction(OpCodes.Ldarg_S, (byte)9);
+                        yield return new CodeInstruction(OpCodes.Call, calcExtra);
+                        yield return new CodeInstruction(OpCodes.Add);
+                        yield return new CodeInstruction(OpCodes.Stloc_3);
+
+                        found = true;
+                        Monitor?.Log("DrawHoverTextTranspiler: injection point found!", LogLevel.Info);
+                        break;
+                    }
+                }
+            }
         }
+
+        if (!found)
+            Monitor?.Log("DrawHoverTextTranspiler: injection point not found!", LogLevel.Warn);
     }
 }
