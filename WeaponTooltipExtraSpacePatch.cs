@@ -80,40 +80,36 @@ public class WeaponTooltipExtraSpacePatch
         IEnumerable<CodeInstruction> instructions, ILGenerator generator)
     {
         var codes = new List<CodeInstruction>(instructions);
-
-        var getEnchantmentLevel = AccessTools.Method(
-            typeof(MeleeWeapon),
-            "GetEnchantmentLevel",
-            null,
-            new[] { typeof(GalaxySoulEnchantment) });
-
         var getExtraHeight = AccessTools.Method(
-            typeof(WeaponTooltipExtraSpacePatch),
-            "GetExtraHeight");
+            typeof(WeaponTooltipExtraSpacePatch), "GetExtraHeight");
 
         bool found = false;
+
         for (int i = 0; i < codes.Count; i++)
         {
             yield return codes[i];
 
-            if (!found && codes[i].Calls(getEnchantmentLevel))
+            // หา isinst Boots — จุดเริ่มต้นของ else if (hoveredItem is Boots)
+            if (!found &&
+                codes[i].opcode == OpCodes.Isinst &&
+                codes[i].operand is Type t && t == typeof(Boots))
             {
-                for (int j = i + 1; j < Math.Min(i + 10, codes.Count); j++)
-                {
-                    yield return codes[j];
-                    i = j;
-                    if (codes[j].opcode == OpCodes.Add)
-                    {
-                        yield return new CodeInstruction(OpCodes.Ldloc_S, (byte)5);
-                        yield return new CodeInstruction(OpCodes.Ldarg, 9);
-                        yield return new CodeInstruction(OpCodes.Ldarg_2);
-                        yield return new CodeInstruction(OpCodes.Call, getExtraHeight);
-                        yield return new CodeInstruction(OpCodes.Add);
-                        yield return new CodeInstruction(OpCodes.Stloc_S, (byte)5);
-                        found = true;
-                        break;
-                    }
-                }
+                // แทรกก่อน Boots block: num3 += GetExtraHeight(hoveredItem, font)
+                // load num3 (local variable)
+                yield return new CodeInstruction(OpCodes.Ldloc_S, (byte)5);
+                // load hoveredItem (arg 9)
+                yield return new CodeInstruction(OpCodes.Ldarg_S, (byte)9);
+                // load font (arg 2)
+                yield return new CodeInstruction(OpCodes.Ldarg_2);
+                // call GetExtraHeight
+                yield return new CodeInstruction(OpCodes.Call, getExtraHeight);
+                // add
+                yield return new CodeInstruction(OpCodes.Add);
+                // store num3
+                yield return new CodeInstruction(OpCodes.Stloc_S, (byte)5);
+
+                found = true;
+                Monitor?.Log("DrawHoverTextTranspiler: injection point found!", LogLevel.Info);
             }
         }
 
