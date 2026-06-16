@@ -21,6 +21,9 @@ public class AdventureBarPatch
     private static FieldInfo? _heightField;
     private static FieldInfo? _widthField;
 
+    private const int AetherBarHeight = 56;
+    private const int AetherBarOffsetFromBottom = 12;
+
     public static void Apply(Harmony harmony)
     {
         _adventureBarType = AccessTools.TypeByName(
@@ -31,23 +34,23 @@ public class AdventureBarPatch
             return;
         }
 
-        _hideField = _adventureBarType.GetField("Hide", BindingFlags.Public | BindingFlags.Static);
-        _xField = typeof(IClickableMenu).GetField("xPositionOnScreen", BindingFlags.Public | BindingFlags.Instance);
-        _yField = typeof(IClickableMenu).GetField("yPositionOnScreen", BindingFlags.Public | BindingFlags.Instance);
-        _heightField = typeof(IClickableMenu).GetField("height", BindingFlags.Public | BindingFlags.Instance);
-        _widthField = typeof(IClickableMenu).GetField("width", BindingFlags.Public | BindingFlags.Instance);
+        _hideField = _adventureBarType.GetField("Hide",
+            BindingFlags.Public | BindingFlags.Static);
+        _xField = typeof(IClickableMenu).GetField("xPositionOnScreen",
+            BindingFlags.Public | BindingFlags.Instance);
+        _yField = typeof(IClickableMenu).GetField("yPositionOnScreen",
+            BindingFlags.Public | BindingFlags.Instance);
+        _heightField = typeof(IClickableMenu).GetField("height",
+            BindingFlags.Public | BindingFlags.Instance);
+        _widthField = typeof(IClickableMenu).GetField("width",
+            BindingFlags.Public | BindingFlags.Instance);
 
-        var drawMethod = _adventureBarType.GetMethod("draw", new[] { typeof(SpriteBatch) });
+        var drawMethod = _adventureBarType.GetMethod("draw",
+            new[] { typeof(SpriteBatch) });
         if (drawMethod != null)
             harmony.Patch(drawMethod,
                 prefix: new HarmonyMethod(typeof(AdventureBarPatch)
                     .GetMethod(nameof(DrawPrefix))));
-
-        var clickMethod = AccessTools.Method(typeof(IClickableMenu), "receiveLeftClick");
-        if (clickMethod != null)
-            harmony.Patch(clickMethod,
-                prefix: new HarmonyMethod(typeof(AdventureBarPatch)
-                    .GetMethod(nameof(ReceiveLeftClickPrefix))));
     }
 
     static (int x, int y, int w, int h) GetBounds(object instance)
@@ -57,6 +60,13 @@ public class AdventureBarPatch
         int w = (int?)_widthField?.GetValue(instance) ?? 0;
         int h = (int?)_heightField?.GetValue(instance) ?? 0;
         return (x, y, w, h);
+    }
+
+    static Rectangle GetAetherOnlyBounds(int xPos, int width)
+    {
+        int vh = Game1.uiViewport.Height;
+        int aetherY = vh / 2 - AetherBarHeight / 2;
+        return new Rectangle(xPos, aetherY, width, AetherBarHeight);
     }
 
     static void DrawAetherBar(SpriteBatch b, int xPos, int yPos, int width)
@@ -70,13 +80,15 @@ public class AdventureBarPatch
         var farmerExtData = farmerExtDataMethod.Invoke(null, new object[] { Game1.player });
         if (farmerExtData == null) return;
 
-        var manaField = farmerExtData.GetType().GetField("mana", BindingFlags.Public | BindingFlags.Instance);
-        var maxManaField = farmerExtData.GetType().GetField("maxMana", BindingFlags.Public | BindingFlags.Instance);
+        var manaField = farmerExtData.GetType()
+            .GetField("mana", BindingFlags.Public | BindingFlags.Instance);
+        var maxManaField = farmerExtData.GetType()
+            .GetField("maxMana", BindingFlags.Public | BindingFlags.Instance);
 
         int mana = (int)(manaField?.GetValue(farmerExtData) ?? 0);
         int maxMana = (int)(maxManaField?.GetValue(farmerExtData) ?? 0);
 
-        IClickableMenu.drawTextureBox(b, xPos, yPos, width, 56, Color.White);
+        IClickableMenu.drawTextureBox(b, xPos, yPos, width, AetherBarHeight, Color.White);
 
         float num = maxMana > 0 ? Math.Min(1f, (float)mana / maxMana) : 0f;
         if (num > 0f)
@@ -101,28 +113,8 @@ public class AdventureBarPatch
         if (!AetherOnly) return true;
 
         var (xPos, yPos, width, height) = GetBounds(__instance);
-        DrawAetherBar(b, xPos, yPos, width);
+        var bounds = GetAetherOnlyBounds(xPos, width);
+        DrawAetherBar(b, bounds.X, bounds.Y, bounds.Width);
         return false;
-    }
-
-    public static bool ReceiveLeftClickPrefix(IClickableMenu __instance, int x, int y)
-    {
-        if (_adventureBarType == null) return true;
-        if (__instance.GetType() != _adventureBarType) return true;
-
-        var (xPos, yPos, width, height) = GetBounds(__instance);
-
-        var aetherBounds = AetherOnly
-            ? new Rectangle(xPos, yPos, width, 56)
-            : new Rectangle(xPos, yPos + height - 12, width, 56);
-
-        if (aetherBounds.Contains(x, y))
-        {
-            AetherOnly = !AetherOnly;
-            Game1.playSound("smallSelect");
-            return false;
-        }
-
-        return true;
     }
 }
