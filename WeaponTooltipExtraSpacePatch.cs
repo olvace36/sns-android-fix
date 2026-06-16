@@ -98,14 +98,17 @@ public class WeaponTooltipExtraSpacePatch
         if (hoveredItem is not MeleeWeapon weapon) return true;
 
         int extra = CalcExtra(weapon);
-        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra} money={moneyAmountToShowAtBottom}", LogLevel.Info);
         if (extra == 0) return true;
 
-        // ใช้ LastY จาก DrawTooltipPostfix แทน vanillaSpace.Y
-        int lastY = WeaponTooltipPatch.LastY;
-        int boxHeight = lastY > 0 ? lastY : 0;
+        int salePrice = weapon.salePrice();
+        Point vanillaSpace = weapon.getExtraSpaceNeededForTooltipSpecialIcons(
+            Game1.smallFont, 0, 92, 0,
+            new StringBuilder(weapon.description ?? ""),
+            weapon.DisplayName, salePrice > 0 ? salePrice : -1);
 
-        Monitor?.Log($"DrawMobileFloatingPrefix: LastY={lastY} boxHeight={boxHeight}", LogLevel.Info);
+        int boxHeight = vanillaSpace.Y + extra;
+
+        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra} salePrice={salePrice} vanillaSpace.Y={vanillaSpace.Y} boxHeight={boxHeight}", LogLevel.Info);
 
         bool flag = hoveredItem is StardewValley.Object obj && obj.edibility.Value != -300;
         string[]? buffIconsToDisplay = null;
@@ -122,8 +125,6 @@ public class WeaponTooltipExtraSpacePatch
                 extraItemToShowIndex2, extraItemToShowAmount,
                 x, y, 1f, craftingIngredients,
                 boxHeightOverride: boxHeight);
-
-            Monitor?.Log($"DrawMobileFloatingPrefix: drawHoverText called with boxHeight={boxHeight}", LogLevel.Info);
         }
         finally
         {
