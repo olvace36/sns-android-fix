@@ -37,11 +37,6 @@ public class WeaponTooltipExtraSpacePatch
             }
         }
 
-        harmony.Patch(
-            AccessTools.Method(typeof(MeleeWeapon), "drawTooltip"),
-            prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-                .GetMethod(nameof(DrawTooltipPrefix))));
-
         // patch SNS MeleeWeaponTooltipPatch2.Postfix ให้ skip ถ้า Drawing=true
         var sns2Type = AccessTools.TypeByName("SwordAndSorcerySMAPI.MeleeWeaponTooltipPatch2");
         var sns2Postfix = sns2Type?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
@@ -55,61 +50,93 @@ public class WeaponTooltipExtraSpacePatch
         else
             Monitor?.Log("SNS MeleeWeaponTooltipPatch2.Postfix not found!", LogLevel.Warn);
 
-        Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
+        // Transpiler บน drawHoverText StringBuilder
+        var drawHoverTextSB = typeof(IClickableMenu).GetMethod(
+            "drawHoverText",
+            BindingFlags.Public | BindingFlags.Static,
+            null,
+            new[]
+            {
+                typeof(SpriteBatch), typeof(StringBuilder), typeof(SpriteFont),
+                typeof(int), typeof(int), typeof(int), typeof(string),
+                typeof(int), typeof(string[]), typeof(Item), typeof(int),
+                typeof(string), typeof(int), typeof(int), typeof(int),
+                typeof(float), typeof(CraftingRecipe),
+                typeof(IList<Item>), typeof(Texture2D), typeof(Rectangle?),
+                typeof(Color?), typeof(Color?), typeof(float),
+                typeof(int), typeof(int), typeof(int)
+            },
+            null);
+
+        if (drawHoverTextSB != null)
+        {
+            harmony.Patch(drawHoverTextSB,
+                transpiler: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
+                    .GetMethod(nameof(DrawHoverTextTranspiler))));
+            Monitor?.Log("WeaponTooltipExtraSpacePatch Transpiler applied!", LogLevel.Info);
+        }
+        else
+            Monitor?.Log("drawHoverText(StringBuilder) not found!", LogLevel.Warn);
     }
 
     public static bool SNSTooltipPrefix() => !Drawing;
 
-    static int CalcExtra(MeleeWeapon weapon)
+    public static int CalcExtra(MeleeWeapon weapon)
     {
         int extra = 0;
         if (_getAlloying?.Invoke(null, new object[] { weapon }) is string) extra += 48;
         if (_getCoating?.Invoke(null, new object[] { weapon }) is string) extra += 48;
         if (_getGem?.Invoke(null, new object[] { weapon }) is string) extra += 48;
+        Monitor?.Log($"CalcExtra: {weapon.Name} extra={extra}", LogLevel.Info);
         return extra;
     }
 
-    public static bool DrawTooltipPrefix(MeleeWeapon __instance,
-        SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font,
-        float alpha, StringBuilder overrideText)
+    public static IEnumerable<CodeInstruction> DrawHoverTextTranspiler(
+        IEnumerable<CodeInstruction> instructions)
     {
-        if (Drawing) return true;
+        var codes = new List<CodeInstruction>(instructions);
+        var calcExtra = AccessTools.Method(
+            typeof(WeaponTooltipExtraSpacePatch), "CalcExtra");
 
-        int extra = CalcExtra(__instance);
-        if (extra == 0) return true;
+        bool found = false;
 
-        int salePrice = __instance.salePrice();
-        var description = new StringBuilder(__instance.description ?? "");
-
-        // ดึง vanilla height โดยไม่รวม SNS extra (SNS บวกไว้ใน boxHeightOverride แล้ว)
-        // ใช้ base class method ไม่ใช่ instance method ที่ SNS override
-        Point vanillaSpace = ((Item)__instance).getExtraSpaceNeededForTooltipSpecialIcons(
-            font, 0, 92, 0, description, __instance.DisplayName, salePrice);
-
-        // SNS extra อยู่ใน vanillaSpace.Y แล้ว เราบวกแค่ effect text ของเรา
-        int boxHeight = vanillaSpace.Y + extra;
-
-        Monitor?.Log($"DrawTooltipPrefix: {__instance.Name} vanillaSpace.Y={vanillaSpace.Y} extra={extra} boxHeight={boxHeight}", LogLevel.Info);
-
-        Drawing = true;
-        try
+        for (int i = 0; i < codes.Count; i++)
         {
-            IClickableMenu.drawHoverText(
-                spriteBatch,
-                overrideText?.ToString() ?? __instance.getDescription(),
-                font,
-                0, 0, salePrice,
-                __instance.DisplayName,
-                -1, null, __instance,
-                0, null, -1,
-                x, y, alpha,
-                boxHeightOverride: boxHeight);
-        }
-        finally
-        {
-            Drawing = false;
+            yield return codes[i];
+
+            // หา GetEnchantmentLevel<GalaxySoulEnchantment> ครั้งแรก
+            if (!found &&
+                codes[i].opcode == OpCodes.Callvirt &&
+                codes[i].operand?.ToString()?.Contains("GetEnchantmentLevel") == true &&
+                codes[i].operand?.ToString()?.Contains("GalaxySoul") == true)
+            {
+                Monitor?.Log($"Found GalaxySoul at IL[{i}]", LogLevel.Info);
+
+                // เดิน forward หา stloc.3 (num3)
+                for (int j = i + 1; j < Math.Min(i + 15, codes.Count); j++)
+                {
+                    yield return codes[j];
+                    i = j;
+
+                    if (codes[j].opcode == OpCodes.Stloc_3)
+                    {
+                        // แทรก: num3 += CalcExtra(meleeWeapon)
+                        // IL[413]: ldloc.s MeleeWeapon (25) — ใช้ local variable 25
+                        yield return new CodeInstruction(OpCodes.Ldloc_3);
+                        yield return new CodeInstruction(OpCodes.Ldloc_S, (byte)25);
+                        yield return new CodeInstruction(OpCodes.Call, calcExtra);
+                        yield return new CodeInstruction(OpCodes.Add);
+                        yield return new CodeInstruction(OpCodes.Stloc_3);
+
+                        found = true;
+                        Monitor?.Log("DrawHoverTextTranspiler: injection point found!", LogLevel.Info);
+                        break;
+                    }
+                }
+            }
         }
 
-        return false;
+        if (!found)
+            Monitor?.Log("DrawHoverTextTranspiler: injection point not found!", LogLevel.Warn);
     }
 }
