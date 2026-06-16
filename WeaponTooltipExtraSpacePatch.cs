@@ -97,9 +97,18 @@ public class WeaponTooltipExtraSpacePatch
             typeof(WeaponTooltipExtraSpacePatch), "CalcExtra");
 
         bool found = false;
+        object? meleeWeaponOperand = null;
 
         for (int i = 0; i < codes.Count; i++)
         {
+            // เก็บ operand ของ ldloc.s MeleeWeapon ก่อน GalaxySoul
+            if (codes[i].opcode == OpCodes.Ldloc_S &&
+                codes[i].operand?.ToString()?.Contains("MeleeWeapon") == true)
+            {
+                meleeWeaponOperand = codes[i].operand;
+                Monitor?.Log($"Found MeleeWeapon ldloc.s at IL[{i}] operand={meleeWeaponOperand}", LogLevel.Info);
+            }
+
             yield return codes[i];
 
             if (!found &&
@@ -107,7 +116,7 @@ public class WeaponTooltipExtraSpacePatch
                 codes[i].operand?.ToString()?.Contains("GetEnchantmentLevel") == true &&
                 codes[i].operand?.ToString()?.Contains("GalaxySoul") == true)
             {
-                Monitor?.Log($"Found GalaxySoul at IL[{i}]", LogLevel.Info);
+                Monitor?.Log($"Found GalaxySoul at IL[{i}] meleeWeaponOperand={meleeWeaponOperand}", LogLevel.Info);
 
                 for (int j = i + 1; j < Math.Min(i + 20, codes.Count); j++)
                 {
@@ -116,17 +125,24 @@ public class WeaponTooltipExtraSpacePatch
 
                     if (codes[j].opcode == OpCodes.Br || codes[j].opcode == OpCodes.Br_S)
                     {
-                        Monitor?.Log($"Found br at IL[{j}] prev={codes[j-1].opcode} {codes[j-1].operand}", LogLevel.Info);
+                        Monitor?.Log($"Found br at IL[{j}]", LogLevel.Info);
                         break;
                     }
                 }
 
-                // แทรกก่อน br: num3 += CalcExtra(meleeWeapon)
-                yield return new CodeInstruction(OpCodes.Ldloc_3);
-                yield return new CodeInstruction(OpCodes.Ldloc_S, codes[i - 1].operand ?? (byte)25);
-                yield return new CodeInstruction(OpCodes.Call, calcExtra);
-                yield return new CodeInstruction(OpCodes.Add);
-                yield return new CodeInstruction(OpCodes.Stloc_3);
+                if (meleeWeaponOperand != null)
+                {
+                    yield return new CodeInstruction(OpCodes.Ldloc_3);
+                    yield return new CodeInstruction(OpCodes.Ldloc_S, meleeWeaponOperand);
+                    yield return new CodeInstruction(OpCodes.Call, calcExtra);
+                    yield return new CodeInstruction(OpCodes.Add);
+                    yield return new CodeInstruction(OpCodes.Stloc_3);
+                    Monitor?.Log("DrawHoverTextTranspiler: injection with MeleeWeapon operand!", LogLevel.Info);
+                }
+                else
+                {
+                    Monitor?.Log("DrawHoverTextTranspiler: meleeWeaponOperand is null!", LogLevel.Warn);
+                }
 
                 found = true;
                 Monitor?.Log("DrawHoverTextTranspiler: injection point found!", LogLevel.Info);
