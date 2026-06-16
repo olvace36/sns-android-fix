@@ -31,6 +31,51 @@ public class WeaponTooltipPatch
             AccessTools.Method(typeof(StardewValley.Tools.MeleeWeapon), "drawTooltip"),
             postfix: new HarmonyMethod(typeof(WeaponTooltipPatch)
                 .GetMethod(nameof(DrawTooltipPostfix))));
+
+        harmony.Patch(
+            AccessTools.Method(typeof(StardewValley.Tools.MeleeWeapon),
+                "getExtraSpaceNeededForTooltipSpecialIcons"),
+            postfix: new HarmonyMethod(typeof(WeaponTooltipPatch)
+                .GetMethod(nameof(ExtraSpacePostfix))));
+    }
+
+    static int CountLines(StardewValley.Tools.MeleeWeapon weapon)
+    {
+        int lines = 0;
+        if (_getAlloying?.Invoke(null, new object[] { weapon }) is string alloy && alloy switch
+        {
+            "(O)334" or "(O)335" or "(O)336" or "(O)337" or "(O)910" => true,
+            _ => false
+        }) lines++;
+
+        if (_getCoating?.Invoke(null, new object[] { weapon }) is string coat && coat switch
+        {
+            "(O)766" or "(O)767" or "(O)768" or "(O)684" or "(O)769" => true,
+            _ => false
+        }) lines++;
+
+        if (_getGem?.Invoke(null, new object[] { weapon }) is string gem && gem switch
+        {
+            "(O)DN.SnS_ExquisiteEmerald" or "(O)DN.SnS_ExquisiteRuby" or
+            "(O)DN.SnS_ExquisiteJade" or "(O)DN.SnS_ExquisiteAmethyst" or
+            "(O)DN.SnS_ExquisiteDiamond" or "(O)ExquisiteAquamarine" or
+            "(O)DN.SnS_ExquisiteTopaz" => true,
+            _ => false
+        }) lines++;
+
+        return lines;
+    }
+
+    public static void ExtraSpacePostfix(StardewValley.Tools.MeleeWeapon __instance,
+        SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight,
+        StringBuilder descriptionText, string boldTitleText,
+        int moneyAmountToDisplayAtBottom, ref Point __result)
+    {
+        int lines = CountLines(__instance);
+        if (lines == 0) return;
+
+        int extraHeight = lines * ((int)font.MeasureString("TT").Y + 4);
+        __result = new Point(__result.X, __result.Y + extraHeight);
     }
 
     public static void DrawTooltipPostfix(StardewValley.Tools.MeleeWeapon __instance,
