@@ -49,15 +49,6 @@ public class WeaponTooltipPatch
             AccessTools.Method(typeof(MeleeWeapon), "drawTooltip"),
             postfix: drawTooltipPostfix);
 
-        var extraSpacePostfix = new HarmonyMethod(typeof(WeaponTooltipPatch)
-            .GetMethod(nameof(ExtraSpacePostfix)));
-        extraSpacePostfix.priority = Priority.Low;
-
-        harmony.Patch(
-            AccessTools.Method(typeof(MeleeWeapon),
-                "getExtraSpaceNeededForTooltipSpecialIcons"),
-            postfix: extraSpacePostfix);
-
         Monitor?.Log("WeaponTooltipPatch applied!", LogLevel.Info);
     }
 
@@ -65,39 +56,6 @@ public class WeaponTooltipPatch
     {
         var t = _translation?.Get(key);
         return t?.HasValue() == true ? t.ToString() : "";
-    }
-
-    static int CountLines(MeleeWeapon weapon)
-    {
-        string? alloyId = _getAlloying?.Invoke(null, new object[] { weapon }) as string;
-        if (alloyId == null)
-            ((Item)weapon).modData.TryGetValue("swordandsorcery/BladeAlloying", out alloyId);
-
-        string? coatingId = _getCoating?.Invoke(null, new object[] { weapon }) as string;
-        if (coatingId == null)
-            ((Item)weapon).modData.TryGetValue("swordandsorcery/BladeCoating", out coatingId);
-
-        string? gemId = _getGem?.Invoke(null, new object[] { weapon }) as string;
-        if (gemId == null)
-            ((Item)weapon).modData.TryGetValue("swordandsorcery/ExquisiteGemstone", out gemId);
-
-        int lines = 0;
-        if (alloyId != null && GetText($"tooltip.alloying.{alloyId}").Length > 0) lines++;
-        if (coatingId != null && GetText($"tooltip.coating.{coatingId}").Length > 0) lines++;
-        if (gemId != null && GetText($"tooltip.gem.{gemId}").Length > 0) lines++;
-
-        return lines;
-    }
-
-    public static void ExtraSpacePostfix(MeleeWeapon __instance,
-        SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight,
-        StringBuilder descriptionText, string boldTitleText,
-        int moneyAmountToDisplayAtBottom, ref Point __result)
-    {
-        int lines = CountLines(__instance);
-        if (lines == 0) return;
-        int extraHeight = lines * ((int)font.MeasureString("TT").Y + 4);
-        __result = new Point(__result.X, __result.Y + extraHeight);
     }
 
     public static void DrawTooltipPostfix(MeleeWeapon __instance,
