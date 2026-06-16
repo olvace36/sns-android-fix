@@ -3,14 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
 using StardewValley.Tools;
+using System.Text;
 
 namespace SnsAndroidFix;
 
+[HarmonyPatch(typeof(MeleeWeapon), "getExtraSpaceNeededForTooltipSpecialIcons")]
 public class WeaponTooltipExtraSpacePatch
 {
     internal static IMonitor? Monitor;
@@ -46,37 +49,8 @@ public class WeaponTooltipExtraSpacePatch
         else
             Monitor?.Log("SNS MeleeWeaponTooltipPatch2.Postfix not found!", LogLevel.Warn);
 
-        // patch drawToolTip ด้วย signature ที่ถูกต้อง
-        var drawToolTipMethod = typeof(IClickableMenu).GetMethod(
-            "drawToolTip",
-            BindingFlags.Public | BindingFlags.Static,
-            null,
-            new[]
-            {
-                typeof(SpriteBatch), typeof(string), typeof(string),
-                typeof(Item), typeof(bool), typeof(int), typeof(int),
-                typeof(string), typeof(int), typeof(CraftingRecipe), typeof(int)
-            },
-            null);
-
-        if (drawToolTipMethod != null)
-        {
-            harmony.Patch(drawToolTipMethod,
-                prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-                    .GetMethod(nameof(DrawToolTipPrefix))));
-            Monitor?.Log($"drawToolTip patch applied! params={drawToolTipMethod.GetParameters().Length}", LogLevel.Info);
-        }
-        else
-        {
-            Monitor?.Log("drawToolTip not found! trying any overload...", LogLevel.Warn);
-
-            // ลองหาทุก overload
-            var methods = typeof(IClickableMenu).GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .Where(m => m.Name == "drawToolTip").ToArray();
-            Monitor?.Log($"Found {methods.Length} drawToolTip overloads", LogLevel.Info);
-            foreach (var m in methods)
-                Monitor?.Log($"  params={m.GetParameters().Length}: {string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))}", LogLevel.Info);
-        }
+        harmony.PatchAll();
+        Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
     }
 
     public static bool SNSTooltipPrefix() => !Drawing;
@@ -87,39 +61,20 @@ public class WeaponTooltipExtraSpacePatch
         if (_getAlloying?.Invoke(null, new object[] { weapon }) is string) extra += 48;
         if (_getCoating?.Invoke(null, new object[] { weapon }) is string) extra += 48;
         if (_getGem?.Invoke(null, new object[] { weapon }) is string) extra += 48;
+        Monitor?.Log($"CalcExtra: {weapon.Name} extra={extra}", LogLevel.Info);
         return extra;
     }
 
-    public static bool DrawToolTipPrefix(
-        SpriteBatch b, string hoverText, string hoverTitle,
-        Item hoveredItem, bool heldItem, int healAmountToDisplay,
-        int currencySymbol, string extraItemToShowIndex,
-        int extraItemToShowAmount, CraftingRecipe craftingIngredients,
-        int moneyAmountToShowAtBottom)
+    static void Postfix(MeleeWeapon __instance,
+        SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight,
+        StringBuilder descriptionText, string boldTitleText,
+        int moneyAmountToDisplayAtBottom, ref Point __result)
     {
-        if (hoveredItem is not MeleeWeapon weapon) return true;
+        int extra = CalcExtra(__instance);
+        if (extra == 0) return;
 
-        int extra = CalcExtra(weapon);
-        Monitor?.Log($"DrawToolTipPrefix: {weapon.Name} extra={extra}", LogLevel.Info);
-        if (extra == 0) return true;
-
-        Drawing = true;
-        try
-        {
-            int salePrice = weapon.salePrice();
-            IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont,
-                heldItem ? 40 : 0, heldItem ? 40 : 0,
-                moneyAmountToShowAtBottom, hoverTitle,
-                -1, null, hoveredItem,
-                currencySymbol, extraItemToShowIndex, extraItemToShowAmount,
-                -1, -1, 1f, craftingIngredients,
-                boxHeightOverride: -1);
-        }
-        finally
-        {
-            Drawing = false;
-        }
-
-        return false;
+        Monitor?.Log($"getExtraSpacePostfix: {__instance.Name} before={__result.Y} extra={extra}", LogLevel.Info);
+        __result = new Point(__result.X, __result.Y + extra);
+        Monitor?.Log($"getExtraSpacePostfix: after={__result.Y}", LogLevel.Info);
     }
 }
