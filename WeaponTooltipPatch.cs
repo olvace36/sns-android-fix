@@ -41,72 +41,7 @@ public class WeaponTooltipPatch
 
         Monitor?.Log($"WeaponTooltipPatch: getAlloying={_getAlloying != null}, getCoating={_getCoating != null}, getGem={_getGem != null}", LogLevel.Info);
 
-        var drawTooltipPostfix = new HarmonyMethod(typeof(WeaponTooltipPatch)
-            .GetMethod(nameof(DrawTooltipPostfix)));
-        drawTooltipPostfix.priority = Priority.Low;
-
-        harmony.Patch(
-            AccessTools.Method(typeof(MeleeWeapon), "drawTooltip"),
-            postfix: drawTooltipPostfix);
-
+        // ลบ DrawTooltipPostfix ออก เพราะ DrawTooltipPrefix จัดการแล้ว
         Monitor?.Log("WeaponTooltipPatch applied!", LogLevel.Info);
-    }
-
-    static string GetText(string key)
-    {
-        var t = _translation?.Get(key);
-        return t?.HasValue() == true ? t.ToString() : "";
-    }
-
-    public static void DrawTooltipPostfix(MeleeWeapon __instance,
-        SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font)
-    {
-        string? alloyId = _getAlloying?.Invoke(null, new object[] { __instance }) as string;
-        if (alloyId == null)
-            ((Item)__instance).modData.TryGetValue("swordandsorcery/BladeAlloying", out alloyId);
-
-        if (alloyId != null)
-        {
-            string text = GetText($"tooltip.alloying.{alloyId}");
-            if (text.Length > 0)
-            {
-                Utility.drawTextWithShadow(spriteBatch, text, font,
-                    new Vector2((float)(x + 16 + 44), (float)(y + 16 + 12)),
-                    Game1.textColor, 1f, -1f, -1, -1, 1f, 3);
-                y += Math.Max((int)font.MeasureString("TT").Y, 48);
-            }
-        }
-
-        string? coatingId = _getCoating?.Invoke(null, new object[] { __instance }) as string;
-        if (coatingId == null)
-            ((Item)__instance).modData.TryGetValue("swordandsorcery/BladeCoating", out coatingId);
-
-        if (coatingId != null)
-        {
-            string text = GetText($"tooltip.coating.{coatingId}");
-            if (text.Length > 0)
-            {
-                Utility.drawTextWithShadow(spriteBatch, text, font,
-                    new Vector2((float)(x + 16 + 44), (float)(y + 16 + 12)),
-                    Game1.textColor, 1f, -1f, -1, -1, 1f, 3);
-                y += Math.Max((int)font.MeasureString("TT").Y, 48);
-            }
-        }
-
-        string? gemId = _getGem?.Invoke(null, new object[] { __instance }) as string;
-        if (gemId == null)
-            ((Item)__instance).modData.TryGetValue("swordandsorcery/ExquisiteGemstone", out gemId);
-
-        if (gemId != null)
-        {
-            string text = GetText($"tooltip.gem.{gemId}");
-            if (text.Length > 0)
-            {
-                Utility.drawTextWithShadow(spriteBatch, text, font,
-                    new Vector2((float)(x + 16 + 44), (float)(y + 16 + 12)),
-                    Game1.textColor, 1f, -1f, -1, -1, 1f, 3);
-                y += Math.Max((int)font.MeasureString("TT").Y, 48);
-            }
-        }
     }
 }
