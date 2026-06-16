@@ -79,6 +79,7 @@ public class WeaponTooltipPatch
         return lines;
     }
 
+    // signature ตรงกับ vanilla
     public static void ExtraSpacePostfix(MeleeWeapon __instance,
         SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight,
         StringBuilder descriptionText, string boldTitleText,
@@ -87,14 +88,16 @@ public class WeaponTooltipPatch
         int lines = CountLines(__instance);
         if (lines == 0) return;
         int extraHeight = lines * ((int)font.MeasureString("TT").Y + 4);
-        Monitor?.Log($"ExtraSpacePostfix: lines={lines}, extraHeight={extraHeight}", LogLevel.Info);
+        Monitor?.Log($"ExtraSpacePostfix: weapon={__instance.Name} lines={lines} extraHeight={extraHeight}", LogLevel.Info);
         __result = new Point(__result.X, __result.Y + extraHeight);
     }
 
+    // signature ตรงกับ SNS MeleeWeaponTooltipPatch2
     public static void DrawTooltipPostfix(MeleeWeapon __instance,
-        SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font,
-        float alpha, StringBuilder overrideText)
+        SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font)
     {
+        Monitor?.Log($"DrawTooltipPostfix called: {__instance.Name} x={x} y={y}", LogLevel.Info);
+
         string? alloyId = _getAlloying?.Invoke(null, new object[] { __instance }) as string;
         if (alloyId != null)
         {
@@ -111,9 +114,9 @@ public class WeaponTooltipPatch
             {
                 Monitor?.Log($"DrawTooltip: alloy={alloyId} text={alloyText} y={y}", LogLevel.Info);
                 Utility.drawTextWithShadow(spriteBatch, alloyText, font,
-                    new Vector2((float)(x + 16), (float)(y + 4)),
+                    new Vector2((float)(x + 16 + 44), (float)(y + 16 + 12)),
                     new Color(0, 120, 0), 1f, -1f, -1, -1, 1f, 3);
-                y += (int)font.MeasureString("TT").Y + 4;
+                y += Math.Max((int)font.MeasureString("TT").Y, 48);
             }
         }
 
@@ -133,9 +136,9 @@ public class WeaponTooltipPatch
             {
                 Monitor?.Log($"DrawTooltip: coating={coatingId} text={coatingText} y={y}", LogLevel.Info);
                 Utility.drawTextWithShadow(spriteBatch, coatingText, font,
-                    new Vector2((float)(x + 16), (float)(y + 4)),
+                    new Vector2((float)(x + 16 + 44), (float)(y + 16 + 12)),
                     new Color(80, 0, 150), 1f, -1f, -1, -1, 1f, 3);
-                y += (int)font.MeasureString("TT").Y + 4;
+                y += Math.Max((int)font.MeasureString("TT").Y, 48);
             }
         }
 
@@ -157,9 +160,9 @@ public class WeaponTooltipPatch
             {
                 Monitor?.Log($"DrawTooltip: gem={gemId} text={gemText} y={y}", LogLevel.Info);
                 Utility.drawTextWithShadow(spriteBatch, gemText, font,
-                    new Vector2((float)(x + 16), (float)(y + 4)),
+                    new Vector2((float)(x + 16 + 44), (float)(y + 16 + 12)),
                     new Color(180, 120, 0), 1f, -1f, -1, -1, 1f, 3);
-                y += (int)font.MeasureString("TT").Y + 4;
+                y += Math.Max((int)font.MeasureString("TT").Y, 48);
             }
         }
     }
