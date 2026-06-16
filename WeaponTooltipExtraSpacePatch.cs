@@ -10,6 +10,7 @@ using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Enchantments;
 using StardewValley.Menus;
+using StardewValley.Objects;
 using StardewValley.Tools;
 
 namespace SnsAndroidFix;
