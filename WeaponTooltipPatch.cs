@@ -111,15 +111,15 @@ public class WeaponTooltipPatch
 
         if (alloyId != null)
         {
-            string alloyText = alloyId switch
-            {
-                "(O)334" => "+5% Damage",
-                "(O)335" => "+10% Damage",
-                "(O)336" => "+15% Damage",
-                "(O)337" => "+20% Damage",
-                "(O)910"  => "+25% Damage",
-                _ => ""
-            };
+string alloyText = alloyId switch
+{
+    "(O)DN.SnS_PureCopperOre"      => "+5% Damage",
+    "(O)DN.SnS_PureIronOre"        => "+10% Damage",
+    "(O)DN.SnS_PureGoldOre"        => "+15% Damage",
+    "(O)DN.SnS_PureIridiumOre"     => "+20% Damage",
+    "(O)DN.SnS_PureRadioactiveOre" => "+25% Damage",
+    _ => ""
+};
             if (alloyText.Length > 0)
             {
                 Monitor?.Log($"DrawTooltip: alloy={alloyId} text={alloyText} y={y}", LogLevel.Info);
