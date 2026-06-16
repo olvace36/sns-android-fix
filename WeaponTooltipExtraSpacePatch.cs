@@ -35,7 +35,6 @@ public class WeaponTooltipExtraSpacePatch
             }
         }
 
-        // วิธีใหม่: patch drawToolTip ให้ส่ง boxHeightOverride ที่ถูกต้อง
         var drawToolTipMethod = typeof(IClickableMenu).GetMethod(
             "drawToolTip",
             BindingFlags.Public | BindingFlags.Static,
@@ -97,7 +96,6 @@ public class WeaponTooltipExtraSpacePatch
         return extra;
     }
 
-    // วิธีใหม่: patch drawToolTip แล้วเรียก drawHoverText เองพร้อม boxHeightOverride
     public static bool DrawToolTipPrefix(
         SpriteBatch b, string hoverText, string hoverTitle,
         Item hoveredItem, bool heldItem, int healAmountToDisplay,
@@ -112,25 +110,17 @@ public class WeaponTooltipExtraSpacePatch
 
         Monitor?.Log($"DrawToolTipPrefix: extra={extra}", LogLevel.Info);
 
-        // เรียก drawHoverText เองพร้อม boxHeightOverride
-        bool flag = hoveredItem is StardewValley.Object obj && obj.edibility.Value != -300;
-        string[]? buffIconsToDisplay = null;
-        if (flag && Game1.objectData.TryGetValue(hoveredItem.ItemId, out var value))
-            buffIconsToDisplay = IClickableMenu.GetBuffIcons(hoveredItem, value);
-
         IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont,
             heldItem ? 40 : 0, heldItem ? 40 : 0,
             moneyAmountToShowAtBottom, hoverTitle,
-            flag ? (hoveredItem as StardewValley.Object)!.edibility.Value : -1,
-            buffIconsToDisplay, hoveredItem, currencySymbol,
+            -1, null, hoveredItem, currencySymbol,
             extraItemToShowIndex, extraItemToShowAmount,
             -1, -1, 1f, craftingIngredients,
             boxHeightOverride: extra);
 
-        return false; // skip original
+        return false;
     }
 
-    // Log IL
     public static IEnumerable<CodeInstruction> LogILTranspiler(
         IEnumerable<CodeInstruction> instructions)
     {
