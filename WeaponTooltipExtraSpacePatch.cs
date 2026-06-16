@@ -79,6 +79,12 @@ public class WeaponTooltipExtraSpacePatch
 
     public static bool SNSTooltipPrefix() => !Drawing;
 
+    public static int TestCall()
+    {
+        Monitor?.Log("TestCall was called!", LogLevel.Info);
+        return 0;
+    }
+
     public static int CalcExtra(MeleeWeapon weapon)
     {
         int extra = 0;
@@ -95,31 +101,32 @@ public class WeaponTooltipExtraSpacePatch
         var codes = new List<CodeInstruction>(instructions);
         var calcExtra = AccessTools.Method(
             typeof(WeaponTooltipExtraSpacePatch), "CalcExtra");
+        var testCall = AccessTools.Method(
+            typeof(WeaponTooltipExtraSpacePatch), "TestCall");
 
         bool found = false;
         object? meleeWeaponOperand = null;
 
         for (int i = 0; i < codes.Count; i++)
         {
-            // เก็บ operand ของ ldloc.s MeleeWeapon
             if (codes[i].opcode == OpCodes.Ldloc_S &&
                 codes[i].operand?.ToString()?.Contains("MeleeWeapon") == true)
             {
                 meleeWeaponOperand = codes[i].operand;
             }
 
-            // หา br ที่กระโดดออกจาก MeleeWeapon block
-            // แทรก code ก่อน br
             if (!found && meleeWeaponOperand != null &&
                 (codes[i].opcode == OpCodes.Br || codes[i].opcode == OpCodes.Br_S))
             {
-                // ตรวจสอบว่าเป็น br หลัง GalaxySoul block ไม่ใช่ br อื่น
-                // โดยเช็คว่า codes[i-1] คือ stloc.3
                 if (i > 0 && codes[i-1].opcode == OpCodes.Stloc_3)
                 {
-                    Monitor?.Log($"Found br at IL[{i}] — injecting CalcExtra before br", LogLevel.Info);
+                    Monitor?.Log($"Found br at IL[{i}] — injecting before br", LogLevel.Info);
 
-                    // แทรกก่อน br
+                    // TestCall ก่อนเพื่อตรวจว่า code ถูกเรียก
+                    yield return new CodeInstruction(OpCodes.Call, testCall);
+                    yield return new CodeInstruction(OpCodes.Pop);
+
+                    // CalcExtra จริงๆ
                     yield return new CodeInstruction(OpCodes.Ldloc_3);
                     yield return new CodeInstruction(OpCodes.Ldloc_S, meleeWeaponOperand);
                     yield return new CodeInstruction(OpCodes.Call, calcExtra);
