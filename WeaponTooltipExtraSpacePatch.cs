@@ -101,18 +101,17 @@ public class WeaponTooltipExtraSpacePatch
         Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra}", LogLevel.Info);
         if (extra == 0) return true;
 
-        // คำนวณ vanilla height ก่อน
+        // ส่ง -1 เพื่อไม่ให้รวมราคาใน vanillaSpace.Y
         Point vanillaSpace = weapon.getExtraSpaceNeededForTooltipSpecialIcons(
             Game1.smallFont, 0, 92, 0,
             new StringBuilder(weapon.description ?? ""),
-            weapon.DisplayName, moneyAmountToShowAtBottom);
+            weapon.DisplayName, -1);
 
         int boxHeight = vanillaSpace.Y + extra;
         Monitor?.Log($"DrawMobileFloatingPrefix: vanillaSpace.Y={vanillaSpace.Y} boxHeight={boxHeight}", LogLevel.Info);
 
         bool flag = hoveredItem is StardewValley.Object obj && obj.edibility.Value != -300;
         string[]? buffIconsToDisplay = null;
-
         string? extraItemToShowIndex2 = extraItemToShowIndex != -1 ? "(O)" + extraItemToShowIndex : null;
 
         Drawing = true;
