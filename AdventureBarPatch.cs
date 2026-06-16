@@ -27,6 +27,7 @@ public class AdventureBarPatch
     private static PropertyInfo? _netIntValueProperty;
 
     private const int AetherBarHeight = 56;
+    private const int AetherBarMargin = 16;
 
     public static void Apply(Harmony harmony)
     {
@@ -69,12 +70,9 @@ public class AdventureBarPatch
             _maxManaField = farmerExtDataType.GetField("maxMana",
                 BindingFlags.Public | BindingFlags.Instance);
 
-            // cache NetInt.Value property
             if (_manaField != null)
-            {
                 _netIntValueProperty = _manaField.FieldType
                     .GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
-            }
 
             Monitor?.Log($"manaField={_manaField != null}, maxManaField={_maxManaField != null}, netIntValue={_netIntValueProperty != null}", LogLevel.Info);
         }
@@ -88,10 +86,7 @@ public class AdventureBarPatch
                     .GetMethod(nameof(DrawPrefix))));
             Monitor?.Log("AdventureBarPatch draw patch applied!", LogLevel.Info);
         }
-        else
-        {
-            Monitor?.Log("draw method not found!", LogLevel.Warn);
-        }
+        else Monitor?.Log("draw method not found!", LogLevel.Warn);
     }
 
     static (int x, int y, int w, int h) GetBounds(object instance)
@@ -124,10 +119,10 @@ public class AdventureBarPatch
         int mana = (int?)_netIntValueProperty?.GetValue(manaNetInt) ?? 0;
         int maxMana = (int?)_netIntValueProperty?.GetValue(maxManaNetInt) ?? 0;
 
-        Monitor?.Log($"DrawAetherBar: x={xPos} y={yPos} w={width} mana={mana}/{maxMana}", LogLevel.Info);
+        // วาดกรอบ
+        IClickableMenu.drawTextureBox(b, xPos, yPos, width, AetherBarHeight, Color.White);
 
         float num = maxMana > 0 ? Math.Min(1f, (float)mana / maxMana) : 0f;
-
         if (num > 0f)
             b.Draw(Game1.staminaRect,
                 new Rectangle(xPos + 12, yPos + 8,
@@ -151,12 +146,10 @@ public class AdventureBarPatch
 
         var (xPos, yPos, width, height) = GetBounds(__instance);
 
+        // มุมซ้ายล่าง
         int vh = Game1.uiViewport.Height;
-        int vw = Game1.uiViewport.Width;
-        int aetherX = vw / 2 - width / 2;
-        int aetherY = vh / 2 - AetherBarHeight / 2;
-
-        Monitor?.Log($"DrawPrefix: AetherOnly=true x={aetherX} y={aetherY} w={width}", LogLevel.Info);
+        int aetherX = AetherBarMargin;
+        int aetherY = vh - AetherBarHeight - AetherBarMargin;
 
         DrawAetherBar(b, aetherX, aetherY, width);
         return false;
