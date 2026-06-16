@@ -38,9 +38,9 @@ public class ModEntry : Mod
         BuffedSkillLevelPatch.Apply(harmony);
         EquipmentMenuDebugPatch.Apply(harmony);
         WeaponTooltipPatch.Apply(harmony, helper.Translation);
-        WeaponTooltipExtraSpacePatch.Apply(harmony);
         AdventureBarPatch.Apply(harmony);
         MonsterDamagePatch.Apply(harmony);
+        // WeaponTooltipExtraSpacePatch.Apply ย้ายไป GameLaunched
 
         object? rogueSkill = null;
         object? paladinSkill = null;
@@ -61,6 +61,9 @@ public class ModEntry : Mod
                 ?.GetValue(null);
             RevalidateHealthPatch.InitCache();
             SnsEquipmentMenu.InitSlotIds();
+
+            // patch หลัง SMAPI rewrite เสร็จ
+            WeaponTooltipExtraSpacePatch.Apply(harmony);
         };
 
         helper.Events.GameLoop.SaveLoaded += (s, e) =>
