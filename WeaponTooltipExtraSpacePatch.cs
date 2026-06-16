@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
@@ -36,7 +37,7 @@ public class WeaponTooltipExtraSpacePatch
             }
         }
 
-        // patch drawHoverText แบบ string (ที่ drawToolTip เรียก)
+        // patch drawHoverText แบบ string — method สั้นมาก แค่เรียก StringBuilder version
         var drawHoverTextString = typeof(IClickableMenu).GetMethod(
             "drawHoverText",
             BindingFlags.Public | BindingFlags.Static,
@@ -57,15 +58,15 @@ public class WeaponTooltipExtraSpacePatch
         if (drawHoverTextString != null)
         {
             harmony.Patch(drawHoverTextString,
-                prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-                    .GetMethod(nameof(DrawHoverTextPrefix))));
+                transpiler: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
+                    .GetMethod(nameof(DrawHoverTextStringTranspiler))));
             Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
         }
         else
             Monitor?.Log("drawHoverText(string) not found!", LogLevel.Warn);
     }
 
-    static int CalcExtra(Item hoveredItem, SpriteFont font)
+    public static int CalcExtra(Item hoveredItem, SpriteFont font)
     {
         if (hoveredItem is not MeleeWeapon weapon) return 0;
 
@@ -77,27 +78,58 @@ public class WeaponTooltipExtraSpacePatch
         return extra;
     }
 
-    public static void DrawHoverTextPrefix(
-        SpriteBatch b, string text, SpriteFont font,
-        int xOffset, int yOffset, int moneyAmountToDisplayAtBottom,
-        string boldTitleText, int healAmountToDisplay,
-        string[] buffIconsToDisplay, Item hoveredItem, int currencySymbol,
-        string extraItemToShowIndex, int extraItemToShowAmount,
-        int overrideX, int overrideY, float alpha,
-        CraftingRecipe craftingIngredients,
-        IList<Item> additional_craft_materials,
-        Texture2D boxTexture, Rectangle? boxSourceRect,
-        Color? textColor, Color? textShadowColor, float boxScale,
-        ref int boxWidthOverride, ref int boxHeightOverride, int stackNumber)
+    public static IEnumerable<CodeInstruction> DrawHoverTextStringTranspiler(
+        IEnumerable<CodeInstruction> instructions)
     {
-        int extra = CalcExtra(hoveredItem, font);
-        if (extra == 0) return;
+        var codes = new List<CodeInstruction>(instructions);
+        var calcExtra = AccessTools.Method(typeof(WeaponTooltipExtraSpacePatch), "CalcExtra");
 
-        Monitor?.Log($"DrawHoverTextPrefix: extra={extra} boxHeightOverride={boxHeightOverride}", LogLevel.Info);
+        // หา call drawHoverText StringBuilder แล้วแทรก extra ก่อนส่ง boxHeightOverride
+        // boxHeightOverride เป็น parameter ที่ 25 (index 24) ของ string version
+        // ใน IL จะเป็น ldarg.s 24 ก่อน call drawHoverText StringBuilder
 
-        if (boxHeightOverride > 0)
-            boxHeightOverride += extra;
-        else
-            boxHeightOverride = extra; // vanilla จะคำนวณ height เองแต่เราบังคับ override
+        var drawHoverTextSB = typeof(IClickableMenu).GetMethod(
+            "drawHoverText",
+            BindingFlags.Public | BindingFlags.Static,
+            null,
+            new[]
+            {
+                typeof(SpriteBatch), typeof(StringBuilder), typeof(SpriteFont),
+                typeof(int), typeof(int), typeof(int), typeof(string),
+                typeof(int), typeof(string[]), typeof(Item), typeof(int),
+                typeof(string), typeof(int), typeof(int), typeof(int),
+                typeof(float), typeof(CraftingRecipe),
+                typeof(IList<Item>), typeof(Texture2D), typeof(Rectangle?),
+                typeof(Color?), typeof(Color?), typeof(float),
+                typeof(int), typeof(int), typeof(int)
+            },
+            null);
+
+        bool found = false;
+        for (int i = 0; i < codes.Count; i++)
+        {
+            // ก่อน call drawHoverText StringBuilder แทรก code เพิ่ม extra
+            if (!found && drawHoverTextSB != null && codes[i].Calls(drawHoverTextSB))
+            {
+                // ตอนนี้ stack มี boxHeightOverride อยู่บนสุด
+                // แทรก: stack = stack + CalcExtra(hoveredItem, font)
+                // load hoveredItem (arg 9 ของ string version)
+                yield return new CodeInstruction(OpCodes.Ldarg_S, (byte)9);
+                // load font (arg 2)
+                yield return new CodeInstruction(OpCodes.Ldarg_2);
+                // call CalcExtra
+                yield return new CodeInstruction(OpCodes.Call, calcExtra);
+                // add
+                yield return new CodeInstruction(OpCodes.Add);
+
+                found = true;
+                Monitor?.Log("DrawHoverTextStringTranspiler: injection point found!", LogLevel.Info);
+            }
+
+            yield return codes[i];
+        }
+
+        if (!found)
+            Monitor?.Log("DrawHoverTextStringTranspiler: injection point not found!", LogLevel.Warn);
     }
 }
