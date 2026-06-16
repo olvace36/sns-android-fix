@@ -37,7 +37,6 @@ public class WeaponTooltipExtraSpacePatch
             }
         }
 
-        // patch SNS MeleeWeaponTooltipPatch2.Postfix ให้ skip ถ้า Drawing=true
         var sns2Type = AccessTools.TypeByName("SwordAndSorcerySMAPI.MeleeWeaponTooltipPatch2");
         var sns2Postfix = sns2Type?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
         if (sns2Postfix != null)
@@ -50,7 +49,6 @@ public class WeaponTooltipExtraSpacePatch
         else
             Monitor?.Log("SNS MeleeWeaponTooltipPatch2.Postfix not found!", LogLevel.Warn);
 
-        // Transpiler บน drawHoverText StringBuilder
         var drawHoverTextSB = typeof(IClickableMenu).GetMethod(
             "drawHoverText",
             BindingFlags.Public | BindingFlags.Static,
@@ -104,7 +102,6 @@ public class WeaponTooltipExtraSpacePatch
         {
             yield return codes[i];
 
-            // หา GetEnchantmentLevel<GalaxySoulEnchantment> ครั้งแรก
             if (!found &&
                 codes[i].opcode == OpCodes.Callvirt &&
                 codes[i].operand?.ToString()?.Contains("GetEnchantmentLevel") == true &&
@@ -112,27 +109,27 @@ public class WeaponTooltipExtraSpacePatch
             {
                 Monitor?.Log($"Found GalaxySoul at IL[{i}]", LogLevel.Info);
 
-                // เดิน forward หา stloc.3 (num3)
-                for (int j = i + 1; j < Math.Min(i + 15, codes.Count); j++)
+                for (int j = i + 1; j < Math.Min(i + 20, codes.Count); j++)
                 {
                     yield return codes[j];
                     i = j;
 
-                    if (codes[j].opcode == OpCodes.Stloc_3)
+                    if (codes[j].opcode == OpCodes.Br || codes[j].opcode == OpCodes.Br_S)
                     {
-                        // แทรก: num3 += CalcExtra(meleeWeapon)
-                        // IL[413]: ldloc.s MeleeWeapon (25) — ใช้ local variable 25
-                        yield return new CodeInstruction(OpCodes.Ldloc_3);
-                        yield return new CodeInstruction(OpCodes.Ldloc_S, (byte)25);
-                        yield return new CodeInstruction(OpCodes.Call, calcExtra);
-                        yield return new CodeInstruction(OpCodes.Add);
-                        yield return new CodeInstruction(OpCodes.Stloc_3);
-
-                        found = true;
-                        Monitor?.Log("DrawHoverTextTranspiler: injection point found!", LogLevel.Info);
+                        Monitor?.Log($"Found br at IL[{j}] prev={codes[j-1].opcode} {codes[j-1].operand}", LogLevel.Info);
                         break;
                     }
                 }
+
+                // แทรกก่อน br: num3 += CalcExtra(meleeWeapon)
+                yield return new CodeInstruction(OpCodes.Ldloc_3);
+                yield return new CodeInstruction(OpCodes.Ldloc_S, codes[i - 1].operand ?? (byte)25);
+                yield return new CodeInstruction(OpCodes.Call, calcExtra);
+                yield return new CodeInstruction(OpCodes.Add);
+                yield return new CodeInstruction(OpCodes.Stloc_3);
+
+                found = true;
+                Monitor?.Log("DrawHoverTextTranspiler: injection point found!", LogLevel.Info);
             }
         }
 
