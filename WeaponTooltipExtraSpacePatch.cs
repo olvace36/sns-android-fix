@@ -52,9 +52,9 @@ public class WeaponTooltipExtraSpacePatch
         int extra = 0;
         int lineHeight = Math.Max((int)font.MeasureString("TT").Y, 48);
 
-        if (GetId(__instance, _getAlloying) != null) extra += lineHeight * 2;
-        if (GetId(__instance, _getCoating) != null) extra += lineHeight * 2;
-        if (GetId(__instance, _getGem) != null) extra += lineHeight * 2;
+        if (GetId(__instance, _getAlloying) != null) extra += lineHeight * 6;
+        if (GetId(__instance, _getCoating) != null) extra += lineHeight * 6;
+        if (GetId(__instance, _getGem) != null) extra += lineHeight * 6;
 
         if (extra > 0)
             Monitor?.Log($"ExtraSpacePostfix: {__instance.Name} extra={extra}", LogLevel.Info);
