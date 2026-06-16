@@ -8,6 +8,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
+using StardewValley.Enchantments;
+using StardewValley.Menus;
 using StardewValley.Tools;
 
 namespace SnsAndroidFix;
@@ -62,7 +64,6 @@ public class WeaponTooltipExtraSpacePatch
             Monitor?.Log("drawHoverText not found!", LogLevel.Warn);
     }
 
-    // helper method ที่จะถูกเรียกใน transpiler
     public static int GetExtraHeight(Item hoveredItem, SpriteFont font)
     {
         if (hoveredItem is not MeleeWeapon weapon) return 0;
@@ -80,7 +81,6 @@ public class WeaponTooltipExtraSpacePatch
     {
         var codes = new List<CodeInstruction>(instructions);
 
-        // หา GetEnchantmentLevel<GalaxySoulEnchantment> ซึ่งอยู่หลัง foreach loop
         var getEnchantmentLevel = AccessTools.Method(
             typeof(MeleeWeapon),
             "GetEnchantmentLevel",
@@ -96,28 +96,20 @@ public class WeaponTooltipExtraSpacePatch
         {
             yield return codes[i];
 
-            // หลัง GalaxySoulEnchantment check จบ แทรก num3 += GetExtraHeight(hoveredItem, font)
             if (!found && codes[i].Calls(getEnchantmentLevel))
             {
-                // หา stloc ของ num3 หลัง getEnchantmentLevel
                 for (int j = i + 1; j < Math.Min(i + 10, codes.Count); j++)
                 {
                     yield return codes[j];
                     i = j;
                     if (codes[j].opcode == OpCodes.Add)
                     {
-                        // แทรก: num3 += GetExtraHeight(hoveredItem, font)
-                        // load num3
-                        yield return new CodeInstruction(OpCodes.Ldloc_S, (byte)5); // num3
-                        // load hoveredItem parameter
-                        yield return new CodeInstruction(OpCodes.Ldarg, 9); // hoveredItem
-                        // load font parameter
-                        yield return new CodeInstruction(OpCodes.Ldarg_2); // font
-                        // call GetExtraHeight
+                        yield return new CodeInstruction(OpCodes.Ldloc_S, (byte)5);
+                        yield return new CodeInstruction(OpCodes.Ldarg, 9);
+                        yield return new CodeInstruction(OpCodes.Ldarg_2);
                         yield return new CodeInstruction(OpCodes.Call, getExtraHeight);
-                        // num3 += extra
                         yield return new CodeInstruction(OpCodes.Add);
-                        yield return new CodeInstruction(OpCodes.Stloc_S, (byte)5); // num3
+                        yield return new CodeInstruction(OpCodes.Stloc_S, (byte)5);
                         found = true;
                         break;
                     }
