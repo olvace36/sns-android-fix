@@ -50,12 +50,13 @@ public class AdventureBarPatch
             BindingFlags.Public | BindingFlags.Instance);
 
         var farmerExtDataType = AccessTools.TypeByName("SwordAndSorcerySMAPI.FarmerExtData");
-        var farmerExtDataExtType = AccessTools.TypeByName("SwordAndSorcerySMAPI.FarmerExtDataExtensions");
+        var extensionsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.Extensions");
 
         Monitor?.Log($"FarmerExtData type={farmerExtDataType?.Name ?? "null"}", LogLevel.Info);
-        Monitor?.Log($"FarmerExtDataExtensions type={farmerExtDataExtType?.Name ?? "null"}", LogLevel.Info);
+        Monitor?.Log($"Extensions type={extensionsType?.Name ?? "null"}", LogLevel.Info);
 
-        _getFarmerExtData = farmerExtDataExtType?.GetMethod("GetFarmerExtData",
+        // แก้จาก FarmerExtDataExtensions เป็น Extensions
+        _getFarmerExtData = extensionsType?.GetMethod("GetFarmerExtData",
             BindingFlags.Public | BindingFlags.Static,
             null, new[] { typeof(Farmer) }, null);
 
