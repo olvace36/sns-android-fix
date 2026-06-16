@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using HarmonyLib;
@@ -36,7 +37,9 @@ public class WeaponTooltipPatch
             if (m.Name == "GetExquisiteGemstone") _getGem = m;
         }
 
-        Monitor?.Log($"WeaponTooltipPatch: getAlloying={_getAlloying != null}, getCoating={_getCoating != null}, getGem={_getGem != null}", LogLevel.Info);
+        Monitor?.Log($"WeaponTooltipPatch: getAlloying={_getAlloying?.DeclaringType?.FullName}.{_getAlloying?.Name ?? "null"}", LogLevel.Info);
+        Monitor?.Log($"WeaponTooltipPatch: getCoating={_getCoating?.DeclaringType?.FullName}.{_getCoating?.Name ?? "null"}", LogLevel.Info);
+        Monitor?.Log($"WeaponTooltipPatch: getGem={_getGem?.DeclaringType?.FullName}.{_getGem?.Name ?? "null"}", LogLevel.Info);
 
         harmony.Patch(
             AccessTools.Method(typeof(MeleeWeapon), "drawTooltip"),
@@ -99,6 +102,13 @@ public class WeaponTooltipPatch
         string? alloyId = _getAlloying?.Invoke(null, new object[] { __instance }) as string;
         Monitor?.Log($"alloyId={alloyId ?? "null"}", LogLevel.Info);
 
+        // ถ้า alloyId null ลองดึงจาก modData โดยตรง
+        if (alloyId == null)
+        {
+            alloyId = ((Item)__instance).modData.TryGetValue("swordandsorcery/BladeAlloying", out string val) ? val : null;
+            Monitor?.Log($"alloyId from modData={alloyId ?? "null"}", LogLevel.Info);
+        }
+
         if (alloyId != null)
         {
             string alloyText = alloyId switch
@@ -121,7 +131,8 @@ public class WeaponTooltipPatch
         }
 
         string? coatingId = _getCoating?.Invoke(null, new object[] { __instance }) as string;
-        Monitor?.Log($"coatingId={coatingId ?? "null"}", LogLevel.Info);
+        if (coatingId == null)
+            coatingId = ((Item)__instance).modData.TryGetValue("swordandsorcery/BladeCoating", out string val) ? val : null;
 
         if (coatingId != null)
         {
@@ -145,7 +156,8 @@ public class WeaponTooltipPatch
         }
 
         string? gemId = _getGem?.Invoke(null, new object[] { __instance }) as string;
-        Monitor?.Log($"gemId={gemId ?? "null"}", LogLevel.Info);
+        if (gemId == null)
+            gemId = ((Item)__instance).modData.TryGetValue("swordandsorcery/ExquisiteGemstone", out string val) ? val : null;
 
         if (gemId != null)
         {
