@@ -61,9 +61,6 @@ public class WeaponTooltipPatch
     public static void DrawTooltipPostfix(MeleeWeapon __instance,
         SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font)
     {
-        // skip ถ้า DrawTooltipPrefix กำลังวาดอยู่
-        if (WeaponTooltipExtraSpacePatch.Drawing) return;
-
         Monitor?.Log($"DrawTooltipPostfix called: {__instance.Name} x={x} y={y}", LogLevel.Info);
 
         string? alloyId = _getAlloying?.Invoke(null, new object[] { __instance }) as string;
