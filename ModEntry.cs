@@ -1,112 +1,80 @@
-using HarmonyLib;
-using StardewModdingAPI;
-using StardewModdingAPI.Events;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using HarmonyLib;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
+using StardewValley.Tools;
+using System.Text;
 
 namespace SnsAndroidFix;
 
-public class ModEntry : Mod
+[HarmonyPatch(typeof(MeleeWeapon), "getExtraSpaceNeededForTooltipSpecialIcons")]
+public class WeaponTooltipExtraSpacePatch
 {
-    private ModConfig _config = new();
+    internal static IMonitor? Monitor;
+    private static MethodInfo? _getAlloying;
+    private static MethodInfo? _getCoating;
+    private static MethodInfo? _getGem;
+    public static bool Drawing = false;
 
-    public override void Entry(IModHelper helper)
+    public static void Apply(Harmony harmony)
     {
-        _config = helper.ReadConfig<ModConfig>();
+        var extensionsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.ArsenalExtensions");
+        if (extensionsType != null)
+        {
+            foreach (var m in extensionsType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                var ps = m.GetParameters();
+                if (ps.Length != 1 || ps[0].ParameterType != typeof(MeleeWeapon)) continue;
+                if (m.Name == "GetBladeAlloying") _getAlloying = m;
+                if (m.Name == "GetBladeCoating") _getCoating = m;
+                if (m.Name == "GetExquisiteGemstone") _getGem = m;
+            }
+        }
 
-        ArsenalMenuPatch.Monitor = Monitor;
-        RevalidateHealthPatch.Monitor = Monitor;
-        SkillsPagePatch.Monitor = Monitor;
-        FancyAlchemyMenuPatch.Monitor = Monitor;
-        ShieldSigilMenuPatch.Monitor = Monitor;
-        BuffedSkillLevelPatch.Monitor = Monitor;
-        EquipmentMenuDebugPatch.Monitor = Monitor;
-        SnsEquipmentMenu.Monitor = Monitor;
-        WeaponTooltipPatch.Monitor = Monitor;
-        WeaponTooltipExtraSpacePatch.Monitor = Monitor;
-        AdventureBarPatch.Monitor = Monitor;
-        MonsterDamagePatch.Monitor = Monitor;
+        var sns2Type = AccessTools.TypeByName("SwordAndSorcerySMAPI.MeleeWeaponTooltipPatch2");
+        var sns2Postfix = sns2Type?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
+        if (sns2Postfix != null)
+        {
+            harmony.Patch(sns2Postfix,
+                prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
+                    .GetMethod(nameof(SNSTooltipPrefix))));
+            Monitor?.Log("SNS MeleeWeaponTooltipPatch2 patch applied!", LogLevel.Info);
+        }
+        else
+            Monitor?.Log("SNS MeleeWeaponTooltipPatch2.Postfix not found!", LogLevel.Warn);
 
-        var harmony = new Harmony(ModManifest.UniqueID);
-        LevelUpMenuTranspilerFix.Apply(harmony);
         harmony.PatchAll();
-        GuidebookMenuPatch.Apply(harmony);
-        FancyAlchemyMenuPatch.Apply(harmony);
-        ShieldSigilMenuPatch.Apply(harmony);
-        SkillsPagePatch.Apply(helper, Monitor, harmony);
-        BuffedSkillLevelPatch.Apply(harmony);
-        EquipmentMenuDebugPatch.Apply(harmony);
-        WeaponTooltipPatch.Apply(harmony, helper.Translation);
-        AdventureBarPatch.Apply(harmony);
-        MonsterDamagePatch.Apply(harmony);
-        // WeaponTooltipExtraSpacePatch.Apply ย้ายไป GameLaunched
+        Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
+    }
 
-        object? rogueSkill = null;
-        object? paladinSkill = null;
-        MethodInfo? getBuffedLevel = null;
+    public static bool SNSTooltipPrefix() => !Drawing;
 
-        helper.Events.GameLoop.GameLaunched += (s, e) =>
-        {
-            var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
-            getBuffedLevel = AccessTools.Method(
-                AccessTools.TypeByName("SpaceCore.SkillExtensions"),
-                "GetCustomBuffedSkillLevel",
-                new[] { typeof(Farmer), skillType });
-            rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
-                ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
-            paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
-                ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
-            RevalidateHealthPatch.InitCache();
-            SnsEquipmentMenu.InitSlotIds();
+    static int CalcExtra(MeleeWeapon weapon)
+    {
+        int extra = 0;
+        if (_getAlloying?.Invoke(null, new object[] { weapon }) is string) extra += 48;
+        if (_getCoating?.Invoke(null, new object[] { weapon }) is string) extra += 48;
+        if (_getGem?.Invoke(null, new object[] { weapon }) is string) extra += 48;
+        Monitor?.Log($"CalcExtra: {weapon.Name} extra={extra}", LogLevel.Info);
+        return extra;
+    }
 
-            // patch หลัง SMAPI rewrite เสร็จ
-            WeaponTooltipExtraSpacePatch.Apply(harmony);
-        };
+    static void Postfix(MeleeWeapon __instance,
+        SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight,
+        StringBuilder descriptionText, string boldTitleText,
+        int moneyAmountToDisplayAtBottom, ref Point __result)
+    {
+        int extra = CalcExtra(__instance);
+        if (extra == 0) return;
 
-        helper.Events.GameLoop.SaveLoaded += (s, e) =>
-        {
-            RevalidateHealthPatch.Reset();
-        };
-
-        helper.Events.GameLoop.DayStarted += (s, e) =>
-        {
-            RevalidateHealthPatch.InitFromBaseLevel(Game1.player);
-            LevelUpMenu.RevalidateHealth(Game1.player);
-        };
-
-        int lastRogueBuffed = 0;
-        int lastPaladinBuffed = 0;
-
-        helper.Events.GameLoop.UpdateTicked += (s, e) =>
-        {
-            if (!Context.IsWorldReady || getBuffedLevel == null) return;
-
-            int rogueBuffed = rogueSkill != null
-                ? (int)(getBuffedLevel.Invoke(null, new object[] { Game1.player, rogueSkill }) ?? 0)
-                : 0;
-            int paladinBuffed = paladinSkill != null
-                ? (int)(getBuffedLevel.Invoke(null, new object[] { Game1.player, paladinSkill }) ?? 0)
-                : 0;
-
-            if (rogueBuffed != lastRogueBuffed || paladinBuffed != lastPaladinBuffed)
-            {
-                lastRogueBuffed = rogueBuffed;
-                lastPaladinBuffed = paladinBuffed;
-                LevelUpMenu.RevalidateHealth(Game1.player);
-            }
-        };
-
-        helper.Events.Input.ButtonPressed += (s, e) =>
-        {
-            if (!Context.IsWorldReady) return;
-            if (e.Button == _config.ToggleAdventureBar)
-            {
-                AdventureBarPatch.AetherOnly = !AdventureBarPatch.AetherOnly;
-                Game1.playSound("smallSelect");
-            }
-        };
+        Monitor?.Log($"getExtraSpacePostfix: {__instance.Name} before={__result.Y} extra={extra}", LogLevel.Info);
+        __result = new Point(__result.X, __result.Y + extra);
+        Monitor?.Log($"getExtraSpacePostfix: after={__result.Y}", LogLevel.Info);
     }
 }
