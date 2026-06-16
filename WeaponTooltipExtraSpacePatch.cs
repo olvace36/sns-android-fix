@@ -20,6 +20,7 @@ public class WeaponTooltipExtraSpacePatch
     private static MethodInfo? _getAlloying;
     private static MethodInfo? _getCoating;
     private static MethodInfo? _getGem;
+    private static bool _drawing = false;
 
     public static void Apply(Harmony harmony)
     {
@@ -36,7 +37,6 @@ public class WeaponTooltipExtraSpacePatch
             }
         }
 
-        // patch drawTooltip ของ MeleeWeapon
         harmony.Patch(
             AccessTools.Method(typeof(MeleeWeapon), "drawTooltip"),
             prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
@@ -44,7 +44,6 @@ public class WeaponTooltipExtraSpacePatch
 
         Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
 
-        // IL logger สำหรับ drawHoverText StringBuilder
         var drawHoverTextSB = typeof(IClickableMenu).GetMethod(
             "drawHoverText",
             BindingFlags.Public | BindingFlags.Static,
@@ -84,31 +83,39 @@ public class WeaponTooltipExtraSpacePatch
         SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font,
         float alpha, StringBuilder overrideText)
     {
+        if (_drawing) return true;
+
         int extra = CalcExtra(__instance);
         if (extra == 0) return true;
 
-        // ดึง vanilla height จาก getExtraSpaceNeededForTooltipSpecialIcons
         var description = new StringBuilder(__instance.description ?? "");
         Point vanillaSpace = __instance.getExtraSpaceNeededForTooltipSpecialIcons(
             font, 0, 92, 0, description, __instance.DisplayName, -1);
 
-        Monitor?.Log($"DrawTooltipPrefix: {__instance.Name} vanillaSpace.Y={vanillaSpace.Y} extra={extra}", LogLevel.Info);
+        Monitor?.Log($"DrawTooltipPrefix: {__instance.Name} vanillaSpace.Y={vanillaSpace.Y} extra={extra} boxHeightOverride={vanillaSpace.Y + extra}", LogLevel.Info);
 
-        // เรียก drawHoverText เองพร้อม boxHeightOverride
-        IClickableMenu.drawHoverText(
-            spriteBatch,
-            overrideText?.ToString() ?? __instance.getDescription(),
-            font,
-            0, 0, -1,
-            __instance.DisplayName,
-            -1, null, __instance,
-            0, null, -1,
-            x, y, alpha,
-            boxHeightOverride: vanillaSpace.Y + extra);
+        _drawing = true;
+        try
+        {
+            IClickableMenu.drawHoverText(
+                spriteBatch,
+                overrideText?.ToString() ?? __instance.getDescription(),
+                font,
+                0, 0, -1,
+                __instance.DisplayName,
+                -1, null, __instance,
+                0, null, -1,
+                x, y, alpha,
+                boxHeightOverride: vanillaSpace.Y + extra);
 
-        Monitor?.Log($"DrawTooltipPrefix: called drawHoverText with boxHeightOverride={vanillaSpace.Y + extra}", LogLevel.Info);
+            Monitor?.Log($"DrawTooltipPrefix: drawHoverText called successfully", LogLevel.Info);
+        }
+        finally
+        {
+            _drawing = false;
+        }
 
-        return false; // skip original
+        return false;
     }
 
     public static IEnumerable<CodeInstruction> LogILTranspiler(
