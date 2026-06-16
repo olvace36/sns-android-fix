@@ -24,9 +24,9 @@ public class ModEntry : Mod
         EquipmentMenuDebugPatch.Monitor = Monitor;
         SnsEquipmentMenu.Monitor = Monitor;
         WeaponTooltipPatch.Monitor = Monitor;
+        WeaponTooltipExtraSpacePatch.Monitor = Monitor;
         AdventureBarPatch.Monitor = Monitor;
         MonsterDamagePatch.Monitor = Monitor;
-        WeaponTooltipExtraSpacePatch.Monitor = Monitor;
 
         var harmony = new Harmony(ModManifest.UniqueID);
         LevelUpMenuTranspilerFix.Apply(harmony);
@@ -38,9 +38,9 @@ public class ModEntry : Mod
         BuffedSkillLevelPatch.Apply(harmony);
         EquipmentMenuDebugPatch.Apply(harmony);
         WeaponTooltipPatch.Apply(harmony, helper.Translation);
+        WeaponTooltipExtraSpacePatch.Apply(harmony);
         AdventureBarPatch.Apply(harmony);
         MonsterDamagePatch.Apply(harmony);
-        WeaponTooltipExtraSpacePatch.Apply(harmony);
 
         object? rogueSkill = null;
         object? paladinSkill = null;
