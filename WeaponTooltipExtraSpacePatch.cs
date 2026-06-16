@@ -20,7 +20,7 @@ public class WeaponTooltipExtraSpacePatch
     private static MethodInfo? _getAlloying;
     private static MethodInfo? _getCoating;
     private static MethodInfo? _getGem;
-    private static bool _drawing = false;
+    public static bool Drawing = false;
 
     public static void Apply(Harmony harmony)
     {
@@ -42,8 +42,23 @@ public class WeaponTooltipExtraSpacePatch
             prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
                 .GetMethod(nameof(DrawTooltipPrefix))));
 
+        // patch SNS MeleeWeaponTooltipPatch2.Postfix ให้ skip ถ้า Drawing=true
+        var sns2Type = AccessTools.TypeByName("SwordAndSorcerySMAPI.MeleeWeaponTooltipPatch2");
+        var sns2Postfix = sns2Type?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
+        if (sns2Postfix != null)
+        {
+            harmony.Patch(sns2Postfix,
+                prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
+                    .GetMethod(nameof(SNSTooltipPrefix))));
+            Monitor?.Log("SNS MeleeWeaponTooltipPatch2 patch applied!", LogLevel.Info);
+        }
+        else
+            Monitor?.Log("SNS MeleeWeaponTooltipPatch2.Postfix not found!", LogLevel.Warn);
+
         Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
     }
+
+    public static bool SNSTooltipPrefix() => !Drawing;
 
     static int CalcExtra(MeleeWeapon weapon)
     {
@@ -58,20 +73,25 @@ public class WeaponTooltipExtraSpacePatch
         SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font,
         float alpha, StringBuilder overrideText)
     {
-        if (_drawing) return true;
+        if (Drawing) return true;
 
         int extra = CalcExtra(__instance);
         if (extra == 0) return true;
 
-        // ส่งราคาอาวุธเข้าไปด้วยเพื่อให้รวม height ราคาด้วย
         int salePrice = __instance.salePrice();
         var description = new StringBuilder(__instance.description ?? "");
-        Point vanillaSpace = __instance.getExtraSpaceNeededForTooltipSpecialIcons(
+
+        // ดึง vanilla height โดยไม่รวม SNS extra (SNS บวกไว้ใน boxHeightOverride แล้ว)
+        // ใช้ base class method ไม่ใช่ instance method ที่ SNS override
+        Point vanillaSpace = ((Item)__instance).getExtraSpaceNeededForTooltipSpecialIcons(
             font, 0, 92, 0, description, __instance.DisplayName, salePrice);
 
-        Monitor?.Log($"DrawTooltipPrefix: {__instance.Name} vanillaSpace.Y={vanillaSpace.Y} extra={extra} salePrice={salePrice} boxHeightOverride={vanillaSpace.Y + extra}", LogLevel.Info);
+        // SNS extra อยู่ใน vanillaSpace.Y แล้ว เราบวกแค่ effect text ของเรา
+        int boxHeight = vanillaSpace.Y + extra;
 
-        _drawing = true;
+        Monitor?.Log($"DrawTooltipPrefix: {__instance.Name} vanillaSpace.Y={vanillaSpace.Y} extra={extra} boxHeight={boxHeight}", LogLevel.Info);
+
+        Drawing = true;
         try
         {
             IClickableMenu.drawHoverText(
@@ -83,13 +103,11 @@ public class WeaponTooltipExtraSpacePatch
                 -1, null, __instance,
                 0, null, -1,
                 x, y, alpha,
-                boxHeightOverride: vanillaSpace.Y + extra);
-
-            Monitor?.Log($"DrawTooltipPrefix: drawHoverText called successfully", LogLevel.Info);
+                boxHeightOverride: boxHeight);
         }
         finally
         {
-            _drawing = false;
+            Drawing = false;
         }
 
         return false;
