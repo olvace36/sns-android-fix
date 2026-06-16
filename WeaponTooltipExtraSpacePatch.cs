@@ -84,33 +84,42 @@ public class WeaponTooltipExtraSpacePatch
         var getExtraHeight = AccessTools.Method(
             typeof(WeaponTooltipExtraSpacePatch), "GetExtraHeight");
 
+        // หา getDescriptionWidth ซึ่งมีแค่ใน MeleeWeapon block
+        var getDescriptionWidth = AccessTools.Method(
+            typeof(MeleeWeapon), "getDescriptionWidth");
+
         bool found = false;
 
         for (int i = 0; i < codes.Count; i++)
         {
             yield return codes[i];
 
-            // หา isinst Boots — จุดเริ่มต้นของ else if (hoveredItem is Boots)
-            if (!found &&
-                codes[i].opcode == OpCodes.Isinst &&
-                codes[i].operand is Type t && t == typeof(Boots))
+            // หลัง getDescriptionWidth ถูกเรียก หา stloc ที่เก็บ num3
+            if (!found && codes[i].Calls(getDescriptionWidth))
             {
-                // แทรกก่อน Boots block: num3 += GetExtraHeight(hoveredItem, font)
-                // load num3 (local variable)
-                yield return new CodeInstruction(OpCodes.Ldloc_S, (byte)5);
-                // load hoveredItem (arg 9)
-                yield return new CodeInstruction(OpCodes.Ldarg_S, (byte)9);
-                // load font (arg 2)
-                yield return new CodeInstruction(OpCodes.Ldarg_2);
-                // call GetExtraHeight
-                yield return new CodeInstruction(OpCodes.Call, getExtraHeight);
-                // add
-                yield return new CodeInstruction(OpCodes.Add);
-                // store num3
-                yield return new CodeInstruction(OpCodes.Stloc_S, (byte)5);
+                // เดิน forward หา instruction ที่ add แล้ว stloc
+                for (int j = i + 1; j < Math.Min(i + 15, codes.Count); j++)
+                {
+                    yield return codes[j];
+                    i = j;
 
-                found = true;
-                Monitor?.Log("DrawHoverTextTranspiler: injection point found!", LogLevel.Info);
+                    // หา stloc หลัง add (น่าจะเป็น num3 += ...)
+                    if (codes[j].opcode == OpCodes.Stloc_S || codes[j].opcode == OpCodes.Stloc)
+                    {
+                        var operand = codes[j].operand;
+                        // แทรก num3 += GetExtraHeight(hoveredItem, font)
+                        yield return new CodeInstruction(OpCodes.Ldloc_S, operand);
+                        yield return new CodeInstruction(OpCodes.Ldarg_S, (byte)9); // hoveredItem
+                        yield return new CodeInstruction(OpCodes.Ldarg_2); // font
+                        yield return new CodeInstruction(OpCodes.Call, getExtraHeight);
+                        yield return new CodeInstruction(OpCodes.Add);
+                        yield return new CodeInstruction(OpCodes.Stloc_S, operand);
+
+                        found = true;
+                        Monitor?.Log("DrawHoverTextTranspiler: injection point found!", LogLevel.Info);
+                        break;
+                    }
+                }
             }
         }
 
