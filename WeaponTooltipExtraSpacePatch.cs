@@ -43,31 +43,6 @@ public class WeaponTooltipExtraSpacePatch
                 .GetMethod(nameof(DrawTooltipPrefix))));
 
         Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
-
-        var drawHoverTextSB = typeof(IClickableMenu).GetMethod(
-            "drawHoverText",
-            BindingFlags.Public | BindingFlags.Static,
-            null,
-            new[]
-            {
-                typeof(SpriteBatch), typeof(StringBuilder), typeof(SpriteFont),
-                typeof(int), typeof(int), typeof(int), typeof(string),
-                typeof(int), typeof(string[]), typeof(Item), typeof(int),
-                typeof(string), typeof(int), typeof(int), typeof(int),
-                typeof(float), typeof(CraftingRecipe),
-                typeof(IList<Item>), typeof(Texture2D), typeof(Rectangle?),
-                typeof(Color?), typeof(Color?), typeof(float),
-                typeof(int), typeof(int), typeof(int)
-            },
-            null);
-
-        if (drawHoverTextSB != null)
-        {
-            harmony.Patch(drawHoverTextSB,
-                transpiler: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-                    .GetMethod(nameof(LogILTranspiler))));
-            Monitor?.Log("IL logger applied!", LogLevel.Info);
-        }
     }
 
     static int CalcExtra(MeleeWeapon weapon)
@@ -88,11 +63,13 @@ public class WeaponTooltipExtraSpacePatch
         int extra = CalcExtra(__instance);
         if (extra == 0) return true;
 
+        // ส่งราคาอาวุธเข้าไปด้วยเพื่อให้รวม height ราคาด้วย
+        int salePrice = __instance.salePrice();
         var description = new StringBuilder(__instance.description ?? "");
         Point vanillaSpace = __instance.getExtraSpaceNeededForTooltipSpecialIcons(
-            font, 0, 92, 0, description, __instance.DisplayName, -1);
+            font, 0, 92, 0, description, __instance.DisplayName, salePrice);
 
-        Monitor?.Log($"DrawTooltipPrefix: {__instance.Name} vanillaSpace.Y={vanillaSpace.Y} extra={extra} boxHeightOverride={vanillaSpace.Y + extra}", LogLevel.Info);
+        Monitor?.Log($"DrawTooltipPrefix: {__instance.Name} vanillaSpace.Y={vanillaSpace.Y} extra={extra} salePrice={salePrice} boxHeightOverride={vanillaSpace.Y + extra}", LogLevel.Info);
 
         _drawing = true;
         try
@@ -101,7 +78,7 @@ public class WeaponTooltipExtraSpacePatch
                 spriteBatch,
                 overrideText?.ToString() ?? __instance.getDescription(),
                 font,
-                0, 0, -1,
+                0, 0, salePrice,
                 __instance.DisplayName,
                 -1, null, __instance,
                 0, null, -1,
@@ -116,16 +93,5 @@ public class WeaponTooltipExtraSpacePatch
         }
 
         return false;
-    }
-
-    public static IEnumerable<CodeInstruction> LogILTranspiler(
-        IEnumerable<CodeInstruction> instructions)
-    {
-        int i = 0;
-        foreach (var code in instructions)
-        {
-            Monitor?.Log($"IL[{i++}]: {code.opcode} {code.operand}", LogLevel.Info);
-            yield return code;
-        }
     }
 }
