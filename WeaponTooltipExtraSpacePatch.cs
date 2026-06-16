@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Text;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -31,34 +34,98 @@ public class WeaponTooltipExtraSpacePatch
             }
         }
 
-        var extraSpacePostfix = new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-            .GetMethod(nameof(ExtraSpacePostfix)));
-        extraSpacePostfix.priority = Priority.High;
+        var drawHoverTextMethod = typeof(IClickableMenu).GetMethod(
+            "drawHoverText",
+            BindingFlags.Public | BindingFlags.Static,
+            null,
+            new[]
+            {
+                typeof(SpriteBatch), typeof(StringBuilder), typeof(SpriteFont),
+                typeof(int), typeof(int), typeof(int), typeof(string),
+                typeof(int), typeof(string[]), typeof(Item), typeof(int),
+                typeof(string), typeof(int), typeof(int), typeof(int),
+                typeof(float), typeof(CraftingRecipe),
+                typeof(IList<Item>), typeof(Texture2D), typeof(Rectangle?),
+                typeof(Color?), typeof(Color?), typeof(float),
+                typeof(int), typeof(int), typeof(int)
+            },
+            null);
 
-        harmony.Patch(
-            AccessTools.Method(typeof(MeleeWeapon),
-                "getExtraSpaceNeededForTooltipSpecialIcons"),
-            postfix: extraSpacePostfix);
-
-        Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
+        if (drawHoverTextMethod != null)
+        {
+            harmony.Patch(drawHoverTextMethod,
+                transpiler: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
+                    .GetMethod(nameof(DrawHoverTextTranspiler))));
+            Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
+        }
+        else
+            Monitor?.Log("drawHoverText not found!", LogLevel.Warn);
     }
 
-    static string? GetId(MeleeWeapon weapon, MethodInfo? method)
-        => method?.Invoke(null, new object[] { weapon }) as string;
-
-    public static void ExtraSpacePostfix(MeleeWeapon __instance,
-        SpriteFont font, ref Point __result)
+    // helper method ที่จะถูกเรียกใน transpiler
+    public static int GetExtraHeight(Item hoveredItem, SpriteFont font)
     {
+        if (hoveredItem is not MeleeWeapon weapon) return 0;
+
         int extra = 0;
         int lineHeight = Math.Max((int)font.MeasureString("TT").Y, 48);
+        if (_getAlloying?.Invoke(null, new object[] { weapon }) is string) extra += lineHeight;
+        if (_getCoating?.Invoke(null, new object[] { weapon }) is string) extra += lineHeight;
+        if (_getGem?.Invoke(null, new object[] { weapon }) is string) extra += lineHeight;
+        return extra;
+    }
 
-        if (GetId(__instance, _getAlloying) != null) extra += lineHeight * 6;
-        if (GetId(__instance, _getCoating) != null) extra += lineHeight * 6;
-        if (GetId(__instance, _getGem) != null) extra += lineHeight * 6;
+    public static IEnumerable<CodeInstruction> DrawHoverTextTranspiler(
+        IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+    {
+        var codes = new List<CodeInstruction>(instructions);
 
-        if (extra > 0)
-            Monitor?.Log($"ExtraSpacePostfix: {__instance.Name} extra={extra}", LogLevel.Info);
+        // หา GetEnchantmentLevel<GalaxySoulEnchantment> ซึ่งอยู่หลัง foreach loop
+        var getEnchantmentLevel = AccessTools.Method(
+            typeof(MeleeWeapon),
+            "GetEnchantmentLevel",
+            null,
+            new[] { typeof(GalaxySoulEnchantment) });
 
-        __result = new Point(__result.X, __result.Y + extra);
+        var getExtraHeight = AccessTools.Method(
+            typeof(WeaponTooltipExtraSpacePatch),
+            "GetExtraHeight");
+
+        bool found = false;
+        for (int i = 0; i < codes.Count; i++)
+        {
+            yield return codes[i];
+
+            // หลัง GalaxySoulEnchantment check จบ แทรก num3 += GetExtraHeight(hoveredItem, font)
+            if (!found && codes[i].Calls(getEnchantmentLevel))
+            {
+                // หา stloc ของ num3 หลัง getEnchantmentLevel
+                for (int j = i + 1; j < Math.Min(i + 10, codes.Count); j++)
+                {
+                    yield return codes[j];
+                    i = j;
+                    if (codes[j].opcode == OpCodes.Add)
+                    {
+                        // แทรก: num3 += GetExtraHeight(hoveredItem, font)
+                        // load num3
+                        yield return new CodeInstruction(OpCodes.Ldloc_S, (byte)5); // num3
+                        // load hoveredItem parameter
+                        yield return new CodeInstruction(OpCodes.Ldarg, 9); // hoveredItem
+                        // load font parameter
+                        yield return new CodeInstruction(OpCodes.Ldarg_2); // font
+                        // call GetExtraHeight
+                        yield return new CodeInstruction(OpCodes.Call, getExtraHeight);
+                        // num3 += extra
+                        yield return new CodeInstruction(OpCodes.Add);
+                        yield return new CodeInstruction(OpCodes.Stloc_S, (byte)5); // num3
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!found)
+            Monitor?.Log("DrawHoverTextTranspiler: injection point not found!", LogLevel.Warn);
     }
 }
