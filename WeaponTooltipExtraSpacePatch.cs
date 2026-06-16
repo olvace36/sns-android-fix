@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Text;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
@@ -37,13 +36,14 @@ public class WeaponTooltipExtraSpacePatch
             }
         }
 
-        var drawHoverTextMethod = typeof(IClickableMenu).GetMethod(
+        // patch drawHoverText แบบ string (ที่ drawToolTip เรียก)
+        var drawHoverTextString = typeof(IClickableMenu).GetMethod(
             "drawHoverText",
             BindingFlags.Public | BindingFlags.Static,
             null,
             new[]
             {
-                typeof(SpriteBatch), typeof(StringBuilder), typeof(SpriteFont),
+                typeof(SpriteBatch), typeof(string), typeof(SpriteFont),
                 typeof(int), typeof(int), typeof(int), typeof(string),
                 typeof(int), typeof(string[]), typeof(Item), typeof(int),
                 typeof(string), typeof(int), typeof(int), typeof(int),
@@ -54,18 +54,18 @@ public class WeaponTooltipExtraSpacePatch
             },
             null);
 
-        if (drawHoverTextMethod != null)
+        if (drawHoverTextString != null)
         {
-            harmony.Patch(drawHoverTextMethod,
-                transpiler: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-                    .GetMethod(nameof(DrawHoverTextTranspiler))));
+            harmony.Patch(drawHoverTextString,
+                prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
+                    .GetMethod(nameof(DrawHoverTextPrefix))));
             Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
         }
         else
-            Monitor?.Log("drawHoverText not found!", LogLevel.Warn);
+            Monitor?.Log("drawHoverText(string) not found!", LogLevel.Warn);
     }
 
-    public static int GetExtraHeight(Item hoveredItem, SpriteFont font)
+    static int CalcExtra(Item hoveredItem, SpriteFont font)
     {
         if (hoveredItem is not MeleeWeapon weapon) return 0;
 
@@ -77,53 +77,27 @@ public class WeaponTooltipExtraSpacePatch
         return extra;
     }
 
-    public static IEnumerable<CodeInstruction> DrawHoverTextTranspiler(
-        IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+    public static void DrawHoverTextPrefix(
+        SpriteBatch b, string text, SpriteFont font,
+        int xOffset, int yOffset, int moneyAmountToDisplayAtBottom,
+        string boldTitleText, int healAmountToDisplay,
+        string[] buffIconsToDisplay, Item hoveredItem, int currencySymbol,
+        string extraItemToShowIndex, int extraItemToShowAmount,
+        int overrideX, int overrideY, float alpha,
+        CraftingRecipe craftingIngredients,
+        IList<Item> additional_craft_materials,
+        Texture2D boxTexture, Rectangle? boxSourceRect,
+        Color? textColor, Color? textShadowColor, float boxScale,
+        ref int boxWidthOverride, ref int boxHeightOverride, int stackNumber)
     {
-        var codes = new List<CodeInstruction>(instructions);
-        var getExtraHeight = AccessTools.Method(
-            typeof(WeaponTooltipExtraSpacePatch), "GetExtraHeight");
+        int extra = CalcExtra(hoveredItem, font);
+        if (extra == 0) return;
 
-        // หา getDescriptionWidth ซึ่งมีแค่ใน MeleeWeapon block
-        var getDescriptionWidth = AccessTools.Method(
-            typeof(MeleeWeapon), "getDescriptionWidth");
+        Monitor?.Log($"DrawHoverTextPrefix: extra={extra} boxHeightOverride={boxHeightOverride}", LogLevel.Info);
 
-        bool found = false;
-
-        for (int i = 0; i < codes.Count; i++)
-        {
-            yield return codes[i];
-
-            // หลัง getDescriptionWidth ถูกเรียก หา stloc ที่เก็บ num3
-            if (!found && codes[i].Calls(getDescriptionWidth))
-            {
-                // เดิน forward หา instruction ที่ add แล้ว stloc
-                for (int j = i + 1; j < Math.Min(i + 15, codes.Count); j++)
-                {
-                    yield return codes[j];
-                    i = j;
-
-                    // หา stloc หลัง add (น่าจะเป็น num3 += ...)
-                    if (codes[j].opcode == OpCodes.Stloc_S || codes[j].opcode == OpCodes.Stloc)
-                    {
-                        var operand = codes[j].operand;
-                        // แทรก num3 += GetExtraHeight(hoveredItem, font)
-                        yield return new CodeInstruction(OpCodes.Ldloc_S, operand);
-                        yield return new CodeInstruction(OpCodes.Ldarg_S, (byte)9); // hoveredItem
-                        yield return new CodeInstruction(OpCodes.Ldarg_2); // font
-                        yield return new CodeInstruction(OpCodes.Call, getExtraHeight);
-                        yield return new CodeInstruction(OpCodes.Add);
-                        yield return new CodeInstruction(OpCodes.Stloc_S, operand);
-
-                        found = true;
-                        Monitor?.Log("DrawHoverTextTranspiler: injection point found!", LogLevel.Info);
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (!found)
-            Monitor?.Log("DrawHoverTextTranspiler: injection point not found!", LogLevel.Warn);
+        if (boxHeightOverride > 0)
+            boxHeightOverride += extra;
+        else
+            boxHeightOverride = extra; // vanilla จะคำนวณ height เองแต่เราบังคับ override
     }
 }
