@@ -7,6 +7,7 @@ using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
+using StardewValley.Tools;
 
 namespace SnsAndroidFix;
 
@@ -20,26 +21,38 @@ public class WeaponTooltipPatch
     public static void Apply(Harmony harmony)
     {
         var extensionsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.ArsenalExtensions");
-        _getAlloying = extensionsType?.GetMethod("GetBladeAlloying",
-            new[] { typeof(StardewValley.Tools.MeleeWeapon) });
-        _getCoating = extensionsType?.GetMethod("GetBladeCoating",
-            new[] { typeof(StardewValley.Tools.MeleeWeapon) });
-        _getGem = extensionsType?.GetMethod("GetExquisiteGemstone",
-            new[] { typeof(StardewValley.Tools.MeleeWeapon) });
+        if (extensionsType == null)
+        {
+            Monitor?.Log("ArsenalExtensions not found!", LogLevel.Warn);
+            return;
+        }
+
+        foreach (var m in extensionsType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+        {
+            var ps = m.GetParameters();
+            if (ps.Length != 1 || ps[0].ParameterType != typeof(MeleeWeapon)) continue;
+            if (m.Name == "GetBladeAlloying") _getAlloying = m;
+            if (m.Name == "GetBladeCoating") _getCoating = m;
+            if (m.Name == "GetExquisiteGemstone") _getGem = m;
+        }
+
+        Monitor?.Log($"WeaponTooltipPatch: getAlloying={_getAlloying != null}, getCoating={_getCoating != null}, getGem={_getGem != null}", LogLevel.Info);
 
         harmony.Patch(
-            AccessTools.Method(typeof(StardewValley.Tools.MeleeWeapon), "drawTooltip"),
+            AccessTools.Method(typeof(MeleeWeapon), "drawTooltip"),
             postfix: new HarmonyMethod(typeof(WeaponTooltipPatch)
                 .GetMethod(nameof(DrawTooltipPostfix))));
 
         harmony.Patch(
-            AccessTools.Method(typeof(StardewValley.Tools.MeleeWeapon),
+            AccessTools.Method(typeof(MeleeWeapon),
                 "getExtraSpaceNeededForTooltipSpecialIcons"),
             postfix: new HarmonyMethod(typeof(WeaponTooltipPatch)
                 .GetMethod(nameof(ExtraSpacePostfix))));
+
+        Monitor?.Log("WeaponTooltipPatch applied!", LogLevel.Info);
     }
 
-    static int CountLines(StardewValley.Tools.MeleeWeapon weapon)
+    static int CountLines(MeleeWeapon weapon)
     {
         int lines = 0;
         if (_getAlloying?.Invoke(null, new object[] { weapon }) is string alloy && alloy switch
@@ -66,19 +79,19 @@ public class WeaponTooltipPatch
         return lines;
     }
 
-    public static void ExtraSpacePostfix(StardewValley.Tools.MeleeWeapon __instance,
+    public static void ExtraSpacePostfix(MeleeWeapon __instance,
         SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight,
         StringBuilder descriptionText, string boldTitleText,
         int moneyAmountToDisplayAtBottom, ref Point __result)
     {
         int lines = CountLines(__instance);
         if (lines == 0) return;
-
         int extraHeight = lines * ((int)font.MeasureString("TT").Y + 4);
+        Monitor?.Log($"ExtraSpacePostfix: lines={lines}, extraHeight={extraHeight}", LogLevel.Info);
         __result = new Point(__result.X, __result.Y + extraHeight);
     }
 
-    public static void DrawTooltipPostfix(StardewValley.Tools.MeleeWeapon __instance,
+    public static void DrawTooltipPostfix(MeleeWeapon __instance,
         SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font,
         float alpha, StringBuilder overrideText)
     {
@@ -96,6 +109,7 @@ public class WeaponTooltipPatch
             };
             if (alloyText.Length > 0)
             {
+                Monitor?.Log($"DrawTooltip: alloy={alloyId} text={alloyText} y={y}", LogLevel.Info);
                 Utility.drawTextWithShadow(spriteBatch, alloyText, font,
                     new Vector2((float)(x + 16), (float)(y + 4)),
                     new Color(0, 120, 0), 1f, -1f, -1, -1, 1f, 3);
@@ -117,6 +131,7 @@ public class WeaponTooltipPatch
             };
             if (coatingText.Length > 0)
             {
+                Monitor?.Log($"DrawTooltip: coating={coatingId} text={coatingText} y={y}", LogLevel.Info);
                 Utility.drawTextWithShadow(spriteBatch, coatingText, font,
                     new Vector2((float)(x + 16), (float)(y + 4)),
                     new Color(80, 0, 150), 1f, -1f, -1, -1, 1f, 3);
@@ -140,6 +155,7 @@ public class WeaponTooltipPatch
             };
             if (gemText.Length > 0)
             {
+                Monitor?.Log($"DrawTooltip: gem={gemId} text={gemText} y={y}", LogLevel.Info);
                 Utility.drawTextWithShadow(spriteBatch, gemText, font,
                     new Vector2((float)(x + 16), (float)(y + 4)),
                     new Color(180, 120, 0), 1f, -1f, -1, -1, 1f, 3);
