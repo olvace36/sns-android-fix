@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -9,7 +10,6 @@ using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
 using StardewValley.Tools;
-using System.Text;
 
 namespace SnsAndroidFix;
 
@@ -61,7 +61,6 @@ public class WeaponTooltipExtraSpacePatch
         if (_getAlloying?.Invoke(null, new object[] { weapon }) is string) extra += 48;
         if (_getCoating?.Invoke(null, new object[] { weapon }) is string) extra += 48;
         if (_getGem?.Invoke(null, new object[] { weapon }) is string) extra += 48;
-        Monitor?.Log($"CalcExtra: {weapon.Name} extra={extra}", LogLevel.Info);
         return extra;
     }
 
@@ -73,8 +72,23 @@ public class WeaponTooltipExtraSpacePatch
         int extra = CalcExtra(__instance);
         if (extra == 0) return;
 
-        Monitor?.Log($"getExtraSpacePostfix: {__instance.Name} before={__result.Y} extra={extra}", LogLevel.Info);
         __result = new Point(__result.X, __result.Y + extra);
-        Monitor?.Log($"getExtraSpacePostfix: after={__result.Y}", LogLevel.Info);
+    }
+}
+
+// แยกออกมาเพื่อ log call stack
+[HarmonyPatch(typeof(MeleeWeapon), "drawTooltip")]
+public class WeaponTooltipCallStackPatch
+{
+    static IMonitor? Monitor => WeaponTooltipExtraSpacePatch.Monitor;
+
+    static void Prefix(MeleeWeapon __instance)
+    {
+        if ((__instance.modData.TryGetValue("swordandsorcery/BladeAlloying", out _) ||
+             __instance.modData.TryGetValue("swordandsorcery/BladeCoating", out _) ||
+             __instance.modData.TryGetValue("swordandsorcery/ExquisiteGemstone", out _)))
+        {
+            Monitor?.Log($"drawTooltip call stack:\n{System.Environment.StackTrace}", LogLevel.Info);
+        }
     }
 }
