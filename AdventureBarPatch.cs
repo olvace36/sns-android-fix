@@ -38,7 +38,6 @@ public class AdventureBarPatch
             Monitor?.Log("AdventureBar type not found!", LogLevel.Warn);
             return;
         }
-        Monitor?.Log("AdventureBar type found!", LogLevel.Info);
 
         _hideField = _adventureBarType.GetField("Hide",
             BindingFlags.Public | BindingFlags.Static);
@@ -54,14 +53,9 @@ public class AdventureBarPatch
         var farmerExtDataType = AccessTools.TypeByName("SwordAndSorcerySMAPI.FarmerExtData");
         var extensionsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.Extensions");
 
-        Monitor?.Log($"FarmerExtData type={farmerExtDataType?.Name ?? "null"}", LogLevel.Info);
-        Monitor?.Log($"Extensions type={extensionsType?.Name ?? "null"}", LogLevel.Info);
-
         _getFarmerExtData = extensionsType?.GetMethod("GetFarmerExtData",
             BindingFlags.Public | BindingFlags.Static,
             null, new[] { typeof(Farmer) }, null);
-
-        Monitor?.Log($"GetFarmerExtData={_getFarmerExtData != null}", LogLevel.Info);
 
         if (farmerExtDataType != null)
         {
@@ -69,24 +63,19 @@ public class AdventureBarPatch
                 BindingFlags.Public | BindingFlags.Instance);
             _maxManaField = farmerExtDataType.GetField("maxMana",
                 BindingFlags.Public | BindingFlags.Instance);
-
             if (_manaField != null)
                 _netIntValueProperty = _manaField.FieldType
                     .GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
-
-            Monitor?.Log($"manaField={_manaField != null}, maxManaField={_maxManaField != null}, netIntValue={_netIntValueProperty != null}", LogLevel.Info);
         }
 
         var drawMethod = _adventureBarType.GetMethod("draw",
             new[] { typeof(SpriteBatch) });
         if (drawMethod != null)
-        {
             harmony.Patch(drawMethod,
                 prefix: new HarmonyMethod(typeof(AdventureBarPatch)
                     .GetMethod(nameof(DrawPrefix))));
-            Monitor?.Log("AdventureBarPatch draw patch applied!", LogLevel.Info);
-        }
-        else Monitor?.Log("draw method not found!", LogLevel.Warn);
+        else
+            Monitor?.Log("AdventureBar draw method not found!", LogLevel.Warn);
     }
 
     static (int x, int y, int w, int h) GetBounds(object instance)
@@ -100,18 +89,10 @@ public class AdventureBarPatch
 
     static void DrawAetherBar(SpriteBatch b, int xPos, int yPos, int width)
     {
-        if (_getFarmerExtData == null)
-        {
-            Monitor?.Log("DrawAetherBar: _getFarmerExtData is null!", LogLevel.Warn);
-            return;
-        }
+        if (_getFarmerExtData == null) return;
 
         var farmerExtData = _getFarmerExtData.Invoke(null, new object[] { Game1.player });
-        if (farmerExtData == null)
-        {
-            Monitor?.Log("DrawAetherBar: farmerExtData is null!", LogLevel.Warn);
-            return;
-        }
+        if (farmerExtData == null) return;
 
         var manaNetInt = _manaField?.GetValue(farmerExtData);
         var maxManaNetInt = _maxManaField?.GetValue(farmerExtData);
@@ -119,7 +100,6 @@ public class AdventureBarPatch
         int mana = (int?)_netIntValueProperty?.GetValue(manaNetInt) ?? 0;
         int maxMana = (int?)_netIntValueProperty?.GetValue(maxManaNetInt) ?? 0;
 
-        // วาดกรอบ
         IClickableMenu.drawTextureBox(b, xPos, yPos, width, AetherBarHeight, Color.White);
 
         float num = maxMana > 0 ? Math.Min(1f, (float)mana / maxMana) : 0f;
@@ -145,8 +125,6 @@ public class AdventureBarPatch
         if (!AetherOnly) return true;
 
         var (xPos, yPos, width, height) = GetBounds(__instance);
-
-        // มุมซ้ายล่าง
         int vh = Game1.uiViewport.Height;
         int aetherX = AetherBarMargin;
         int aetherY = vh - AetherBarHeight - AetherBarMargin;
