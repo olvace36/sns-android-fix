@@ -13,7 +13,6 @@ using StardewValley.Tools;
 
 namespace SnsAndroidFix;
 
-[HarmonyPatch(typeof(MeleeWeapon), "getExtraSpaceNeededForTooltipSpecialIcons")]
 public class WeaponTooltipExtraSpacePatch
 {
     internal static IMonitor? Monitor;
@@ -49,14 +48,37 @@ public class WeaponTooltipExtraSpacePatch
         else
             Monitor?.Log("SNS MeleeWeaponTooltipPatch2.Postfix not found!", LogLevel.Warn);
 
-        harmony.PatchAll();
+        var drawMobileFloating = typeof(IClickableMenu).GetMethod(
+            "drawMobileFloatingToolTip",
+            BindingFlags.Public | BindingFlags.Instance,
+            null,
+            new[]
+            {
+                typeof(SpriteBatch), typeof(int), typeof(int), typeof(int),
+                typeof(int), typeof(string), typeof(string), typeof(Item),
+                typeof(bool), typeof(int), typeof(int), typeof(int),
+                typeof(int), typeof(CraftingRecipe), typeof(int), typeof(int)
+            },
+            null);
+
+        if (drawMobileFloating != null)
+        {
+            harmony.Patch(drawMobileFloating,
+                prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
+                    .GetMethod(nameof(DrawMobileFloatingPrefix))));
+            Monitor?.Log("drawMobileFloatingToolTip patch applied!", LogLevel.Info);
+        }
+        else
+            Monitor?.Log("drawMobileFloatingToolTip not found!", LogLevel.Warn);
+
         Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
     }
 
     public static bool SNSTooltipPrefix() => !Drawing;
 
-    static int CalcExtra(MeleeWeapon weapon)
+    static int CalcExtra(Item? hoveredItem)
     {
+        if (hoveredItem is not MeleeWeapon weapon) return 0;
         int extra = 0;
         if (_getAlloying?.Invoke(null, new object[] { weapon }) is string) extra += 48;
         if (_getCoating?.Invoke(null, new object[] { weapon }) is string) extra += 48;
@@ -64,31 +86,54 @@ public class WeaponTooltipExtraSpacePatch
         return extra;
     }
 
-    static void Postfix(MeleeWeapon __instance,
-        SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight,
-        StringBuilder descriptionText, string boldTitleText,
-        int moneyAmountToDisplayAtBottom, ref Point __result)
+    public static bool DrawMobileFloatingPrefix(
+        IClickableMenu __instance,
+        SpriteBatch b, int x, int y, int inventoryPosition,
+        int squareSide, string hoverText, string hoverTitle,
+        Item hoveredItem, bool heldItem, int healAmountToDisplay,
+        int currencySymbol, int extraItemToShowIndex,
+        int extraItemToShowAmount, CraftingRecipe craftingIngredients,
+        int moneyAmountToShowAtBottom, int stackNumber)
     {
-        int extra = CalcExtra(__instance);
-        if (extra == 0) return;
+        if (hoveredItem is not MeleeWeapon weapon) return true;
 
-        __result = new Point(__result.X, __result.Y + extra);
-    }
-}
+        int extra = CalcExtra(weapon);
+        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra}", LogLevel.Info);
+        if (extra == 0) return true;
 
-// แยกออกมาเพื่อ log call stack
-[HarmonyPatch(typeof(MeleeWeapon), "drawTooltip")]
-public class WeaponTooltipCallStackPatch
-{
-    static IMonitor? Monitor => WeaponTooltipExtraSpacePatch.Monitor;
+        // คำนวณ vanilla height ก่อน
+        Point vanillaSpace = weapon.getExtraSpaceNeededForTooltipSpecialIcons(
+            Game1.smallFont, 0, 92, 0,
+            new StringBuilder(weapon.description ?? ""),
+            weapon.DisplayName, moneyAmountToShowAtBottom);
 
-    static void Prefix(MeleeWeapon __instance)
-    {
-        if ((__instance.modData.TryGetValue("swordandsorcery/BladeAlloying", out _) ||
-             __instance.modData.TryGetValue("swordandsorcery/BladeCoating", out _) ||
-             __instance.modData.TryGetValue("swordandsorcery/ExquisiteGemstone", out _)))
+        int boxHeight = vanillaSpace.Y + extra;
+        Monitor?.Log($"DrawMobileFloatingPrefix: vanillaSpace.Y={vanillaSpace.Y} boxHeight={boxHeight}", LogLevel.Info);
+
+        bool flag = hoveredItem is StardewValley.Object obj && obj.edibility.Value != -300;
+        string[]? buffIconsToDisplay = null;
+
+        string? extraItemToShowIndex2 = extraItemToShowIndex != -1 ? "(O)" + extraItemToShowIndex : null;
+
+        Drawing = true;
+        try
         {
-            Monitor?.Log($"drawTooltip call stack:\n{System.Environment.StackTrace}", LogLevel.Info);
+            IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont,
+                heldItem ? 40 : 0, heldItem ? 40 : 0,
+                moneyAmountToShowAtBottom, hoverTitle,
+                flag ? (hoveredItem as StardewValley.Object)!.edibility.Value : -1,
+                buffIconsToDisplay, hoveredItem, currencySymbol,
+                extraItemToShowIndex2, extraItemToShowAmount,
+                x, y, 1f, craftingIngredients,
+                boxHeightOverride: boxHeight);
+
+            Monitor?.Log($"DrawMobileFloatingPrefix: drawHoverText called with boxHeight={boxHeight}", LogLevel.Info);
         }
+        finally
+        {
+            Drawing = false;
+        }
+
+        return false;
     }
 }
