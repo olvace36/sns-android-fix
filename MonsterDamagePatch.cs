@@ -60,7 +60,6 @@ public class MonsterDamagePatch
         Monitor?.Log("MonsterDamagePatch applied!", LogLevel.Info);
     }
 
-    // map DN.SnS_ ID → vanilla ID ที่ SNS switch ใช้
     static string? MapAlloyId(string? id) => id switch
     {
         "(O)DN.SnS_PureCopperOre"      => "(O)334",
@@ -83,7 +82,6 @@ public class MonsterDamagePatch
     static void SetId(MeleeWeapon w, MethodInfo? m, string id)
         => m?.Invoke(null, new object[] { w, id });
 
-    // เก็บค่าเดิมไว้ใน __state แล้วเปลี่ยนชั่วคราว
     public static void BeforePrefix(Monster __instance, ref int damage, Farmer who,
         out (string? origAlloy, string? origGem) __state)
     {
@@ -98,6 +96,7 @@ public class MonsterDamagePatch
         {
             __state.origAlloy = alloyId;
             SetId(weapon, _setAlloying, mappedAlloy);
+            Monitor?.Log($"BeforePrefix: {weapon.Name} alloy {alloyId} → {mappedAlloy} damage before={damage}", LogLevel.Info);
         }
 
         string? gemId = GetId(weapon, _getGem);
@@ -106,10 +105,10 @@ public class MonsterDamagePatch
         {
             __state.origGem = gemId;
             SetId(weapon, _setGem, mappedGem);
+            Monitor?.Log($"BeforePrefix: {weapon.Name} gem {gemId} → {mappedGem}", LogLevel.Info);
         }
     }
 
-    // restore กลับหลัง SNS ทำงานเสร็จ
     public static void AfterPrefix(Monster __instance, ref int damage, Farmer who,
         (string? origAlloy, string? origGem) __state)
     {
@@ -117,7 +116,10 @@ public class MonsterDamagePatch
         if (weapon == null) return;
 
         if (__state.origAlloy != null)
+        {
+            Monitor?.Log($"AfterPrefix: {weapon.Name} damage after={damage} alloy={__state.origAlloy}", LogLevel.Info);
             SetId(weapon, _setAlloying, __state.origAlloy);
+        }
 
         if (__state.origGem != null)
             SetId(weapon, _setGem, __state.origGem);
