@@ -24,6 +24,7 @@ public class AdventureBarPatch
     private static MethodInfo? _getFarmerExtData;
     private static FieldInfo? _manaField;
     private static FieldInfo? _maxManaField;
+    private static PropertyInfo? _netIntValueProperty;
 
     private const int AetherBarHeight = 56;
 
@@ -55,7 +56,6 @@ public class AdventureBarPatch
         Monitor?.Log($"FarmerExtData type={farmerExtDataType?.Name ?? "null"}", LogLevel.Info);
         Monitor?.Log($"Extensions type={extensionsType?.Name ?? "null"}", LogLevel.Info);
 
-        // แก้จาก FarmerExtDataExtensions เป็น Extensions
         _getFarmerExtData = extensionsType?.GetMethod("GetFarmerExtData",
             BindingFlags.Public | BindingFlags.Static,
             null, new[] { typeof(Farmer) }, null);
@@ -68,7 +68,15 @@ public class AdventureBarPatch
                 BindingFlags.Public | BindingFlags.Instance);
             _maxManaField = farmerExtDataType.GetField("maxMana",
                 BindingFlags.Public | BindingFlags.Instance);
-            Monitor?.Log($"manaField={_manaField != null}, maxManaField={_maxManaField != null}", LogLevel.Info);
+
+            // cache NetInt.Value property
+            if (_manaField != null)
+            {
+                _netIntValueProperty = _manaField.FieldType
+                    .GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
+            }
+
+            Monitor?.Log($"manaField={_manaField != null}, maxManaField={_maxManaField != null}, netIntValue={_netIntValueProperty != null}", LogLevel.Info);
         }
 
         var drawMethod = _adventureBarType.GetMethod("draw",
@@ -110,8 +118,11 @@ public class AdventureBarPatch
             return;
         }
 
-        int mana = (int)(_manaField?.GetValue(farmerExtData) ?? 0);
-        int maxMana = (int)(_maxManaField?.GetValue(farmerExtData) ?? 0);
+        var manaNetInt = _manaField?.GetValue(farmerExtData);
+        var maxManaNetInt = _maxManaField?.GetValue(farmerExtData);
+
+        int mana = (int?)_netIntValueProperty?.GetValue(manaNetInt) ?? 0;
+        int maxMana = (int?)_netIntValueProperty?.GetValue(maxManaNetInt) ?? 0;
 
         Monitor?.Log($"DrawAetherBar: x={xPos} y={yPos} w={width} mana={mana}/{maxMana}", LogLevel.Info);
 
@@ -140,7 +151,6 @@ public class AdventureBarPatch
 
         var (xPos, yPos, width, height) = GetBounds(__instance);
 
-        // กลางจอ
         int vh = Game1.uiViewport.Height;
         int vw = Game1.uiViewport.Width;
         int aetherX = vw / 2 - width / 2;
