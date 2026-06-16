@@ -35,7 +35,7 @@ public class ModEntry : Mod
         SkillsPagePatch.Apply(helper, Monitor, harmony);
         BuffedSkillLevelPatch.Apply(harmony);
         EquipmentMenuDebugPatch.Apply(harmony);
-        WeaponTooltipPatch.Apply(harmony);
+        WeaponTooltipPatch.Apply(harmony, helper.Translation);
         AdventureBarPatch.Apply(harmony);
 
         object? rogueSkill = null;
