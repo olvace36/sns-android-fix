@@ -1,11 +1,12 @@
 using System;
 using System.Reflection;
+using System.Text;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
-using StardewValley.Tools;
+using StardewValley.Menus;
 
 namespace SnsAndroidFix;
 
@@ -19,20 +20,23 @@ public class WeaponTooltipPatch
     public static void Apply(Harmony harmony)
     {
         var extensionsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.ArsenalExtensions");
-        _getAlloying = extensionsType?.GetMethod("GetBladeAlloying", new[] { typeof(MeleeWeapon) });
-        _getCoating = extensionsType?.GetMethod("GetBladeCoating", new[] { typeof(MeleeWeapon) });
-        _getGem = extensionsType?.GetMethod("GetExquisiteGemstone", new[] { typeof(MeleeWeapon) });
+        _getAlloying = extensionsType?.GetMethod("GetBladeAlloying",
+            new[] { typeof(StardewValley.Tools.MeleeWeapon) });
+        _getCoating = extensionsType?.GetMethod("GetBladeCoating",
+            new[] { typeof(StardewValley.Tools.MeleeWeapon) });
+        _getGem = extensionsType?.GetMethod("GetExquisiteGemstone",
+            new[] { typeof(StardewValley.Tools.MeleeWeapon) });
 
         harmony.Patch(
-            AccessTools.Method(typeof(MeleeWeapon), "drawTooltip"),
+            AccessTools.Method(typeof(StardewValley.Tools.MeleeWeapon), "drawTooltip"),
             postfix: new HarmonyMethod(typeof(WeaponTooltipPatch)
                 .GetMethod(nameof(DrawTooltipPostfix))));
     }
 
-    public static void DrawTooltipPostfix(MeleeWeapon __instance,
-        SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font)
+    public static void DrawTooltipPostfix(StardewValley.Tools.MeleeWeapon __instance,
+        SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font,
+        float alpha, StringBuilder overrideText)
     {
-        // Blade Alloying
         string? alloyId = _getAlloying?.Invoke(null, new object[] { __instance }) as string;
         if (alloyId != null)
         {
@@ -48,12 +52,12 @@ public class WeaponTooltipPatch
             if (alloyText.Length > 0)
             {
                 Utility.drawTextWithShadow(spriteBatch, alloyText, font,
-                    new Vector2((float)(x + 16 + 44), (float)(y - 32)),
+                    new Vector2((float)(x + 16), (float)(y + 4)),
                     new Color(0, 120, 0), 1f, -1f, -1, -1, 1f, 3);
+                y += (int)font.MeasureString("TT").Y + 4;
             }
         }
 
-        // Blade Coating
         string? coatingId = _getCoating?.Invoke(null, new object[] { __instance }) as string;
         if (coatingId != null)
         {
@@ -69,12 +73,12 @@ public class WeaponTooltipPatch
             if (coatingText.Length > 0)
             {
                 Utility.drawTextWithShadow(spriteBatch, coatingText, font,
-                    new Vector2((float)(x + 16 + 44), (float)(y - 16)),
+                    new Vector2((float)(x + 16), (float)(y + 4)),
                     new Color(80, 0, 150), 1f, -1f, -1, -1, 1f, 3);
+                y += (int)font.MeasureString("TT").Y + 4;
             }
         }
 
-        // Exquisite Gem
         string? gemId = _getGem?.Invoke(null, new object[] { __instance }) as string;
         if (gemId != null)
         {
@@ -92,8 +96,9 @@ public class WeaponTooltipPatch
             if (gemText.Length > 0)
             {
                 Utility.drawTextWithShadow(spriteBatch, gemText, font,
-                    new Vector2((float)(x + 16 + 44), (float)(y - 48)),
+                    new Vector2((float)(x + 16), (float)(y + 4)),
                     new Color(180, 120, 0), 1f, -1f, -1, -1, 1f, 3);
+                y += (int)font.MeasureString("TT").Y + 4;
             }
         }
     }
