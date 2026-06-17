@@ -18,7 +18,6 @@ public class WeaponTooltipPatch
     private static MethodInfo? _getAlloying;
     private static MethodInfo? _getCoating;
     private static MethodInfo? _getGem;
-    public static int LastY = 0;
 
     public static void Apply(Harmony harmony, ITranslationHelper translation)
     {
@@ -114,8 +113,5 @@ public class WeaponTooltipPatch
                 y += Math.Max((int)font.MeasureString("TT").Y, 48);
             }
         }
-
-        LastY = y;
-        Monitor?.Log($"DrawTooltipPostfix: startY={WeaponTooltipExtraSpacePatch.StartY} LastY={LastY} height={LastY - WeaponTooltipExtraSpacePatch.StartY}", LogLevel.Info);
     }
 }
