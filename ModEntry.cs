@@ -23,6 +23,7 @@ public class ModEntry : Mod
         BuffedSkillLevelPatch.Monitor = Monitor;
         EquipmentMenuDebugPatch.Monitor = Monitor;
         SnsEquipmentMenu.Monitor = Monitor;
+        WeaponTooltipPatch.Monitor = Monitor;
         WeaponTooltipExtraSpacePatch.Monitor = Monitor;
         AdventureBarPatch.Monitor = Monitor;
         MonsterDamagePatch.Monitor = Monitor;
@@ -36,6 +37,7 @@ public class ModEntry : Mod
         SkillsPagePatch.Apply(helper, Monitor, harmony);
         BuffedSkillLevelPatch.Apply(harmony);
         EquipmentMenuDebugPatch.Apply(harmony);
+        WeaponTooltipPatch.Apply(harmony, helper.Translation);
         AdventureBarPatch.Apply(harmony);
         MonsterDamagePatch.Apply(harmony);
         // WeaponTooltipExtraSpacePatch.Apply ย้ายไป GameLaunched
