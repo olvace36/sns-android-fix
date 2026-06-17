@@ -86,6 +86,31 @@ public class WeaponTooltipExtraSpacePatch
         return extra;
     }
 
+    // คำนวณ box height แบบเดียวกับ drawHoverText จริงๆ
+    static int CalcBoxHeight(MeleeWeapon weapon, SpriteFont font, string boldTitleText, int moneyAmountToDisplayAtBottom)
+    {
+        int num = 60;
+        int num3 = Math.Max(num * 3,
+            (int)((boldTitleText != null) ? (Game1.dialogueFont.MeasureString(boldTitleText).Y + 16f) : 0f) + 32)
+            + (int)font.MeasureString("T").Y
+            + (int)((moneyAmountToDisplayAtBottom > -1) ? (font.MeasureString(moneyAmountToDisplayAtBottom.ToString() ?? "").Y + 4f) : 0f);
+
+        num3 += (!weapon.isScythe() ? (weapon.getNumberOfDescriptionCategories() * 4 * 12) : 0);
+        num3 += (int)font.MeasureString(Game1.parseText(weapon.description, Game1.smallFont, weapon.getDescriptionWidth())).Y;
+
+        if (weapon.GetTotalForgeLevels() > 0)
+            num3 += (int)font.MeasureString("T").Y;
+
+        foreach (var enchantment in weapon.enchantments)
+        {
+            if (!enchantment.IsForge() && enchantment.ShouldBeDisplayed())
+                num3 += (int)font.MeasureString("T").Y + 12;
+        }
+
+        Monitor?.Log($"CalcBoxHeight: {weapon.Name} money={moneyAmountToDisplayAtBottom} num3={num3}", LogLevel.Info);
+        return num3;
+    }
+
     public static bool DrawMobileFloatingPrefix(
         IClickableMenu __instance,
         SpriteBatch b, int x, int y, int inventoryPosition,
@@ -98,21 +123,15 @@ public class WeaponTooltipExtraSpacePatch
         if (hoveredItem is not MeleeWeapon weapon) return true;
 
         int extra = CalcExtra(weapon);
-        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra}", LogLevel.Info);
         if (extra == 0) return true;
 
-        // คำนวณ vanilla height ก่อน
-        Point vanillaSpace = weapon.getExtraSpaceNeededForTooltipSpecialIcons(
-            Game1.smallFont, 0, 92, 0,
-            new StringBuilder(weapon.description ?? ""),
-            weapon.DisplayName, moneyAmountToShowAtBottom);
+        // คำนวณ box height แบบเดียวกับ drawHoverText จริงๆ แทนที่จะใช้ getExtraSpaceNeededForTooltipSpecialIcons
+        int baseHeight = CalcBoxHeight(weapon, Game1.smallFont, hoverTitle, moneyAmountToShowAtBottom);
+        int boxHeight = baseHeight + extra;
 
-        int boxHeight = vanillaSpace.Y + extra;
-        Monitor?.Log($"DrawMobileFloatingPrefix: vanillaSpace.Y={vanillaSpace.Y} boxHeight={boxHeight}", LogLevel.Info);
+        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} money={moneyAmountToShowAtBottom} baseHeight={baseHeight} extra={extra} boxHeight={boxHeight}", LogLevel.Info);
 
         bool flag = hoveredItem is StardewValley.Object obj && obj.edibility.Value != -300;
-        string[]? buffIconsToDisplay = null;
-
         string? extraItemToShowIndex2 = extraItemToShowIndex != -1 ? "(O)" + extraItemToShowIndex : null;
 
         Drawing = true;
@@ -122,12 +141,12 @@ public class WeaponTooltipExtraSpacePatch
                 heldItem ? 40 : 0, heldItem ? 40 : 0,
                 moneyAmountToShowAtBottom, hoverTitle,
                 flag ? (hoveredItem as StardewValley.Object)!.edibility.Value : -1,
-                buffIconsToDisplay, hoveredItem, currencySymbol,
+                null, hoveredItem, currencySymbol,
                 extraItemToShowIndex2, extraItemToShowAmount,
                 x, y, 1f, craftingIngredients,
                 boxHeightOverride: boxHeight);
 
-            Monitor?.Log($"DrawMobileFloatingPrefix: drawHoverText called with boxHeight={boxHeight}", LogLevel.Info);
+            Monitor?.Log($"DrawMobileFloatingPrefix: drawHoverText called boxHeight={boxHeight}", LogLevel.Info);
         }
         finally
         {
@@ -137,3 +156,4 @@ public class WeaponTooltipExtraSpacePatch
         return false;
     }
 }
+
