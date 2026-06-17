@@ -19,8 +19,6 @@ public class WeaponTooltipExtraSpacePatch
     private static MethodInfo? _getAlloying;
     private static MethodInfo? _getCoating;
     private static MethodInfo? _getGem;
-    public static bool Drawing = false;
-
     public static void Apply(Harmony harmony)
     {
         var extensionsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.ArsenalExtensions");
@@ -35,18 +33,6 @@ public class WeaponTooltipExtraSpacePatch
                 if (m.Name == "GetExquisiteGemstone") _getGem = m;
             }
         }
-
-        var sns2Type = AccessTools.TypeByName("SwordAndSorcerySMAPI.MeleeWeaponTooltipPatch2");
-        var sns2Postfix = sns2Type?.GetMethod("Postfix", BindingFlags.Public | BindingFlags.Static);
-        if (sns2Postfix != null)
-        {
-            harmony.Patch(sns2Postfix,
-                prefix: new HarmonyMethod(typeof(WeaponTooltipExtraSpacePatch)
-                    .GetMethod(nameof(SNSTooltipPrefix))));
-            Monitor?.Log("SNS MeleeWeaponTooltipPatch2 patch applied!", LogLevel.Info);
-        }
-        else
-            Monitor?.Log("SNS MeleeWeaponTooltipPatch2.Postfix not found!", LogLevel.Warn);
 
         var drawMobileFloating = typeof(IClickableMenu).GetMethod(
             "drawMobileFloatingToolTip",
@@ -73,8 +59,6 @@ public class WeaponTooltipExtraSpacePatch
 
         Monitor?.Log("WeaponTooltipExtraSpacePatch applied!", LogLevel.Info);
     }
-
-    public static bool SNSTooltipPrefix() => !Drawing;
 
     static int CalcExtra(Item? hoveredItem)
     {
@@ -134,24 +118,16 @@ public class WeaponTooltipExtraSpacePatch
         bool flag = hoveredItem is StardewValley.Object obj && obj.edibility.Value != -300;
         string? extraItemToShowIndex2 = extraItemToShowIndex != -1 ? "(O)" + extraItemToShowIndex : null;
 
-        Drawing = true;
-        try
-        {
-            IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont,
-                heldItem ? 40 : 0, heldItem ? 40 : 0,
-                moneyAmountToShowAtBottom, hoverTitle,
-                flag ? (hoveredItem as StardewValley.Object)!.edibility.Value : -1,
-                null, hoveredItem, currencySymbol,
-                extraItemToShowIndex2, extraItemToShowAmount,
-                x, y, 1f, craftingIngredients,
-                boxHeightOverride: boxHeight);
+        IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont,
+            heldItem ? 40 : 0, heldItem ? 40 : 0,
+            moneyAmountToShowAtBottom, hoverTitle,
+            flag ? (hoveredItem as StardewValley.Object)!.edibility.Value : -1,
+            null, hoveredItem, currencySymbol,
+            extraItemToShowIndex2, extraItemToShowAmount,
+            x, y, 1f, craftingIngredients,
+            boxHeightOverride: boxHeight);
 
-            Monitor?.Log($"DrawMobileFloatingPrefix: drawHoverText called boxHeight={boxHeight}", LogLevel.Info);
-        }
-        finally
-        {
-            Drawing = false;
-        }
+        Monitor?.Log($"DrawMobileFloatingPrefix: drawHoverText called boxHeight={boxHeight}", LogLevel.Info);
 
         return false;
     }
