@@ -20,6 +20,7 @@ public class WeaponTooltipExtraSpacePatch
     private static MethodInfo? _getCoating;
     private static MethodInfo? _getGem;
     public static bool Drawing = false;
+    public static int StartY = 0;
 
     public static void Apply(Harmony harmony)
     {
@@ -100,10 +101,15 @@ public class WeaponTooltipExtraSpacePatch
         int extra = CalcExtra(weapon);
         if (extra == 0) return true;
 
-        // ใช้ LastY จาก DrawTooltipPostfix ซึ่งรวม extra ไปแล้ว
-        int boxHeight = WeaponTooltipPatch.LastY;
+        int lastY = WeaponTooltipPatch.LastY;
+        int startY = StartY;
+        int height = lastY > 0 && startY > 0 ? lastY - startY : 0;
+        int boxHeight = height > 0 ? height : 0;
 
-        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra} LastY={WeaponTooltipPatch.LastY} boxHeight={boxHeight}", LogLevel.Info);
+        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra} startY={startY} lastY={lastY} height={height} boxHeight={boxHeight}", LogLevel.Info);
+
+        // เก็บ y เริ่มต้นสำหรับรอบหน้า
+        StartY = y;
 
         if (boxHeight <= 0) return true;
 
