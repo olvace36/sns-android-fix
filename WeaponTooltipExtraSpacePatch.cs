@@ -97,7 +97,6 @@ public class WeaponTooltipExtraSpacePatch
         // ไม่ลบ money line ออก เพราะ getExtraSpaceNeededForTooltipSpecialIcons
         // คำนวณให้พอดีกับ drawHoverText อยู่แล้วโดยไม่นับ money line
 
-        Monitor?.Log($"CalcBoxHeight: {weapon.Name} money={moneyAmountToDisplayAtBottom} space.Y={space.Y} result={result}", LogLevel.Info);
         return result;
     }
 
@@ -119,8 +118,6 @@ public class WeaponTooltipExtraSpacePatch
         int baseHeight = CalcBoxHeight(weapon, Game1.smallFont, hoverTitle, moneyAmountToShowAtBottom);
         int boxHeight = baseHeight + extra;
 
-        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} money={moneyAmountToShowAtBottom} baseHeight={baseHeight} extra={extra} boxHeight={boxHeight}", LogLevel.Info);
-
         bool flag = hoveredItem is StardewValley.Object obj && obj.edibility.Value != -300;
         string? extraItemToShowIndex2 = extraItemToShowIndex != -1 ? "(O)" + extraItemToShowIndex : null;
 
@@ -132,8 +129,6 @@ public class WeaponTooltipExtraSpacePatch
             extraItemToShowIndex2, extraItemToShowAmount,
             x, y, 1f, craftingIngredients,
             boxHeightOverride: boxHeight);
-
-        Monitor?.Log($"DrawMobileFloatingPrefix: drawHoverText called boxHeight={boxHeight}", LogLevel.Info);
 
         return false;
     }
