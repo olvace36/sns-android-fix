@@ -94,11 +94,8 @@ public class WeaponTooltipExtraSpacePatch
 
         // ถ้าไม่มีราคา getExtraSpaceNeededForTooltipSpecialIcons ยังคำนวณ money line ไว้
         // ต้องลบออกเพื่อให้ตรงกับ drawHoverText จริงๆ
-        if (moneyAmountToDisplayAtBottom <= -1)
-        {
-            int moneyLineHeight = (int)(font.MeasureString("200").Y + 4f);
-            result -= moneyLineHeight;
-        }
+        // ไม่ลบ money line ออก เพราะ getExtraSpaceNeededForTooltipSpecialIcons
+        // คำนวณให้พอดีกับ drawHoverText อยู่แล้วโดยไม่นับ money line
 
         Monitor?.Log($"CalcBoxHeight: {weapon.Name} money={moneyAmountToDisplayAtBottom} space.Y={space.Y} result={result}", LogLevel.Info);
         return result;
@@ -141,3 +138,4 @@ public class WeaponTooltipExtraSpacePatch
         return false;
     }
 }
+
