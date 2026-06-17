@@ -39,8 +39,6 @@ public class WeaponTooltipPatch
             if (m.Name == "GetExquisiteGemstone") _getGem = m;
         }
 
-        Monitor?.Log($"WeaponTooltipPatch: getAlloying={_getAlloying != null}, getCoating={_getCoating != null}, getGem={_getGem != null}", LogLevel.Info);
-
         // Priority.Low เพื่อให้วาดหลัง MeleeWeaponTooltipPatch2 ของ SNS
         var drawTooltipPostfix = new HarmonyMethod(typeof(WeaponTooltipPatch)
             .GetMethod(nameof(DrawTooltipPostfix)));
@@ -91,7 +89,6 @@ public class WeaponTooltipPatch
 
         foreach (var effect in effects)
         {
-            Monitor?.Log($"DrawTooltip: effect={effect} y={y}", LogLevel.Info);
             Utility.drawTextWithShadow(spriteBatch, effect, font,
                 new Vector2(x + 16 + 44, y + 16 + 12),
                 Game1.textColor, 1f, -1f, -1, -1, 1f, 3);
@@ -99,4 +96,5 @@ public class WeaponTooltipPatch
         }
     }
 }
+
 
