@@ -100,15 +100,12 @@ public class WeaponTooltipExtraSpacePatch
         int extra = CalcExtra(weapon);
         if (extra == 0) return true;
 
-        int salePrice = weapon.salePrice();
-        Point vanillaSpace = weapon.getExtraSpaceNeededForTooltipSpecialIcons(
-            Game1.smallFont, 0, 92, 0,
-            new StringBuilder(weapon.description ?? ""),
-            weapon.DisplayName, salePrice > 0 ? salePrice : -1);
+        // ใช้ LastY จาก DrawTooltipPostfix ซึ่งรวม extra ไปแล้ว
+        int boxHeight = WeaponTooltipPatch.LastY;
 
-        int boxHeight = vanillaSpace.Y + extra;
+        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra} LastY={WeaponTooltipPatch.LastY} boxHeight={boxHeight}", LogLevel.Info);
 
-        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra} salePrice={salePrice} vanillaSpace.Y={vanillaSpace.Y} boxHeight={boxHeight}", LogLevel.Info);
+        if (boxHeight <= 0) return true;
 
         bool flag = hoveredItem is StardewValley.Object obj && obj.edibility.Value != -300;
         string[]? buffIconsToDisplay = null;
