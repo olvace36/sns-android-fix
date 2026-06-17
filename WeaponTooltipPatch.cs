@@ -75,17 +75,17 @@ public class WeaponTooltipPatch
 
         if (alloyId != null)
         {
-            string text = GetText($"tooltip.alloying.effect.{alloyId}");
+            string text = GetText($"tooltip.alloying.{alloyId}");
             if (text.Length > 0) effects.Add(text);
         }
         if (coatingId != null)
         {
-            string text = GetText($"tooltip.coating.effect.{coatingId}");
+            string text = GetText($"tooltip.coating.{coatingId}");
             if (text.Length > 0) effects.Add(text);
         }
         if (gemId != null)
         {
-            string text = GetText($"tooltip.gem.effect.{gemId}");
+            string text = GetText($"tooltip.gem.{gemId}");
             if (text.Length > 0) effects.Add(text);
         }
 
@@ -99,3 +99,4 @@ public class WeaponTooltipPatch
         }
     }
 }
+
