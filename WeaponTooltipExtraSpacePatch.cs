@@ -75,12 +75,33 @@ public class WeaponTooltipExtraSpacePatch
     // เราแค่บวก extra ของเราเพิ่ม
     static int CalcBoxHeight(MeleeWeapon weapon, SpriteFont font, string boldTitleText, int moneyAmountToDisplayAtBottom)
     {
+        // จำลอง logic ของ drawHoverText บรรทัด 1947-1949
+        // ที่ set moneyAmount จาก sellToStorePrice ถ้ามี Book_PriceCatalogue
+        if (moneyAmountToDisplayAtBottom <= -1
+            && Game1.player.stats.Get("Book_PriceCatalogue") != 0
+            && weapon.CanBeLostOnDeath()
+            && weapon.sellToStorePrice(-1L) > 0)
+        {
+            moneyAmountToDisplayAtBottom = weapon.sellToStorePrice(-1L) * weapon.Stack;
+        }
+
         var space = weapon.getExtraSpaceNeededForTooltipSpecialIcons(
             font, 0, 92, 0,
             new System.Text.StringBuilder(weapon.description ?? ""),
             boldTitleText, moneyAmountToDisplayAtBottom);
-        Monitor?.Log($"CalcBoxHeight: {weapon.Name} money={moneyAmountToDisplayAtBottom} space.Y={space.Y}", LogLevel.Info);
-        return space.Y;
+
+        int result = space.Y;
+
+        // ถ้าไม่มีราคา getExtraSpaceNeededForTooltipSpecialIcons ยังคำนวณ money line ไว้
+        // ต้องลบออกเพื่อให้ตรงกับ drawHoverText จริงๆ
+        if (moneyAmountToDisplayAtBottom <= -1)
+        {
+            int moneyLineHeight = (int)(font.MeasureString("200").Y + 4f);
+            result -= moneyLineHeight;
+        }
+
+        Monitor?.Log($"CalcBoxHeight: {weapon.Name} money={moneyAmountToDisplayAtBottom} space.Y={space.Y} result={result}", LogLevel.Info);
+        return result;
     }
 
     public static bool DrawMobileFloatingPrefix(
