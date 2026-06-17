@@ -115,8 +115,7 @@ public class WeaponTooltipPatch
             }
         }
 
-        // เก็บ y สุดท้าย
         LastY = y;
-        Monitor?.Log($"DrawTooltipPostfix: LastY={LastY}", LogLevel.Info);
+        Monitor?.Log($"DrawTooltipPostfix: startY={WeaponTooltipExtraSpacePatch.StartY} LastY={LastY} height={LastY - WeaponTooltipExtraSpacePatch.StartY}", LogLevel.Info);
     }
 }
