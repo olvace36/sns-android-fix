@@ -132,4 +132,3 @@ public class WeaponTooltipExtraSpacePatch
         return false;
     }
 }
-
