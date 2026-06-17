@@ -41,6 +41,7 @@ public class WeaponTooltipPatch
 
         Monitor?.Log($"WeaponTooltipPatch: getAlloying={_getAlloying != null}, getCoating={_getCoating != null}, getGem={_getGem != null}", LogLevel.Info);
 
+        // Priority.Low เพื่อให้วาดหลัง MeleeWeaponTooltipPatch2 ของ SNS
         var drawTooltipPostfix = new HarmonyMethod(typeof(WeaponTooltipPatch)
             .GetMethod(nameof(DrawTooltipPostfix)));
         drawTooltipPostfix.priority = Priority.Low;
@@ -61,57 +62,40 @@ public class WeaponTooltipPatch
     public static void DrawTooltipPostfix(MeleeWeapon __instance,
         SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font)
     {
-        Monitor?.Log($"DrawTooltipPostfix called: {__instance.Name} x={x} y={y}", LogLevel.Info);
-
         string? alloyId = _getAlloying?.Invoke(null, new object[] { __instance }) as string;
-        if (alloyId == null)
-            ((Item)__instance).modData.TryGetValue("swordandsorcery/BladeAlloying", out alloyId);
+        string? coatingId = _getCoating?.Invoke(null, new object[] { __instance }) as string;
+        string? gemId = _getGem?.Invoke(null, new object[] { __instance }) as string;
+
+        // วาด effect text บรรทัดแยกหลัง SNS text
+        bool hasAny = alloyId != null || coatingId != null || gemId != null;
+        if (!hasAny) return;
+
+        // รวม effect text จากทุก slot
+        var effects = new System.Collections.Generic.List<string>();
 
         if (alloyId != null)
         {
-            string text = GetText($"tooltip.alloying.{alloyId}");
-            if (text.Length > 0)
-            {
-                Monitor?.Log($"DrawTooltip: alloy={alloyId} text={text} y={y}", LogLevel.Info);
-                Utility.drawTextWithShadow(spriteBatch, text, font,
-                    new Vector2((float)(x + 16 + 44), (float)(y + 16 + 12)),
-                    Game1.textColor, 1f, -1f, -1, -1, 1f, 3);
-                y += Math.Max((int)font.MeasureString("TT").Y, 48);
-            }
+            string text = GetText($"tooltip.alloying.effect.{alloyId}");
+            if (text.Length > 0) effects.Add(text);
         }
-
-        string? coatingId = _getCoating?.Invoke(null, new object[] { __instance }) as string;
-        if (coatingId == null)
-            ((Item)__instance).modData.TryGetValue("swordandsorcery/BladeCoating", out coatingId);
-
         if (coatingId != null)
         {
-            string text = GetText($"tooltip.coating.{coatingId}");
-            if (text.Length > 0)
-            {
-                Monitor?.Log($"DrawTooltip: coating={coatingId} text={text} y={y}", LogLevel.Info);
-                Utility.drawTextWithShadow(spriteBatch, text, font,
-                    new Vector2((float)(x + 16 + 44), (float)(y + 16 + 12)),
-                    Game1.textColor, 1f, -1f, -1, -1, 1f, 3);
-                y += Math.Max((int)font.MeasureString("TT").Y, 48);
-            }
+            string text = GetText($"tooltip.coating.effect.{coatingId}");
+            if (text.Length > 0) effects.Add(text);
         }
-
-        string? gemId = _getGem?.Invoke(null, new object[] { __instance }) as string;
-        if (gemId == null)
-            ((Item)__instance).modData.TryGetValue("swordandsorcery/ExquisiteGemstone", out gemId);
-
         if (gemId != null)
         {
-            string text = GetText($"tooltip.gem.{gemId}");
-            if (text.Length > 0)
-            {
-                Monitor?.Log($"DrawTooltip: gem={gemId} text={text} y={y}", LogLevel.Info);
-                Utility.drawTextWithShadow(spriteBatch, text, font,
-                    new Vector2((float)(x + 16 + 44), (float)(y + 16 + 12)),
-                    Game1.textColor, 1f, -1f, -1, -1, 1f, 3);
-                y += Math.Max((int)font.MeasureString("TT").Y, 48);
-            }
+            string text = GetText($"tooltip.gem.effect.{gemId}");
+            if (text.Length > 0) effects.Add(text);
+        }
+
+        foreach (var effect in effects)
+        {
+            Monitor?.Log($"DrawTooltip: effect={effect} y={y}", LogLevel.Info);
+            Utility.drawTextWithShadow(spriteBatch, effect, font,
+                new Vector2(x + 16 + 44, y + 16 + 12),
+                Game1.textColor, 1f, -1f, -1, -1, 1f, 3);
+            y += Math.Max((int)font.MeasureString("TT").Y, 48);
         }
     }
 }
