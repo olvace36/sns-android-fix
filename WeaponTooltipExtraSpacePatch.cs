@@ -70,29 +70,17 @@ public class WeaponTooltipExtraSpacePatch
         return extra;
     }
 
-    // คำนวณ box height แบบเดียวกับ drawHoverText จริงๆ
+    // คำนวณ box height โดยใช้ getExtraSpaceNeededForTooltipSpecialIcons
+    // ซึ่ง SNS patch เพิ่ม alloying/coating/gem ให้แล้ว
+    // เราแค่บวก extra ของเราเพิ่ม
     static int CalcBoxHeight(MeleeWeapon weapon, SpriteFont font, string boldTitleText, int moneyAmountToDisplayAtBottom)
     {
-        int num = 60;
-        int num3 = Math.Max(num * 3,
-            (int)((boldTitleText != null) ? (Game1.dialogueFont.MeasureString(boldTitleText).Y + 16f) : 0f) + 32)
-            + (int)font.MeasureString("T").Y
-            + (int)((moneyAmountToDisplayAtBottom > -1) ? (font.MeasureString(moneyAmountToDisplayAtBottom.ToString() ?? "").Y + 4f) : 0f);
-
-        num3 += (!weapon.isScythe() ? (weapon.getNumberOfDescriptionCategories() * 4 * 12) : 0);
-        num3 += (int)font.MeasureString(Game1.parseText(weapon.description, Game1.smallFont, weapon.getDescriptionWidth())).Y;
-
-        if (weapon.GetTotalForgeLevels() > 0)
-            num3 += (int)font.MeasureString("T").Y;
-
-        foreach (var enchantment in weapon.enchantments)
-        {
-            if (!enchantment.IsForge() && enchantment.ShouldBeDisplayed())
-                num3 += (int)font.MeasureString("T").Y + 12;
-        }
-
-        Monitor?.Log($"CalcBoxHeight: {weapon.Name} money={moneyAmountToDisplayAtBottom} num3={num3}", LogLevel.Info);
-        return num3;
+        var space = weapon.getExtraSpaceNeededForTooltipSpecialIcons(
+            font, 0, 92, 0,
+            new System.Text.StringBuilder(weapon.description ?? ""),
+            boldTitleText, moneyAmountToDisplayAtBottom);
+        Monitor?.Log($"CalcBoxHeight: {weapon.Name} money={moneyAmountToDisplayAtBottom} space.Y={space.Y}", LogLevel.Info);
+        return space.Y;
     }
 
     public static bool DrawMobileFloatingPrefix(
