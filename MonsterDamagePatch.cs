@@ -96,7 +96,6 @@ public class MonsterDamagePatch
         {
             __state.origAlloy = alloyId;
             SetId(weapon, _setAlloying, mappedAlloy);
-            Monitor?.Log($"BeforePrefix: {weapon.Name} alloy {alloyId} → {mappedAlloy} damage before={damage}", LogLevel.Info);
         }
 
         string? gemId = GetId(weapon, _getGem);
@@ -105,7 +104,6 @@ public class MonsterDamagePatch
         {
             __state.origGem = gemId;
             SetId(weapon, _setGem, mappedGem);
-            Monitor?.Log($"BeforePrefix: {weapon.Name} gem {gemId} → {mappedGem}", LogLevel.Info);
         }
     }
 
@@ -117,7 +115,6 @@ public class MonsterDamagePatch
 
         if (__state.origAlloy != null)
         {
-            Monitor?.Log($"AfterPrefix: {weapon.Name} damage after={damage} alloy={__state.origAlloy}", LogLevel.Info);
             SetId(weapon, _setAlloying, __state.origAlloy);
         }
 
