@@ -20,7 +20,6 @@ public class WeaponTooltipExtraSpacePatch
     private static MethodInfo? _getCoating;
     private static MethodInfo? _getGem;
     public static bool Drawing = false;
-    public static int StartY = 0;
 
     public static void Apply(Harmony harmony)
     {
@@ -99,22 +98,21 @@ public class WeaponTooltipExtraSpacePatch
         if (hoveredItem is not MeleeWeapon weapon) return true;
 
         int extra = CalcExtra(weapon);
+        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra}", LogLevel.Info);
         if (extra == 0) return true;
 
-        int lastY = WeaponTooltipPatch.LastY;
-        int startY = StartY;
-        int height = lastY > 0 && startY > 0 ? lastY - startY : 0;
-        int boxHeight = height > 0 ? height : 0;
+        // คำนวณ vanilla height ก่อน
+        Point vanillaSpace = weapon.getExtraSpaceNeededForTooltipSpecialIcons(
+            Game1.smallFont, 0, 92, 0,
+            new StringBuilder(weapon.description ?? ""),
+            weapon.DisplayName, moneyAmountToShowAtBottom);
 
-        Monitor?.Log($"DrawMobileFloatingPrefix: {weapon.Name} extra={extra} startY={startY} lastY={lastY} height={height} boxHeight={boxHeight}", LogLevel.Info);
-
-        // เก็บ y เริ่มต้นสำหรับรอบหน้า
-        StartY = y;
-
-        if (boxHeight <= 0) return true;
+        int boxHeight = vanillaSpace.Y + extra;
+        Monitor?.Log($"DrawMobileFloatingPrefix: vanillaSpace.Y={vanillaSpace.Y} boxHeight={boxHeight}", LogLevel.Info);
 
         bool flag = hoveredItem is StardewValley.Object obj && obj.edibility.Value != -300;
         string[]? buffIconsToDisplay = null;
+
         string? extraItemToShowIndex2 = extraItemToShowIndex != -1 ? "(O)" + extraItemToShowIndex : null;
 
         Drawing = true;
@@ -128,6 +126,8 @@ public class WeaponTooltipExtraSpacePatch
                 extraItemToShowIndex2, extraItemToShowAmount,
                 x, y, 1f, craftingIngredients,
                 boxHeightOverride: boxHeight);
+
+            Monitor?.Log($"DrawMobileFloatingPrefix: drawHoverText called with boxHeight={boxHeight}", LogLevel.Info);
         }
         finally
         {
