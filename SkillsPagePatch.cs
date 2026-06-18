@@ -134,8 +134,8 @@ public class SkillsPagePatch
         var skillBars = _skillBarsField?.GetValue(__instance) as System.Collections.IEnumerable;
         if (skillBars != null)
         {
-            var skillsByName = _skillsType?.GetProperty("SkillsByName",
-                BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
+            var skillsByName = _skillsType?.GetField("SkillsByName",
+                BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null)
                 as System.Collections.IDictionary;
 
             foreach (ClickableTextureComponent bar in skillBars)
@@ -268,7 +268,11 @@ public class SkillsPagePatch
                 int snsRow = skillIdx - gameSkillCount;
                 if (snsRow < 0) continue;
 
-                int column = bar.myID / 100;
+                // myID = num10 + num8*100, num8=1(level5) หรือ 2(level10)
+                // num10 = gameSkillCount + snsRow (6..N)
+                // เลย column = myID / 100 อาจผิดถ้า myID < 100
+                // ใช้วิธีดูจาก skillIdx แทน: level5 bar = myID < 200, level10 = myID >= 200
+                int column = bar.myID >= 200 ? 2 : 1;
                 int num11  = column == 1 ? 4 : 9;
                 int newX   = num - 4 + num11 * 36;
                 int newY   = num2 + snsRow * 56;
@@ -380,3 +384,4 @@ public class SkillsPagePatch
         }
     }
 }
+
