@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
@@ -24,6 +23,10 @@ public class SkillsPagePatch
     private static System.Reflection.MethodInfo? _getBaseLevel;
     private static System.Reflection.MethodInfo? _getBuffAmount;
     private static Type? _skillsType;
+
+    // เก็บ hover state ของเราเองแยกต่างหาก
+    private static string _ourHoverText = "";
+    private static string _ourHoverTitle = "";
 
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
@@ -74,6 +77,10 @@ public class SkillsPagePatch
             if (e.NewMenu is not GameMenu gameMenu) return;
             if (_newSkillsPageType == null) return;
 
+            // reset hover state เมื่อเปิด menu ใหม่
+            _ourHoverText = "";
+            _ourHoverTitle = "";
+
             var pages = typeof(GameMenu).GetField("pages",
                 BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(gameMenu) as List<IClickableMenu>;
@@ -103,82 +110,76 @@ public class SkillsPagePatch
     {
         if (_newSkillsPageType == null) return;
 
-        var skillBarsField = _newSkillsPageType.GetField("skillBars", BindingFlags.Public | BindingFlags.Instance);
-        var hoverTextField = _newSkillsPageType.GetField("hoverText", BindingFlags.NonPublic | BindingFlags.Instance);
-        var hoverTitleField = _newSkillsPageType.GetField("hoverTitle", BindingFlags.NonPublic | BindingFlags.Instance);
-        var scrollOffsetField = _newSkillsPageType.GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance);
+        // reset ก่อนทุกครั้ง
+        _ourHoverText = "";
+        _ourHoverTitle = "";
 
-        var skillBars = skillBarsField?.GetValue(__instance) as System.Collections.IEnumerable;
-        if (skillBars == null)
-        {
-            Monitor?.Log("HoverPostfix: skillBars is null", LogLevel.Warn);
-            return;
-        }
-
+        var scrollOffsetField = _newSkillsPageType.GetField("skillScrollOffset",
+            BindingFlags.NonPublic | BindingFlags.Instance);
         int scrollOffset = (int?)scrollOffsetField?.GetValue(__instance) ?? 0;
 
-        var skillsByName = _skillsType?.GetProperty("SkillsByName",
-            BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
-            as System.Collections.IDictionary;
+        // ตรวจ skillBars (SNS profession bars เช่น Artificer, ArmorRecovery)
+        var skillBarsField = _newSkillsPageType.GetField("skillBars", BindingFlags.Public | BindingFlags.Instance);
+        var skillBars = skillBarsField?.GetValue(__instance) as System.Collections.IEnumerable;
 
-        foreach (ClickableTextureComponent bar in skillBars)
+        if (skillBars != null)
         {
-            if (bar == null) continue;
-            if (!bar.name.StartsWith("C")) continue;
-            if (bar.hoverText.Length <= 0) continue;
+            var skillsByName = _skillsType?.GetProperty("SkillsByName",
+                BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
+                as System.Collections.IDictionary;
 
-            bool hit = bar.containsPoint(x, y + scrollOffset * 56);
-            Monitor?.Log($"HoverPostfix: SNS bar '{bar.name}' containsPoint({x},{y}+scroll{scrollOffset*56})={hit}", LogLevel.Debug);
-
-            if (!hit) continue;
-
-            Monitor?.Log($"HoverPostfix: hit SNS bar '{bar.name}', looking up profession...", LogLevel.Debug);
-
-            if (skillsByName == null)
+            foreach (ClickableTextureComponent bar in skillBars)
             {
-                Monitor?.Log("HoverPostfix: SkillsByName is null, using fallback", LogLevel.Warn);
-                hoverTextField?.SetValue(__instance, bar.hoverText);
-                hoverTitleField?.SetValue(__instance, bar.name.Substring(1));
+                if (bar == null) continue;
+                if (!bar.name.StartsWith("C")) continue;
+                if (bar.hoverText.Length <= 0) continue;
+
+                bool hit = bar.containsPoint(x, y + scrollOffset * 56);
+                Monitor?.Log($"HoverPostfix: SNS bar '{bar.name}' bounds={bar.bounds} containsPoint({x},{y}+scroll{scrollOffset*56})={hit}", LogLevel.Debug);
+
+                if (!hit) continue;
+
+                Monitor?.Log($"HoverPostfix: hit SNS bar '{bar.name}'", LogLevel.Debug);
+
+                if (skillsByName != null)
+                {
+                    foreach (var key in skillsByName.Keys)
+                    {
+                        var skill = skillsByName[key];
+                        if (skill == null) continue;
+                        var professions = skill.GetType()
+                            .GetProperty("Professions", BindingFlags.Public | BindingFlags.Instance)
+                            ?.GetValue(skill) as System.Collections.IEnumerable;
+                        if (professions == null) continue;
+
+                        foreach (var prof in professions)
+                        {
+                            if (prof == null) continue;
+                            var profId = prof.GetType().GetProperty("Id",
+                                BindingFlags.Public | BindingFlags.Instance)?.GetValue(prof)?.ToString();
+                            if ("C" + profId != bar.name) continue;
+
+                            var getName = prof.GetType().GetMethod("GetName", BindingFlags.Public | BindingFlags.Instance);
+                            var getDesc = prof.GetType().GetMethod("GetDescription", BindingFlags.Public | BindingFlags.Instance);
+
+                            _ourHoverTitle = (string?)getName?.Invoke(prof, null) ?? "";
+                            _ourHoverText = (string?)getDesc?.Invoke(prof, null) ?? bar.hoverText;
+
+                            Monitor?.Log($"HoverPostfix: profession found title='{_ourHoverTitle}' desc='{_ourHoverText}'", LogLevel.Debug);
+                            return;
+                        }
+                    }
+                }
+
+                // fallback
+                _ourHoverText = bar.hoverText;
+                _ourHoverTitle = bar.name.Substring(1);
+                Monitor?.Log($"HoverPostfix: fallback title='{_ourHoverTitle}'", LogLevel.Warn);
                 return;
             }
-
-            foreach (var key in skillsByName.Keys)
-            {
-                var skill = skillsByName[key];
-                if (skill == null) continue;
-                var professions = skill.GetType()
-                    .GetProperty("Professions", BindingFlags.Public | BindingFlags.Instance)
-                    ?.GetValue(skill) as System.Collections.IEnumerable;
-                if (professions == null) continue;
-
-                foreach (var prof in professions)
-                {
-                    if (prof == null) continue;
-                    var profId = prof.GetType().GetProperty("Id",
-                        BindingFlags.Public | BindingFlags.Instance)?.GetValue(prof)?.ToString();
-                    if ("C" + profId != bar.name) continue;
-
-                    var getName = prof.GetType().GetMethod("GetName", BindingFlags.Public | BindingFlags.Instance);
-                    var getDesc = prof.GetType().GetMethod("GetDescription", BindingFlags.Public | BindingFlags.Instance);
-
-                    string title = (string?)getName?.Invoke(prof, null) ?? "";
-                    string desc = (string?)getDesc?.Invoke(prof, null) ?? bar.hoverText;
-
-                    Monitor?.Log($"HoverPostfix: found profession title='{title}' desc='{desc}'", LogLevel.Debug);
-                    hoverTextField?.SetValue(__instance, desc);
-                    hoverTitleField?.SetValue(__instance, title);
-                    return;
-                }
-            }
-
-            // fallback
-            Monitor?.Log($"HoverPostfix: profession not found in SkillsByName, using fallback for '{bar.name}'", LogLevel.Warn);
-            hoverTextField?.SetValue(__instance, bar.hoverText);
-            hoverTitleField?.SetValue(__instance, bar.name.Substring(1));
-            return;
         }
 
-        // SNS skillAreas (skill index >= 5)
+        // ตรวจ skillAreas (SNS skill bars เช่น Artificer bar ใหญ่)
         var skillAreasList = _newSkillsPageType.GetField("skillAreas",
             BindingFlags.Public | BindingFlags.Instance)
             ?.GetValue(__instance) as List<ClickableTextureComponent>;
@@ -195,12 +196,10 @@ public class SkillsPagePatch
             if (!area.containsPoint(x, y)) continue;
             if (area.hoverText.Length <= 0) continue;
 
-            Monitor?.Log($"HoverPostfix: SNS skillArea hit skillIndex={skillIndex} name='{area.name}'", LogLevel.Debug);
-            hoverTextField?.SetValue(__instance, area.hoverText);
-            hoverTitleField?.SetValue(__instance, area.name.StartsWith("C")
-                ? area.name.Substring(1)
-                : area.name);
-            break;
+            _ourHoverText = area.hoverText;
+            _ourHoverTitle = area.name.StartsWith("C") ? area.name.Substring(1) : area.name;
+            Monitor?.Log($"HoverPostfix: SNS skillArea hit skillIndex={skillIndex} title='{_ourHoverTitle}'", LogLevel.Debug);
+            return;
         }
     }
 
@@ -314,12 +313,25 @@ public class SkillsPagePatch
             row++;
         }
 
-        var hoverText = (string?)_newSkillsPageType.GetField("hoverText",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
-        var hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+        // ใช้ _ourHoverText แทนการดึงจาก field
+        // เพราะ SpaceCore อาจ reset field ใน draw cycle เดียวกัน
+        string hoverText = _ourHoverText;
+        string hoverTitle = _ourHoverTitle;
+
+        // ถ้าเราไม่มี hover ให้ fallback ไปดู field ของ SpaceCore
+        if (hoverText.Length == 0)
+        {
+            hoverText = (string?)_newSkillsPageType.GetField("hoverText",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+            hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+        }
 
         if (hoverText.Length > 0)
+        {
+            Monitor?.Log($"DrawPostfix: drawing hoverText='{hoverText}' title='{hoverTitle}'", LogLevel.Debug);
             IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1, hoverTitle.Length > 0 ? hoverTitle : null);
+        }
     }
 }
+
