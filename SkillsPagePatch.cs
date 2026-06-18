@@ -31,6 +31,11 @@ public class SkillsPagePatch
     private static FieldInfo? _skillBarsField;
     private static FieldInfo? _skillAreasField;
     private static FieldInfo? _skillAreaIndexesField;
+    private static FieldInfo? _skillBarIndexesField;
+
+    // เก็บ icon ที่ต้องวาดใน DrawPostfix
+    private static Texture2D? _pendingIcon;
+    private static Vector2    _pendingIconPos;
 
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
@@ -58,13 +63,13 @@ public class SkillsPagePatch
             _xField = typeof(IClickableMenu).GetField("xPositionOnScreen", BindingFlags.Public | BindingFlags.Instance);
             _yField = typeof(IClickableMenu).GetField("yPositionOnScreen", BindingFlags.Public | BindingFlags.Instance);
 
-            // cache fields ครั้งเดียว
-            _hoverTextField   = _newSkillsPageType.GetField("hoverText",           BindingFlags.NonPublic | BindingFlags.Instance);
-            _hoverTitleField  = _newSkillsPageType.GetField("hoverTitle",          BindingFlags.NonPublic | BindingFlags.Instance);
-            _scrollOffsetField= _newSkillsPageType.GetField("skillScrollOffset",   BindingFlags.NonPublic | BindingFlags.Instance);
-            _skillBarsField   = _newSkillsPageType.GetField("skillBars",           BindingFlags.Public   | BindingFlags.Instance);
-            _skillAreasField  = _newSkillsPageType.GetField("skillAreas",          BindingFlags.Public   | BindingFlags.Instance);
+            _hoverTextField      = _newSkillsPageType.GetField("hoverText",            BindingFlags.NonPublic | BindingFlags.Instance);
+            _hoverTitleField     = _newSkillsPageType.GetField("hoverTitle",           BindingFlags.NonPublic | BindingFlags.Instance);
+            _scrollOffsetField   = _newSkillsPageType.GetField("skillScrollOffset",    BindingFlags.NonPublic | BindingFlags.Instance);
+            _skillBarsField      = _newSkillsPageType.GetField("skillBars",            BindingFlags.Public    | BindingFlags.Instance);
+            _skillAreasField     = _newSkillsPageType.GetField("skillAreas",           BindingFlags.Public    | BindingFlags.Instance);
             _skillAreaIndexesField = _newSkillsPageType.GetField("skillAreaSkillIndexes", BindingFlags.NonPublic | BindingFlags.Instance);
+            _skillBarIndexesField  = _newSkillsPageType.GetField("skillBarSkillIndexes",  BindingFlags.NonPublic | BindingFlags.Instance);
 
             var drawMethod = _newSkillsPageType.GetMethod("draw", new[] { typeof(SpriteBatch) });
             if (drawMethod != null)
@@ -88,6 +93,8 @@ public class SkillsPagePatch
         {
             if (e.NewMenu is not GameMenu gameMenu) return;
             if (_newSkillsPageType == null) return;
+
+            _pendingIcon = null;
 
             var pages = typeof(GameMenu).GetField("pages",
                 BindingFlags.Public | BindingFlags.Instance)
@@ -118,6 +125,9 @@ public class SkillsPagePatch
     {
         if (_newSkillsPageType == null) return;
 
+        // reset icon ทุกครั้ง
+        _pendingIcon = null;
+
         int scrollOffset = (int?)_scrollOffsetField?.GetValue(__instance) ?? 0;
 
         // ── 1. SNS profession bars (skillBars ที่ชื่อขึ้นต้น C) ──
@@ -138,7 +148,6 @@ public class SkillsPagePatch
 
                 Monitor?.Log($"HoverPostfix: hit SNS bar '{bar.name}'", LogLevel.Debug);
 
-                // หา profession จาก SkillsByName
                 if (skillsByName != null)
                 {
                     foreach (var key in skillsByName.Keys)
@@ -158,11 +167,22 @@ public class SkillsPagePatch
 
                             var getName = prof.GetType().GetMethod("GetName", BindingFlags.Public | BindingFlags.Instance);
                             var getDesc = prof.GetType().GetMethod("GetDescription", BindingFlags.Public | BindingFlags.Instance);
+                            var iconProp = prof.GetType().GetProperty("Icon", BindingFlags.Public | BindingFlags.Instance);
+
                             string title = (string?)getName?.Invoke(prof, null) ?? "";
                             string desc  = (string?)getDesc?.Invoke(prof, null) ?? bar.hoverText;
+                            var icon     = iconProp?.GetValue(prof) as Texture2D;
 
-                            Monitor?.Log($"HoverPostfix: profession found title='{title}' desc='{desc}'", LogLevel.Debug);
-                            // set field ของ SpaceCore โดยตรง → SpaceCore จะวาดให้เอง
+                            // เก็บ icon และตำแหน่งไว้วาดใน DrawPostfix
+                            // วาดตรงบาร์ฝั่งขวา (bounds ที่ย้ายแล้ว)
+                            if (icon != null)
+                            {
+                                _pendingIcon    = icon;
+                                _pendingIconPos = new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16);
+                                Monitor?.Log($"HoverPostfix: icon found, pos=({_pendingIconPos.X},{_pendingIconPos.Y})", LogLevel.Debug);
+                            }
+
+                            Monitor?.Log($"HoverPostfix: profession found title='{title}'", LogLevel.Debug);
                             _hoverTextField?.SetValue(__instance, desc);
                             _hoverTitleField?.SetValue(__instance, title);
                             return;
@@ -191,7 +211,6 @@ public class SkillsPagePatch
             if (area.hoverText.Length <= 0) continue;
 
             Monitor?.Log($"HoverPostfix: SNS skillArea hit skillIndex={skillIndex} title='{area.name}'", LogLevel.Debug);
-            // set field ของ SpaceCore โดยตรง → SpaceCore จะวาดให้เอง
             _hoverTextField?.SetValue(__instance, area.hoverText);
             _hoverTitleField?.SetValue(__instance, area.name.StartsWith("C")
                 ? area.name.Substring(1)
@@ -212,20 +231,20 @@ public class SkillsPagePatch
         if (pageY == 0 && Game1.activeClickableMenu is GameMenu gm2)
             pageY = gm2.yPositionOnScreen;
 
-        int num = pageX + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8 + 800;
+        int num  = pageX + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8 + 800;
         int num2 = pageY + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 8;
 
         var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
         if (visibleSkills == null || visibleSkills.Length == 0) return;
 
-        // ย้าย skillArea bounds ฝั่งขวา
+        // ── ย้าย skillArea bounds ฝั่งขวา ──
         var skillAreasList = _skillAreasField?.GetValue(__instance) as List<ClickableTextureComponent>;
         if (skillAreasList != null)
         {
             for (int i = 5; i < skillAreasList.Count; i++)
             {
-                int r = i - 5;
+                int r    = i - 5;
                 var area = skillAreasList[i];
                 var bounds = area.bounds;
                 bounds.X = num - 128 - 48;
@@ -234,44 +253,27 @@ public class SkillsPagePatch
             }
         }
 
-        // ย้าย SNS skillBars (profession bars ชื่อขึ้นต้น C) ให้อยู่ฝั่งขวาด้วย
-        // เพื่อให้ containsPoint ใน HoverPostfix match กับที่กดจริง
-        var skillBarsList = _skillBarsField?.GetValue(__instance) as List<ClickableTextureComponent>;
-        var skillBarIndexes = _newSkillsPageType?.GetField("skillBarSkillIndexes",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance)
-            as Dictionary<int, int>;
+        // ── ย้าย SNS skillBars ฝั่งขวา ──
+        var skillBarsList   = _skillBarsField?.GetValue(__instance) as List<ClickableTextureComponent>;
+        var skillBarIndexes = _skillBarIndexesField?.GetValue(__instance) as Dictionary<int, int>;
 
         if (skillBarsList != null && skillBarIndexes != null)
         {
-            // นับ row ของ SNS skills (gameSkillCount = 6 สำหรับ vanilla)
             const int gameSkillCount = 6;
             foreach (var bar in skillBarsList)
             {
-                if (bar == null) continue;
-                if (!bar.name.StartsWith("C")) continue; // เฉพาะ SNS profession bars
+                if (bar == null || !bar.name.StartsWith("C")) continue;
                 if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIdx)) continue;
 
-                // row ของ SNS skill นี้ (นับจาก 0 ของ SNS skills)
                 int snsRow = skillIdx - gameSkillCount;
                 if (snsRow < 0) continue;
 
-                // หา column (level 5 หรือ level 10) จาก X เดิม
-                // X เดิม = num2 - 4 + num11 * 36 (num11 = 4 หรือ 9)
-                // เราใช้ bounds.Width เดิมและหา offset จาก X ปัจจุบัน
-                var bounds = bar.bounds;
-                int oldX = bounds.X;
-
-                // คำนวณ X ใหม่ให้อยู่ฝั่งขวาเหมือน skillArea
-                // skillArea อยู่ที่ num - 128 - 48
-                // profession bar อยู่ที่ level 5 (num11=4) และ 10 (num11=9)
-                // X = baseX + num11 * 36 - 4
-                // เราต้องรู้ว่า bar นี้อยู่ level ไหน — ดูจาก myID
-                // myID = skillIdx + column*100 (column 1=level5, 2=level10)
-                int column = bar.myID / 100; // 1 = level5, 2 = level10
+                int column = bar.myID / 100;
                 int num11  = column == 1 ? 4 : 9;
                 int newX   = num - 4 + num11 * 36;
                 int newY   = num2 + snsRow * 56;
 
+                var bounds = bar.bounds;
                 bounds.X = newX;
                 bounds.Y = newY;
                 bar.bounds = bounds;
@@ -280,6 +282,7 @@ public class SkillsPagePatch
             }
         }
 
+        // ── วาด SNS skills ──
         int row = 0;
         foreach (var name in visibleSkills)
         {
@@ -356,17 +359,24 @@ public class SkillsPagePatch
         }
 
         // ── วาด hoverText ──
-        // SpaceCore วาดที่บรรทัด 1275/1286 แต่อาจถูก reset โดย draw loop
-        // เราวาดซ้ำที่ท้าย postfix เพื่อให้แน่ใจว่าขึ้น
         string hoverText  = (string?)_hoverTextField?.GetValue(__instance)  ?? "";
         string hoverTitle = (string?)_hoverTitleField?.GetValue(__instance) ?? "";
 
         if (hoverText.Length > 0)
         {
             Monitor?.Log($"DrawPostfix: drawing hoverText='{hoverText}' title='{hoverTitle}'", LogLevel.Debug);
+
+            // วาด profession icon ฝั่งขวาตรงบาร์ที่ hover
+            if (_pendingIcon != null)
+            {
+                Monitor?.Log($"DrawPostfix: drawing icon at ({_pendingIconPos.X},{_pendingIconPos.Y})", LogLevel.Debug);
+                b.Draw(_pendingIcon, _pendingIconPos,
+                    new Rectangle(0, 0, 16, 16), Color.White,
+                    0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+            }
+
             IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1,
                 hoverTitle.Length > 0 ? hoverTitle : null);
         }
     }
 }
-
