@@ -122,7 +122,6 @@ public class SkillsPagePatch
             bounds.X = num - 128 - 48;
             bounds.Y = num2 + r * 56;
             area.bounds = bounds;
-            Monitor?.Log($"FixSkillAreaBounds: area[{i}] bounds=({bounds.X},{bounds.Y},{bounds.Width},{bounds.Height})", LogLevel.Info);
         }
     }
 
@@ -131,7 +130,6 @@ public class SkillsPagePatch
         if (_newSkillsPageType == null) return;
 
         var (num, num2) = CalcPositions(__instance);
-        Monitor?.Log($"HoverPostfix: x={x} y={y} num={num} num2={num2}", LogLevel.Info);
         FixSkillAreaBounds(__instance, num, num2);
 
         var skillAreasList = _newSkillsPageType.GetField("skillAreas",
@@ -151,7 +149,6 @@ public class SkillsPagePatch
         {
             if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
             if (skillIndex < 5) continue;
-            Monitor?.Log($"HoverPostfix: checking area myID={area.myID} bounds=({area.bounds.X},{area.bounds.Y},{area.bounds.Width},{area.bounds.Height}) contains({x},{y})={area.containsPoint(x, y)}", LogLevel.Info);
             if (!area.containsPoint(x, y)) continue;
             if (area.hoverText.Length <= 0) continue;
 
@@ -159,7 +156,6 @@ public class SkillsPagePatch
             hoverTitleField?.SetValue(__instance, area.name.StartsWith("C")
                 ? area.name.Substring(1)
                 : area.name);
-            Monitor?.Log($"HoverPostfix: set hoverText={area.hoverText}", LogLevel.Info);
             break;
         }
     }
@@ -194,10 +190,12 @@ public class SkillsPagePatch
             string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
             var skillIcon = skillType.GetProperty("SkillsPageIcon")?.GetValue(skill) as Texture2D;
 
+            float skillNameX = (float)((double)((float)num - Game1.smallFont.MeasureString(skillName).X) + 4.0 - 64.0);
+            Monitor?.Log($"DrawPostfix: skill={skillName} nameX={skillNameX} barX={num - 128 - 48} num={num} num2={num2} row={row}", LogLevel.Info);
+
             if (skillName.Length > 0)
                 b.DrawString(Game1.smallFont, skillName,
-                    new Vector2((float)((double)((float)num - Game1.smallFont.MeasureString(skillName).X) + 4.0 - 64.0),
-                    (float)(num2 + 4 + row * 56)), Game1.textColor);
+                    new Vector2(skillNameX, (float)(num2 + 4 + row * 56)), Game1.textColor);
 
             if (skillIcon != null)
             {
