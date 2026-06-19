@@ -307,129 +307,129 @@ static Texture2D? GetProfessionIcon(string barName)
     }
 
     public static void DrawPostfix(object __instance, SpriteBatch b)
+{
+    if (_newSkillsPageType == null) return;
+
+    var (num, num2) = CalcPositions(__instance);
+
+    var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
+        BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
+    if (visibleSkills == null || visibleSkills.Length == 0) return;
+
+    UpdateSkillAreaBounds(__instance, num, num2);
+    UpdateSkillBarBounds(__instance, num, num2);
+
+    var skillBars = _newSkillsPageType.GetField("skillBars",
+        BindingFlags.Public | BindingFlags.Instance)
+        ?.GetValue(__instance) as List<ClickableTextureComponent>;
+    var skillBarIndexes = _newSkillsPageType.GetField("skillBarSkillIndexes",
+        BindingFlags.NonPublic | BindingFlags.Instance)
+        ?.GetValue(__instance) as Dictionary<int, int>;
+
+    int skillScrollOffset = (int?)(_newSkillsPageType
+        .GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)
+        ?.GetValue(__instance)) ?? 0;
+
+    int row = 0;
+    foreach (var name in visibleSkills)
     {
-        if (_newSkillsPageType == null) return;
+        var skill = _getSkillMethod?.Invoke(null, new object[] { name });
+        if (skill == null) { row++; continue; }
 
-        var (num, num2) = CalcPositions(__instance);
+        var skillType = skill.GetType();
+        int num4 = 0;
+        var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
+        int levels = expCurve?.Length ?? 10;
 
-        var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
-        if (visibleSkills == null || visibleSkills.Length == 0) return;
+        int buffedLevel = (int?)_getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
+        int buffAmount = (int?)_getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
+        bool hasBuff = buffAmount != 0;
 
-        UpdateSkillAreaBounds(__instance, num, num2);
-        UpdateSkillBarBounds(__instance, num, num2);
+        string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
+        var skillIcon = skillType.GetProperty("SkillsPageIcon")?.GetValue(skill) as Texture2D;
 
-        var skillBars = _newSkillsPageType.GetField("skillBars",
-            BindingFlags.Public | BindingFlags.Instance)
-            ?.GetValue(__instance) as List<ClickableTextureComponent>;
-        var skillBarIndexes = _newSkillsPageType.GetField("skillBarSkillIndexes",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance) as Dictionary<int, int>;
+        if (skillName.Length > 0)
+            b.DrawString(Game1.smallFont, skillName,
+                new Vector2((float)((double)((float)num - Game1.smallFont.MeasureString(skillName).X) + 4.0 - 64.0),
+                (float)(num2 + 4 + row * 56)), Game1.textColor);
 
-        int skillScrollOffset = (int?)(_newSkillsPageType
-            .GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance)) ?? 0;
-
-        if (skillBars != null && skillBarIndexes != null)
+        if (skillIcon != null)
         {
-            foreach (var bar in skillBars)
-            {
-                if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
-                if (skillIndex < 5) continue;
-                if (!bar.name.StartsWith("C")) continue;
-                if (!bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56)) continue;
-                if (bar.hoverText.Length <= 0) continue;
-
-                var icon = GetProfessionIcon(bar.name) ?? Game1.staminaRect;
-                b.Draw(icon,
-                    new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
-                    new Rectangle(0, 0, 16, 16),
-                    Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-                break;
-            }
+            b.Draw(skillIcon, new Vector2((float)(num - 56), (float)(num2 + row * 56)),
+                null, Color.Black * 0.3f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
+            b.Draw(skillIcon, new Vector2((float)(num - 52), (float)(num2 - 4 + row * 56)),
+                null, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
         }
 
-        int row = 0;
-        foreach (var name in visibleSkills)
+        for (int l = 0; l < levels; l++)
         {
-            var skill = _getSkillMethod?.Invoke(null, new object[] { name });
-            if (skill == null) { row++; continue; }
+            bool filled = buffedLevel > l;
 
-            var skillType = skill.GetType();
-            int num4 = 0;
-            var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
-            int levels = expCurve?.Length ?? 10;
-
-            int buffedLevel = (int?)_getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
-            int buffAmount = (int?)_getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
-            bool hasBuff = buffAmount != 0;
-
-            string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
-            var skillIcon = skillType.GetProperty("SkillsPageIcon")?.GetValue(skill) as Texture2D;
-
-            if (skillName.Length > 0)
-                b.DrawString(Game1.smallFont, skillName,
-                    new Vector2((float)((double)((float)num - Game1.smallFont.MeasureString(skillName).X) + 4.0 - 64.0),
-                    (float)(num2 + 4 + row * 56)), Game1.textColor);
-
-            if (skillIcon != null)
+            if ((l + 1) % 5 == 0)
             {
-                b.Draw(skillIcon, new Vector2((float)(num - 56), (float)(num2 + row * 56)),
-                    null, Color.Black * 0.3f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
-                b.Draw(skillIcon, new Vector2((float)(num - 52), (float)(num2 - 4 + row * 56)),
-                    null, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                b.Draw(Game1.mouseCursors,
+                    new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
+                    new Rectangle(145, 338, 14, 9), Color.Black * 0.35f,
+                    0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                b.Draw(Game1.mouseCursors,
+                    new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
+                    new Rectangle(filled ? 159 : 145, 338, 14, 9), Color.White * (filled ? 1f : 0.65f),
+                    0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+            }
+            else
+            {
+                b.Draw(Game1.mouseCursors,
+                    new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
+                    new Rectangle(129, 338, 8, 9), Color.Black * 0.35f,
+                    0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
+                b.Draw(Game1.mouseCursors,
+                    new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
+                    new Rectangle(129 + (filled ? 8 : 0), 338, 8, 9), Color.White * (filled ? 1f : 0.65f),
+                    0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
             }
 
-            for (int l = 0; l < levels; l++)
+            if (l == levels - 1)
             {
-                bool filled = buffedLevel > l;
-
-                if ((l + 1) % 5 == 0)
-                {
-                    b.Draw(Game1.mouseCursors,
-                        new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
-                        new Rectangle(145, 338, 14, 9), Color.Black * 0.35f,
-                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
-                    b.Draw(Game1.mouseCursors,
-                        new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
-                        new Rectangle(filled ? 159 : 145, 338, 14, 9), Color.White * (filled ? 1f : 0.65f),
-                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
-                }
-                else
-                {
-                    b.Draw(Game1.mouseCursors,
-                        new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
-                        new Rectangle(129, 338, 8, 9), Color.Black * 0.35f,
-                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
-                    b.Draw(Game1.mouseCursors,
-                        new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
-                        new Rectangle(129 + (filled ? 8 : 0), 338, 8, 9), Color.White * (filled ? 1f : 0.65f),
-                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
-                }
-
-                if (l == levels - 1)
-                {
-                    Color levelColor = hasBuff ? Color.LightGreen : Color.SandyBrown;
-                    NumberSprite.draw(buffedLevel, b,
-                        new Vector2((float)(num4 + num + (l + 2) * 36 + 12 + ((buffedLevel >= 10) ? 12 : 0)),
-                        (float)(num2 + 16 + row * 56)), Color.Black * 0.35f, 1f, 0.85f, 1f, 0, 0);
-                    NumberSprite.draw(buffedLevel, b,
-                        new Vector2((float)(num4 + num + (l + 2) * 36 + 16 + ((buffedLevel >= 10) ? 12 : 0)),
-                        (float)(num2 + 12 + row * 56)), levelColor * (buffedLevel == 0 ? 0.75f : 1f),
-                        1f, 0.87f, 1f, 0, 0);
-                }
-
-                if ((l + 1) % 5 == 0) num4 += 24;
+                Color levelColor = hasBuff ? Color.LightGreen : Color.SandyBrown;
+                NumberSprite.draw(buffedLevel, b,
+                    new Vector2((float)(num4 + num + (l + 2) * 36 + 12 + ((buffedLevel >= 10) ? 12 : 0)),
+                    (float)(num2 + 16 + row * 56)), Color.Black * 0.35f, 1f, 0.85f, 1f, 0, 0);
+                NumberSprite.draw(buffedLevel, b,
+                    new Vector2((float)(num4 + num + (l + 2) * 36 + 16 + ((buffedLevel >= 10) ? 12 : 0)),
+                    (float)(num2 + 12 + row * 56)), levelColor * (buffedLevel == 0 ? 0.75f : 1f),
+                    1f, 0.87f, 1f, 0, 0);
             }
-            row++;
+
+            if ((l + 1) % 5 == 0) num4 += 24;
         }
-
-        var hoverText = (string?)_newSkillsPageType.GetField("hoverText",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
-        var hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
-
-        if (hoverText.Length > 0)
-            IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1, hoverTitle.Length > 0 ? hoverTitle : null);
+        row++;
     }
-}
+
+    var hoverText = (string?)_newSkillsPageType.GetField("hoverText",
+        BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+    var hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
+        BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+
+    if (hoverText.Length > 0)
+        IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1, hoverTitle.Length > 0 ? hoverTitle : null);
+
+    // วาด icon หลัง drawHoverText เพื่อให้อยู่บนสุด
+    if (skillBars != null && skillBarIndexes != null)
+    {
+        foreach (var bar in skillBars)
+        {
+            if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
+            if (skillIndex < 5) continue;
+            if (!bar.name.StartsWith("C")) continue;
+            if (!bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56)) continue;
+            if (bar.hoverText.Length <= 0) continue;
+
+            var icon = GetProfessionIcon(bar.name) ?? Game1.staminaRect;
+            b.Draw(icon,
+                new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
+                new Rectangle(0, 0, 16, 16),
+                Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+            break;
+        }
+    }
+    }
