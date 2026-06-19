@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
@@ -23,8 +24,11 @@ public class SkillsPagePatch
     private static System.Reflection.MethodInfo? _getBaseLevel;
     private static System.Reflection.MethodInfo? _getBuffAmount;
 
-    // เก็บ original bounds ของ skillBars เพื่อไม่ให้บวกซ้ำ
     private static Dictionary<int, int> _barOriginalX = new();
+
+    // เก็บ x,y ล่าสุดจาก performHoverAction เพื่อใช้ใน DrawPostfix
+    public static int LastHoverX = 0;
+    public static int LastHoverY = 0;
 
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
@@ -68,7 +72,7 @@ public class SkillsPagePatch
             if (e.NewMenu is not GameMenu gameMenu) return;
             if (_newSkillsPageType == null) return;
 
-            _barOriginalX.Clear(); // reset เมื่อเปิดเมนูใหม่
+            _barOriginalX.Clear();
 
             var pages = typeof(GameMenu).GetField("pages",
                 BindingFlags.Public | BindingFlags.Instance)
@@ -156,36 +160,27 @@ public class SkillsPagePatch
             if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
             if (skillIndex < 5) continue;
 
-            // เก็บ originalX ครั้งแรกเท่านั้น
             if (!_barOriginalX.ContainsKey(bar.myID))
                 _barOriginalX[bar.myID] = bar.bounds.X;
 
-            int originalX = _barOriginalX[bar.myID];
-
-            // col = myID % 100 (0-indexed) ดังนั้น level 5 คือ col=4
-            int col = (bar.myID % 100) - 1;
+            // col ลบ 1 เพราะ SpaceCore นับจาก 1 แต่ DrawPostfix นับจาก 0
+            int col = bar.myID % 100 - 1;
             int row = skillIndex - 5;
-            
-            // เพิ่มตรงนี้: เลเวลที่เกินคอลัมน์ 4 (ตั้งแต่เลเวล 6 ขึ้นไป) จะต้องบวกเยื้องอีก 24 พิกเซล
-            int num4 = 0;
-            if (col > 5) 
-            {
-                num4 = 24;
-            }
+            int num4 = col >= 5 ? 24 : 0; // บวก 24 หลัง milestone bar
 
-           var bounds = bar.bounds;
-           // ใส่ num4 เพิ่มเข้าไปในสูตรคำนวณ X
-           bounds.X = num + num4 + (col * 36) - 4;
-           bounds.Y = num2 + row * 56;
-           bar.bounds = bounds;
-
-            Monitor?.Log($"UpdateSkillBarBounds: myID={bar.myID} skillIndex={skillIndex} col={col} row={row} originalX={originalX} newX={bounds.X}", LogLevel.Info);
+            var bounds = bar.bounds;
+            bounds.X = num + num4 + (col * 36) - 4;
+            bounds.Y = num2 + row * 56;
+            bar.bounds = bounds;
         }
     }
 
     public static void HoverPostfix(object __instance, int x, int y)
     {
         if (_newSkillsPageType == null) return;
+
+        LastHoverX = x;
+        LastHoverY = y;
 
         var (num, num2) = CalcPositions(__instance);
         UpdateSkillAreaBounds(__instance, num, num2);
@@ -227,7 +222,6 @@ public class SkillsPagePatch
             hoverTitleField?.SetValue(__instance, area.name.StartsWith("C")
                 ? area.name.Substring(1)
                 : area.name);
-            Monitor?.Log($"HoverPostfix: set hoverText={area.hoverText} x={x} y={y}", LogLevel.Info);
             return;
         }
 
@@ -246,7 +240,6 @@ public class SkillsPagePatch
                     : bar.name);
                 professionImageField?.SetValue(__instance, bar.name.StartsWith("C") ? 0 : Convert.ToInt32(bar.name));
                 bar.scale = 0f;
-                Monitor?.Log($"HoverPostfix: set hoverText from skillBar={bar.hoverText} x={x} y={y}", LogLevel.Info);
                 return;
             }
         }
@@ -264,6 +257,72 @@ public class SkillsPagePatch
 
         UpdateSkillAreaBounds(__instance, num, num2);
         UpdateSkillBarBounds(__instance, num, num2);
+
+        var skillBars = _newSkillsPageType.GetField("skillBars",
+            BindingFlags.Public | BindingFlags.Instance)
+            ?.GetValue(__instance) as List<ClickableTextureComponent>;
+        var skillBarIndexes = _newSkillsPageType.GetField("skillBarSkillIndexes",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as Dictionary<int, int>;
+
+        int skillScrollOffset = (int?)(_newSkillsPageType
+            .GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance)) ?? 0;
+
+        // วาด icon สำหรับ custom profession ที่ hover อยู่
+        if (skillBars != null && skillBarIndexes != null)
+        {
+            var skillsByName = AccessTools.TypeByName("SpaceCore.Skills")
+                ?.GetProperty("SkillsByName", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+
+            foreach (var bar in skillBars)
+            {
+                if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
+                if (skillIndex < 5) continue;
+                if (!bar.name.StartsWith("C")) continue;
+                if (!bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56)) continue;
+                if (bar.hoverText.Length <= 0) continue;
+
+                // หา profession จาก name
+                try
+                {
+                    var allProfessions = skillsByName?.GetType()
+                        .GetMethod("SelectMany")?.Invoke(skillsByName, null);
+
+                    var professions = AccessTools.TypeByName("SpaceCore.Skills")
+                        ?.GetProperty("SkillsByName", BindingFlags.Public | BindingFlags.Static)
+                        ?.GetValue(null);
+
+                    if (professions == null) continue;
+
+                    // ดึง profession โดยตรงจาก Skills.SkillsByName
+                    var getProfession = AccessTools.Method(
+                        AccessTools.TypeByName("SpaceCore.Skills"),
+                        "GetSkill",
+                        new[] { typeof(string) });
+
+                    // หา profession ที่ตรงกับ bar.name
+                    string profId = bar.name.Substring(1); // ลบ "C" ออก
+                    Texture2D? icon = null;
+
+                    foreach (var kvp in professions as System.Collections.IDictionary ?? new Dictionary<string, object>())
+                    {
+                        // ข้ามไปหา Icon จาก profession
+                    }
+
+                    // วาด icon ตรงๆ จาก bar.bounds
+                    if (icon != null)
+                    {
+                        b.Draw(icon,
+                            new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
+                            new Rectangle(0, 0, 16, 16),
+                            Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+                    }
+                }
+                catch { }
+            }
+        }
 
         int row = 0;
         foreach (var name in visibleSkills)
