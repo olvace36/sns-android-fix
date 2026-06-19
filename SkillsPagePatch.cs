@@ -212,14 +212,19 @@ public class SkillsPagePatch
         int num2H = pageY2 + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 8;
 
         // ย้าย skillArea bounds ก่อน check containsPoint
-        for (int i = 5; i < skillAreasList.Count; i++)
+        // ใช้ skillAreaIndexes เพื่อหา SNS skills แทน hardcode index 5
+        int snsRowH = 0;
+        for (int i = 0; i < skillAreasList.Count; i++)
         {
-            int r    = i - 5;
             var area = skillAreasList[i];
-            var b2   = area.bounds;
+            if (!skillAreaIndexes.TryGetValue(area.myID, out int si)) continue;
+            if (si < 5) continue; // vanilla skill ข้ามไป
+            var b2 = area.bounds;
             b2.X = numH - 128 - 48;
-            b2.Y = num2H + r * 56;
+            b2.Y = num2H + snsRowH * 56;
             area.bounds = b2;
+            Monitor?.Log($"HoverPostfix: moved skillArea[{i}] skillIndex={si} to ({b2.X},{b2.Y})", LogLevel.Debug);
+            snsRowH++;
         }
 
         bool anyHit = false;
@@ -227,7 +232,9 @@ public class SkillsPagePatch
         {
             if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
             if (skillIndex < 5) continue;
-            if (!area.containsPoint(x, y)) continue;
+            bool areaHit = area.containsPoint(x, y);
+            Monitor?.Log($"HoverPostfix: SNS skillArea skillIndex={skillIndex} bounds={area.bounds} containsPoint({x},{y})={areaHit}", LogLevel.Debug);
+            if (!areaHit) continue;
             if (area.hoverText.Length <= 0) continue;
 
             anyHit = true;
@@ -406,3 +413,4 @@ public class SkillsPagePatch
         }
     }
 }
+
