@@ -23,10 +23,8 @@ public class SkillsPagePatch
     private static System.Reflection.MethodInfo? _getBaseLevel;
     private static System.Reflection.MethodInfo? _getBuffAmount;
 
-    // offset ที่ต้องบวกเพื่อย้าย skillBar จากฝั่งซ้ายไปฝั่งขวา
-    // originalBounds.X=548 → newX ควรเป็น num + 4*36 - 4 = 1344
-    // offset = 1344 - 548 = 796 ≈ 800
-    private static int _skillBarOffset = 0;
+    // เก็บ original bounds ของ skillBars เพื่อไม่ให้บวกซ้ำ
+    private static Dictionary<int, int> _barOriginalX = new();
 
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
@@ -70,6 +68,8 @@ public class SkillsPagePatch
             if (e.NewMenu is not GameMenu gameMenu) return;
             if (_newSkillsPageType == null) return;
 
+            _barOriginalX.Clear(); // reset เมื่อเปิดเมนูใหม่
+
             var pages = typeof(GameMenu).GetField("pages",
                 BindingFlags.Public | BindingFlags.Instance)
                 ?.GetValue(gameMenu) as List<IClickableMenu>;
@@ -92,7 +92,6 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
             pages[skillsTab] = newPage;
-            _skillBarOffset = 0; // reset offset เมื่อเปิดเมนูใหม่
         };
     }
 
@@ -152,32 +151,28 @@ public class SkillsPagePatch
 
         if (skillBars == null || skillBarIndexes == null) return;
 
-        // คำนวณ offset ครั้งแรก
-        if (_skillBarOffset == 0)
-        {
-            foreach (var bar in skillBars)
-            {
-                if (!skillBarIndexes.TryGetValue(bar.myID, out int si)) continue;
-                if (si < 5) continue;
-                // bar level 5 อยู่ที่ col=4 (l=4) วาดที่ num + 4*36 - 4
-                int targetX = num + (4 * 36) - 4;
-                _skillBarOffset = targetX - bar.bounds.X;
-                Monitor?.Log($"UpdateSkillBarBounds: offset={_skillBarOffset} originalX={bar.bounds.X} targetX={targetX}", LogLevel.Info);
-                break;
-            }
-        }
-
-        if (_skillBarOffset == 0) return;
-
         foreach (var bar in skillBars)
         {
             if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
             if (skillIndex < 5) continue;
 
+            // เก็บ originalX ครั้งแรกเท่านั้น
+            if (!_barOriginalX.ContainsKey(bar.myID))
+                _barOriginalX[bar.myID] = bar.bounds.X;
+
+            int originalX = _barOriginalX[bar.myID];
+
+            // col = myID % 100 (0-indexed) ดังนั้น level 5 คือ col=4
+            int col = bar.myID % 100;
+            int row = skillIndex - 5;
+
             var bounds = bar.bounds;
-            bounds.X += _skillBarOffset;
+            // วาดที่ num + col*36 - 4 เหมือน DrawPostfix
+            bounds.X = num + (col * 36) - 4;
+            bounds.Y = num2 + row * 56;
             bar.bounds = bounds;
-            Monitor?.Log($"UpdateSkillBarBounds: myID={bar.myID} newBounds=({bounds.X},{bounds.Y},{bounds.Width},{bounds.Height})", LogLevel.Info);
+
+            Monitor?.Log($"UpdateSkillBarBounds: myID={bar.myID} skillIndex={skillIndex} col={col} row={row} originalX={originalX} newX={bounds.X}", LogLevel.Info);
         }
     }
 
@@ -214,7 +209,6 @@ public class SkillsPagePatch
 
         if (skillAreasList == null || skillAreaIndexes == null) return;
 
-        // เช็ค skillAreas (ชื่อสกิล)
         foreach (var area in skillAreasList)
         {
             if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
@@ -230,7 +224,6 @@ public class SkillsPagePatch
             return;
         }
 
-        // เช็ค skillBars (สายอาชีพ)
         if (skillBars != null && skillBarIndexes != null)
         {
             foreach (var bar in skillBars)
