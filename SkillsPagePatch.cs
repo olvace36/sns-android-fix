@@ -23,6 +23,11 @@ public class SkillsPagePatch
     private static System.Reflection.MethodInfo? _getBaseLevel;
     private static System.Reflection.MethodInfo? _getBuffAmount;
 
+    // offset ที่ต้องบวกเพื่อย้าย skillBar จากฝั่งซ้ายไปฝั่งขวา
+    // originalBounds.X=548 → newX ควรเป็น num + 4*36 - 4 = 1344
+    // offset = 1344 - 548 = 796 ≈ 800
+    private static int _skillBarOffset = 0;
+
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
         Monitor = monitor;
@@ -87,6 +92,7 @@ public class SkillsPagePatch
 
             var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
             pages[skillsTab] = newPage;
+            _skillBarOffset = 0; // reset offset เมื่อเปิดเมนูใหม่
         };
     }
 
@@ -146,13 +152,32 @@ public class SkillsPagePatch
 
         if (skillBars == null || skillBarIndexes == null) return;
 
+        // คำนวณ offset ครั้งแรก
+        if (_skillBarOffset == 0)
+        {
+            foreach (var bar in skillBars)
+            {
+                if (!skillBarIndexes.TryGetValue(bar.myID, out int si)) continue;
+                if (si < 5) continue;
+                // bar level 5 อยู่ที่ col=4 (l=4) วาดที่ num + 4*36 - 4
+                int targetX = num + (4 * 36) - 4;
+                _skillBarOffset = targetX - bar.bounds.X;
+                Monitor?.Log($"UpdateSkillBarBounds: offset={_skillBarOffset} originalX={bar.bounds.X} targetX={targetX}", LogLevel.Info);
+                break;
+            }
+        }
+
+        if (_skillBarOffset == 0) return;
+
         foreach (var bar in skillBars)
         {
             if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
             if (skillIndex < 5) continue;
 
-            // log ค่าจริงๆ ของ bar
-            Monitor?.Log($"UpdateSkillBarBounds: myID={bar.myID} skillIndex={skillIndex} originalBounds=({bar.bounds.X},{bar.bounds.Y},{bar.bounds.Width},{bar.bounds.Height}) name={bar.name}", LogLevel.Info);
+            var bounds = bar.bounds;
+            bounds.X += _skillBarOffset;
+            bar.bounds = bounds;
+            Monitor?.Log($"UpdateSkillBarBounds: myID={bar.myID} newBounds=({bounds.X},{bounds.Y},{bounds.Width},{bounds.Height})", LogLevel.Info);
         }
     }
 
@@ -221,7 +246,7 @@ public class SkillsPagePatch
                     : bar.name);
                 professionImageField?.SetValue(__instance, bar.name.StartsWith("C") ? 0 : Convert.ToInt32(bar.name));
                 bar.scale = 0f;
-                Monitor?.Log($"HoverPostfix: set hoverText from skillBar={bar.hoverText} x={x} y={y} name={bar.name}", LogLevel.Info);
+                Monitor?.Log($"HoverPostfix: set hoverText from skillBar={bar.hoverText} x={x} y={y}", LogLevel.Info);
                 return;
             }
         }
@@ -238,6 +263,7 @@ public class SkillsPagePatch
         if (visibleSkills == null || visibleSkills.Length == 0) return;
 
         UpdateSkillAreaBounds(__instance, num, num2);
+        UpdateSkillBarBounds(__instance, num, num2);
 
         int row = 0;
         foreach (var name in visibleSkills)
