@@ -405,7 +405,12 @@ public class SkillsPagePatch
         }
 
         // re-set field ให้ SpaceCore วาด tooltip เองตาม mouse position
-        // ไม่วาดเองเพราะ drawHoverText ใช้ mouse position อัตโนมัติ
+// ไม่วาดเองเพราะ drawHoverText ใช้ mouse position อัตโนมัติ
         if (_pendingHoverText.Length > 0)
         {
-            _hoverTextField?.SetValue(__instance, _pen
+            _hoverTextField?.SetValue(__instance, _pendingHoverText);
+            _hoverTitleField?.SetValue(__instance, _pendingHoverTitle);
+            Monitor?.Log("DrawPostfix: re-set hoverText=" + _pendingHoverText + " title=" + _pendingHoverTitle, LogLevel.Debug);
+        }
+    }
+}
