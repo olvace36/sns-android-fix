@@ -168,7 +168,7 @@ public class SkillsPagePatch
 
             var bounds = bar.bounds;
             // วาดที่ num + col*36 - 4 เหมือน DrawPostfix
-            bounds.X = num + (col * 36) - 4;
+            bounds.X = num + (col * 36) - 3;
             bounds.Y = num2 + row * 56;
             bar.bounds = bounds;
 
