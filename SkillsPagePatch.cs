@@ -33,9 +33,11 @@ public class SkillsPagePatch
     private static FieldInfo? _skillAreaIndexesField;
     private static FieldInfo? _skillBarIndexesField;
 
-    // เก็บ icon ที่ต้องวาดใน DrawPostfix
+    // เก็บ hover state ไว้ใน DrawPostfix
     private static Texture2D? _pendingIcon;
     private static Vector2    _pendingIconPos;
+    private static string _pendingHoverText = "";
+    private static string _pendingHoverTitle = "";
 
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
@@ -125,6 +127,13 @@ public class SkillsPagePatch
     {
         if (_newSkillsPageType == null) return;
 
+        // บน Android x,y อาจเป็น relative coords ต้องแปลงเป็น UI coords
+        int ux = (int)(x * Game1.options.zoomLevel / Game1.options.uiScale);
+        int uy = (int)(y * Game1.options.zoomLevel / Game1.options.uiScale);
+        Monitor?.Log($"HoverPostfix: raw({x},{y}) -> ui({ux},{uy})", LogLevel.Debug);
+        x = ux;
+        y = uy;
+
         // reset icon - จะ set ใหม่ถ้าเจอ profession
         // ไม่ reset ก่อน เพราะ DrawPostfix อาจรันก่อน HoverPostfix ใน frame เดียวกัน
         // reset เฉพาะตอนที่ไม่มี hover
@@ -183,6 +192,8 @@ public class SkillsPagePatch
                                 Monitor?.Log($"HoverPostfix: icon found, pos=({_pendingIconPos.X},{_pendingIconPos.Y})", LogLevel.Debug);
                             }
 
+                            _pendingHoverText = desc;
+                            _pendingHoverTitle = title;
                             Monitor?.Log($"HoverPostfix: profession found title='{title}'", LogLevel.Debug);
                             _hoverTextField?.SetValue(__instance, desc);
                             _hoverTitleField?.SetValue(__instance, title);
@@ -238,6 +249,8 @@ public class SkillsPagePatch
             if (area.hoverText.Length <= 0) continue;
 
             anyHit = true;
+            _pendingHoverText = area.hoverText;
+            _pendingHoverTitle = area.name.StartsWith("C") ? area.name.Substring(1) : area.name;
             Monitor?.Log($"HoverPostfix: SNS skillArea hit skillIndex={skillIndex} title='{area.name}'", LogLevel.Debug);
             _hoverTextField?.SetValue(__instance, area.hoverText);
             _hoverTitleField?.SetValue(__instance, area.name.StartsWith("C")
@@ -245,7 +258,7 @@ public class SkillsPagePatch
                 : area.name);
             return;
         }
-        if (!anyHit) _pendingIcon = null;
+        if (!anyHit) { _pendingIcon = null; _pendingHoverText = ""; _pendingHoverTitle = ""; }
     }
 
     public static void DrawPostfix(object __instance, SpriteBatch b)
@@ -391,26 +404,8 @@ public class SkillsPagePatch
             row++;
         }
 
-        // ── วาด hoverText ──
-        string hoverText  = (string?)_hoverTextField?.GetValue(__instance)  ?? "";
-        string hoverTitle = (string?)_hoverTitleField?.GetValue(__instance) ?? "";
-
-        if (hoverText.Length > 0)
+        // re-set field ให้ SpaceCore วาด tooltip เองตาม mouse position
+        // ไม่วาดเองเพราะ drawHoverText ใช้ mouse position อัตโนมัติ
+        if (_pendingHoverText.Length > 0)
         {
-            Monitor?.Log($"DrawPostfix: drawing hoverText='{hoverText}' title='{hoverTitle}'", LogLevel.Debug);
-
-            // วาด profession icon ฝั่งขวาตรงบาร์ที่ hover
-            if (_pendingIcon != null)
-            {
-                Monitor?.Log($"DrawPostfix: drawing icon at ({_pendingIconPos.X},{_pendingIconPos.Y})", LogLevel.Debug);
-                b.Draw(_pendingIcon, _pendingIconPos,
-                    new Rectangle(0, 0, 16, 16), Color.White,
-                    0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-            }
-
-            IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1,
-                hoverTitle.Length > 0 ? hoverTitle : null);
-        }
-    }
-}
-
+            _hoverTextField?.SetValue(__instance, _pen
