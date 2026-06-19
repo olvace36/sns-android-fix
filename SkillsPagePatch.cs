@@ -151,19 +151,8 @@ public class SkillsPagePatch
             if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
             if (skillIndex < 5) continue;
 
-            // คำนวณ row และ col จาก myID
-            // myID = col * 100 + row สำหรับ vanilla
-            // myID = row + skillIndex * 100 สำหรับ custom
-            int col = bar.myID / 100;
-            int row = bar.myID % 100 - 5; // row ใน custom skills
-
-            var bounds = bar.bounds;
-            // ย้าย x ไปฝั่งขวา โดยใช้ offset เดียวกับ DrawPostfix
-            int oldX = bounds.X;
-            bounds.X = num + (col * 36) - 4;
-            bounds.Y = num2 + row * 56;
-            Monitor?.Log($"UpdateSkillBarBounds: bar myID={bar.myID} skillIndex={skillIndex} col={col} row={row} oldX={oldX} newX={bounds.X} y={bounds.Y}", LogLevel.Info);
-            bar.bounds = bounds;
+            // log ค่าจริงๆ ของ bar
+            Monitor?.Log($"UpdateSkillBarBounds: myID={bar.myID} skillIndex={skillIndex} originalBounds=({bar.bounds.X},{bar.bounds.Y},{bar.bounds.Width},{bar.bounds.Height}) name={bar.name}", LogLevel.Info);
         }
     }
 
@@ -232,7 +221,7 @@ public class SkillsPagePatch
                     : bar.name);
                 professionImageField?.SetValue(__instance, bar.name.StartsWith("C") ? 0 : Convert.ToInt32(bar.name));
                 bar.scale = 0f;
-                Monitor?.Log($"HoverPostfix: set hoverText from skillBar={bar.hoverText} x={x} y={y}", LogLevel.Info);
+                Monitor?.Log($"HoverPostfix: set hoverText from skillBar={bar.hoverText} x={x} y={y} name={bar.name}", LogLevel.Info);
                 return;
             }
         }
@@ -249,7 +238,6 @@ public class SkillsPagePatch
         if (visibleSkills == null || visibleSkills.Length == 0) return;
 
         UpdateSkillAreaBounds(__instance, num, num2);
-        UpdateSkillBarBounds(__instance, num, num2);
 
         int row = 0;
         foreach (var name in visibleSkills)
