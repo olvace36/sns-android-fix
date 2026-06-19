@@ -75,6 +75,7 @@ public class SkillsPagePatch
             if (_newSkillsPageType == null) return;
 
             _barOriginalX.Clear();
+            _professionIconCache.Clear(); // เพิ่มบรรทัดนี้
 
             var pages = typeof(GameMenu).GetField("pages",
                 BindingFlags.Public | BindingFlags.Instance)
