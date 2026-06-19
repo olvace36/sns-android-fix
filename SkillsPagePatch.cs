@@ -29,6 +29,9 @@ public class SkillsPagePatch
     public static int LastHoverX = 0;
     public static int LastHoverY = 0;
 
+    // cache profession icons
+    private static Dictionary<string, Texture2D?> _professionIconCache = new();
+
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
         Monitor = monitor;
@@ -174,13 +177,24 @@ public class SkillsPagePatch
 
     static Texture2D? GetProfessionIcon(string barName)
     {
+        if (_professionIconCache.TryGetValue(barName, out var cached))
+            return cached;
+
+        Monitor?.Log($"GetProfessionIcon: looking for barName={barName}", LogLevel.Info);
+
         try
         {
             var skillsByName = AccessTools.TypeByName("SpaceCore.Skills")
                 ?.GetProperty("SkillsByName", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null) as IDictionary;
 
-            if (skillsByName == null) return null;
+            if (skillsByName == null)
+            {
+                Monitor?.Log("GetProfessionIcon: SkillsByName is null", LogLevel.Warn);
+                return null;
+            }
+
+            Monitor?.Log($"GetProfessionIcon: SkillsByName has {skillsByName.Count} entries", LogLevel.Info);
 
             foreach (DictionaryEntry kvp in skillsByName)
             {
@@ -197,11 +211,17 @@ public class SkillsPagePatch
                     string? id = p.GetType()
                         .GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)
                         ?.GetValue(p) as string;
+
+                    Monitor?.Log($"GetProfessionIcon: found profession id={id} looking for C{id} vs {barName}", LogLevel.Info);
+
                     if ("C" + id == barName)
                     {
-                        return p.GetType()
+                        var icon = p.GetType()
                             .GetProperty("Icon", BindingFlags.Public | BindingFlags.Instance)
                             ?.GetValue(p) as Texture2D;
+                        Monitor?.Log($"GetProfessionIcon: matched! icon={icon != null}", LogLevel.Info);
+                        _professionIconCache[barName] = icon;
+                        return icon;
                     }
                 }
             }
@@ -210,6 +230,8 @@ public class SkillsPagePatch
         {
             Monitor?.Log($"GetProfessionIcon error: {ex.Message}", LogLevel.Warn);
         }
+
+        _professionIconCache[barName] = null;
         return null;
     }
 
@@ -307,7 +329,6 @@ public class SkillsPagePatch
             .GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)
             ?.GetValue(__instance)) ?? 0;
 
-        // วาด icon ของ custom profession ที่ hover อยู่
         if (skillBars != null && skillBarIndexes != null)
         {
             foreach (var bar in skillBars)
@@ -318,19 +339,11 @@ public class SkillsPagePatch
                 if (!bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56)) continue;
                 if (bar.hoverText.Length <= 0) continue;
 
-                var icon = GetProfessionIcon(bar.name);
-                if (icon != null)
-                {
-                    b.Draw(icon,
-                        new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
-                        new Rectangle(0, 0, 16, 16),
-                        Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-                    Monitor?.Log($"DrawPostfix: drew icon for {bar.name}", LogLevel.Info);
-                }
-                else
-                {
-                    Monitor?.Log($"DrawPostfix: icon null for {bar.name}", LogLevel.Warn);
-                }
+                var icon = GetProfessionIcon(bar.name) ?? Game1.staminaRect;
+                b.Draw(icon,
+                    new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
+                    new Rectangle(0, 0, 16, 16),
+                    Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
                 break;
             }
         }
