@@ -154,7 +154,7 @@ public class SkillsPagePatch
         foreach (var bar in skillBars)
         {
             if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
-            if (skillIndex < 5) continue;
+            if (skillIndex < 4) continue;
 
             // เก็บ originalX ครั้งแรกเท่านั้น
             if (!_barOriginalX.ContainsKey(bar.myID))
@@ -165,12 +165,19 @@ public class SkillsPagePatch
             // col = myID % 100 (0-indexed) ดังนั้น level 5 คือ col=4
             int col = bar.myID % 100;
             int row = skillIndex - 5;
+            
+            // เพิ่มตรงนี้: เลเวลที่เกินคอลัมน์ 4 (ตั้งแต่เลเวล 6 ขึ้นไป) จะต้องบวกเยื้องอีก 24 พิกเซล
+            int num4 = 0;
+            if (col > 4) 
+            {
+                num4 = 24;
+            }
 
-            var bounds = bar.bounds;
-            // วาดที่ num + col*36 - 4 เหมือน DrawPostfix
-            bounds.X = num + (col * 36) - 3;
-            bounds.Y = num2 + row * 56;
-            bar.bounds = bounds;
+           var bounds = bar.bounds;
+           // ใส่ num4 เพิ่มเข้าไปในสูตรคำนวณ X
+           bounds.X = num + num4 + (col * 36) - 4;
+           bounds.Y = num2 + row * 56;
+           bar.bounds = bounds;
 
             Monitor?.Log($"UpdateSkillBarBounds: myID={bar.myID} skillIndex={skillIndex} col={col} row={row} originalX={originalX} newX={bounds.X}", LogLevel.Info);
         }
