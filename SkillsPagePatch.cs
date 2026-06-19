@@ -105,23 +105,9 @@ public class SkillsPagePatch
         return (num, num2);
     }
 
-    public static void HoverPostfix(object __instance, int x, int y)
+    static void UpdateSkillAreaBounds(object __instance, int num, int num2)
     {
         if (_newSkillsPageType == null) return;
-
-        // ดึง skillScrollOffset
-        int skillScrollOffset = (int?)(_newSkillsPageType
-            .GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(__instance)) ?? 0;
-
-        var skillBarsField = _newSkillsPageType.GetField("skillBars",
-            BindingFlags.Public | BindingFlags.Instance);
-        var skillBarIndexesField = _newSkillsPageType.GetField("skillBarSkillIndexes",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        var hoverTextField = _newSkillsPageType.GetField("hoverText",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        var hoverTitleField = _newSkillsPageType.GetField("hoverTitle",
-            BindingFlags.NonPublic | BindingFlags.Instance);
 
         var skillAreasList = _newSkillsPageType.GetField("skillAreas",
             BindingFlags.Public | BindingFlags.Instance)
@@ -132,46 +118,47 @@ public class SkillsPagePatch
 
         if (skillAreasList == null || skillAreaIndexes == null) return;
 
-        // เพิ่ม skillBars สำหรับ custom skills ที่ยังไม่มี
-        var skillBars = skillBarsField?.GetValue(__instance) as List<ClickableTextureComponent>;
-        var skillBarIndexes = skillBarIndexesField?.GetValue(__instance) as Dictionary<int, int>;
-
-        if (skillBars != null && skillBarIndexes != null && skillAreaIndexes != null)
+        foreach (var area in skillAreasList)
         {
-            foreach (var area in skillAreasList)
-            {
-                if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
-                if (skillIndex < 5) continue; // custom skill เท่านั้น
+            if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
+            if (skillIndex < 5) continue; // custom skill เท่านั้น
 
-                // เช็คว่ามี skillBar สำหรับ custom skill นี้แล้วไหม
-                bool hasBar = false;
-                foreach (var bar in skillBars)
-                {
-                    if (skillBarIndexes.TryGetValue(bar.myID, out int barSkillIndex) && barSkillIndex == skillIndex)
-                    {
-                        hasBar = true;
-                        break;
-                    }
-                }
-
-                if (!hasBar)
-                {
-                    // สร้าง skillBar ใหม่สำหรับ custom skill
-                    // ใช้ bounds เดียวกับ skillArea แต่ขยับ x ไปทางซ้าย
-                    var newBar = new ClickableTextureComponent(
-                        area.name,
-                        new Rectangle(area.bounds.X - 300, area.bounds.Y, area.bounds.Width + 300, area.bounds.Height),
-                        area.name, area.hoverText,
-                        Game1.mouseCursors, new Rectangle(159, 338, 14, 9), 4f);
-                    newBar.myID = area.myID + 1000;
-                    skillBars.Add(newBar);
-                    skillBarIndexes[newBar.myID] = skillIndex;
-                    Monitor?.Log($"HoverPostfix: added skillBar for custom skill index={skillIndex} bounds=({newBar.bounds.X},{newBar.bounds.Y},{newBar.bounds.Width},{newBar.bounds.Height})", LogLevel.Info);
-                }
-            }
+            int r = skillIndex - 5;
+            var bounds = area.bounds;
+            // ย้าย bounds ไปฝั่งขวาตรงกับ bar ที่เราวาดใหม่
+            bounds.X = num - 128 - 48;
+            bounds.Y = num2 + r * 56;
+            bounds.Width = 148;
+            bounds.Height = 36;
+            area.bounds = bounds;
+            Monitor?.Log($"UpdateSkillAreaBounds: skill={skillIndex} bounds=({bounds.X},{bounds.Y},{bounds.Width},{bounds.Height})", LogLevel.Info);
         }
+    }
 
-        // เช็ค hover สำหรับ custom skills
+    public static void HoverPostfix(object __instance, int x, int y)
+    {
+        if (_newSkillsPageType == null) return;
+
+        var (num, num2) = CalcPositions(__instance);
+        UpdateSkillAreaBounds(__instance, num, num2);
+
+        int skillScrollOffset = (int?)(_newSkillsPageType
+            .GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance)) ?? 0;
+
+        var skillAreasList = _newSkillsPageType.GetField("skillAreas",
+            BindingFlags.Public | BindingFlags.Instance)
+            ?.GetValue(__instance) as List<ClickableTextureComponent>;
+        var skillAreaIndexes = _newSkillsPageType.GetField("skillAreaSkillIndexes",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as Dictionary<int, int>;
+        var hoverTextField = _newSkillsPageType.GetField("hoverText",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        var hoverTitleField = _newSkillsPageType.GetField("hoverTitle",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        if (skillAreasList == null || skillAreaIndexes == null) return;
+
         foreach (var area in skillAreasList)
         {
             if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
@@ -186,25 +173,6 @@ public class SkillsPagePatch
             Monitor?.Log($"HoverPostfix: set hoverText={area.hoverText} x={x} y={y}", LogLevel.Info);
             break;
         }
-
-        // เช็ค skillBars สำหรับ custom skills
-        if (skillBars != null && skillBarIndexes != null)
-        {
-            foreach (var bar in skillBars)
-            {
-                if (!skillBarIndexes.TryGetValue(bar.myID, out int barSkillIndex)) continue;
-                if (barSkillIndex < 5) continue;
-                if (!bar.containsPoint(x, y + skillScrollOffset * 56)) continue;
-                if (bar.hoverText.Length <= 0) continue;
-
-                hoverTextField?.SetValue(__instance, bar.hoverText);
-                hoverTitleField?.SetValue(__instance, bar.name.StartsWith("C")
-                    ? bar.name.Substring(1)
-                    : bar.name);
-                Monitor?.Log($"HoverPostfix: set hoverText from skillBar={bar.hoverText} x={x} y={y}", LogLevel.Info);
-                break;
-            }
-        }
     }
 
     public static void DrawPostfix(object __instance, SpriteBatch b)
@@ -216,6 +184,8 @@ public class SkillsPagePatch
         var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
         if (visibleSkills == null || visibleSkills.Length == 0) return;
+
+        UpdateSkillAreaBounds(__instance, num, num2);
 
         int row = 0;
         foreach (var name in visibleSkills)
