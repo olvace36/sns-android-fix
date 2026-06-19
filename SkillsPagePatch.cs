@@ -90,6 +90,21 @@ public class SkillsPagePatch
         };
     }
 
+    static (int num, int num2) CalcPositions(object __instance)
+    {
+        int pageX = (int?)_xField?.GetValue(__instance) ?? 0;
+        int pageY = (int?)_yField?.GetValue(__instance) ?? 0;
+
+        if (pageX == 0 && Game1.activeClickableMenu is GameMenu gm)
+            pageX = gm.xPositionOnScreen;
+        if (pageY == 0 && Game1.activeClickableMenu is GameMenu gm2)
+            pageY = gm2.yPositionOnScreen;
+
+        int num = pageX + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8 + 800;
+        int num2 = pageY + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 8;
+        return (num, num2);
+    }
+
     static void FixSkillAreaBounds(object __instance, int num, int num2)
     {
         if (_newSkillsPageType == null) return;
@@ -107,30 +122,16 @@ public class SkillsPagePatch
             bounds.X = num - 128 - 48;
             bounds.Y = num2 + r * 56;
             area.bounds = bounds;
+            Monitor?.Log($"FixSkillAreaBounds: area[{i}] bounds=({bounds.X},{bounds.Y},{bounds.Width},{bounds.Height})", LogLevel.Info);
         }
-    }
-
-    static (int num, int num2) CalcPositions(object __instance)
-    {
-        int pageX = (int?)_xField?.GetValue(__instance) ?? 0;
-        int pageY = (int?)_yField?.GetValue(__instance) ?? 0;
-
-        if (pageX == 0 && Game1.activeClickableMenu is GameMenu gm)
-            pageX = gm.xPositionOnScreen;
-        if (pageY == 0 && Game1.activeClickableMenu is GameMenu gm2)
-            pageY = gm2.yPositionOnScreen;
-
-        int num = pageX + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8 + 800;
-        int num2 = pageY + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 8;
-        return (num, num2);
     }
 
     public static void HoverPostfix(object __instance, int x, int y)
     {
         if (_newSkillsPageType == null) return;
 
-        // แก้ bounds ก่อนเช็ค hover
         var (num, num2) = CalcPositions(__instance);
+        Monitor?.Log($"HoverPostfix: x={x} y={y} num={num} num2={num2}", LogLevel.Info);
         FixSkillAreaBounds(__instance, num, num2);
 
         var skillAreasList = _newSkillsPageType.GetField("skillAreas",
@@ -150,6 +151,7 @@ public class SkillsPagePatch
         {
             if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
             if (skillIndex < 5) continue;
+            Monitor?.Log($"HoverPostfix: checking area myID={area.myID} bounds=({area.bounds.X},{area.bounds.Y},{area.bounds.Width},{area.bounds.Height}) contains({x},{y})={area.containsPoint(x, y)}", LogLevel.Info);
             if (!area.containsPoint(x, y)) continue;
             if (area.hoverText.Length <= 0) continue;
 
@@ -157,6 +159,7 @@ public class SkillsPagePatch
             hoverTitleField?.SetValue(__instance, area.name.StartsWith("C")
                 ? area.name.Substring(1)
                 : area.name);
+            Monitor?.Log($"HoverPostfix: set hoverText={area.hoverText}", LogLevel.Info);
             break;
         }
     }
@@ -171,7 +174,6 @@ public class SkillsPagePatch
             BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
         if (visibleSkills == null || visibleSkills.Length == 0) return;
 
-        // แก้ bounds
         FixSkillAreaBounds(__instance, num, num2);
 
         int row = 0;
