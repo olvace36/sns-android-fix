@@ -433,3 +433,4 @@ static Texture2D? GetProfessionIcon(string barName)
         }
     }
     }
+}
