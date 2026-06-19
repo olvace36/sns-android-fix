@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -25,8 +26,6 @@ public class SkillsPagePatch
     private static System.Reflection.MethodInfo? _getBuffAmount;
 
     private static Dictionary<int, int> _barOriginalX = new();
-
-    // เก็บ x,y ล่าสุดจาก performHoverAction เพื่อใช้ใน DrawPostfix
     public static int LastHoverX = 0;
     public static int LastHoverY = 0;
 
@@ -89,12 +88,11 @@ public class SkillsPagePatch
             if (constructor == null) return;
 
             var oldPage = pages[skillsTab];
-            int x = oldPage.xPositionOnScreen;
-            int y = oldPage.yPositionOnScreen;
-            int w = oldPage.width;
-            int h = oldPage.height;
-
-            var newPage = (IClickableMenu)constructor.Invoke(new object[] { x, y, w, h });
+            var newPage = (IClickableMenu)constructor.Invoke(new object[]
+            {
+                oldPage.xPositionOnScreen, oldPage.yPositionOnScreen,
+                oldPage.width, oldPage.height
+            });
             pages[skillsTab] = newPage;
         };
     }
@@ -163,16 +161,56 @@ public class SkillsPagePatch
             if (!_barOriginalX.ContainsKey(bar.myID))
                 _barOriginalX[bar.myID] = bar.bounds.X;
 
-            // col ลบ 1 เพราะ SpaceCore นับจาก 1 แต่ DrawPostfix นับจาก 0
             int col = bar.myID % 100 - 1;
             int row = skillIndex - 5;
-            int num4 = col >= 5 ? 24 : 0; // บวก 24 หลัง milestone bar
+            int num4 = col >= 5 ? 24 : 0;
 
             var bounds = bar.bounds;
             bounds.X = num + num4 + (col * 36) - 4;
             bounds.Y = num2 + row * 56;
             bar.bounds = bounds;
         }
+    }
+
+    static Texture2D? GetProfessionIcon(string barName)
+    {
+        try
+        {
+            var skillsByName = AccessTools.TypeByName("SpaceCore.Skills")
+                ?.GetProperty("SkillsByName", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null) as IDictionary;
+
+            if (skillsByName == null) return null;
+
+            foreach (DictionaryEntry kvp in skillsByName)
+            {
+                var skill = kvp.Value;
+                if (skill == null) continue;
+
+                var professions = skill.GetType()
+                    .GetProperty("Professions", BindingFlags.Public | BindingFlags.Instance)
+                    ?.GetValue(skill) as IEnumerable;
+                if (professions == null) continue;
+
+                foreach (var p in professions)
+                {
+                    string? id = p.GetType()
+                        .GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)
+                        ?.GetValue(p) as string;
+                    if ("C" + id == barName)
+                    {
+                        return p.GetType()
+                            .GetProperty("Icon", BindingFlags.Public | BindingFlags.Instance)
+                            ?.GetValue(p) as Texture2D;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Monitor?.Log($"GetProfessionIcon error: {ex.Message}", LogLevel.Warn);
+        }
+        return null;
     }
 
     public static void HoverPostfix(object __instance, int x, int y)
@@ -269,13 +307,9 @@ public class SkillsPagePatch
             .GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)
             ?.GetValue(__instance)) ?? 0;
 
-        // วาด icon สำหรับ custom profession ที่ hover อยู่
+        // วาด icon ของ custom profession ที่ hover อยู่
         if (skillBars != null && skillBarIndexes != null)
         {
-            var skillsByName = AccessTools.TypeByName("SpaceCore.Skills")
-                ?.GetProperty("SkillsByName", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
-
             foreach (var bar in skillBars)
             {
                 if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
@@ -284,43 +318,20 @@ public class SkillsPagePatch
                 if (!bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56)) continue;
                 if (bar.hoverText.Length <= 0) continue;
 
-                // หา profession จาก name
-                try
+                var icon = GetProfessionIcon(bar.name);
+                if (icon != null)
                 {
-                    var allProfessions = skillsByName?.GetType()
-                        .GetMethod("SelectMany")?.Invoke(skillsByName, null);
-
-                    var professions = AccessTools.TypeByName("SpaceCore.Skills")
-                        ?.GetProperty("SkillsByName", BindingFlags.Public | BindingFlags.Static)
-                        ?.GetValue(null);
-
-                    if (professions == null) continue;
-
-                    // ดึง profession โดยตรงจาก Skills.SkillsByName
-                    var getProfession = AccessTools.Method(
-                        AccessTools.TypeByName("SpaceCore.Skills"),
-                        "GetSkill",
-                        new[] { typeof(string) });
-
-                    // หา profession ที่ตรงกับ bar.name
-                    string profId = bar.name.Substring(1); // ลบ "C" ออก
-                    Texture2D? icon = null;
-
-                    foreach (var kvp in professions as System.Collections.IDictionary ?? new Dictionary<string, object>())
-                    {
-                        // ข้ามไปหา Icon จาก profession
-                    }
-
-                    // วาด icon ตรงๆ จาก bar.bounds
-                    if (icon != null)
-                    {
-                        b.Draw(icon,
-                            new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
-                            new Rectangle(0, 0, 16, 16),
-                            Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-                    }
+                    b.Draw(icon,
+                        new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
+                        new Rectangle(0, 0, 16, 16),
+                        Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+                    Monitor?.Log($"DrawPostfix: drew icon for {bar.name}", LogLevel.Info);
                 }
-                catch { }
+                else
+                {
+                    Monitor?.Log($"DrawPostfix: icon null for {bar.name}", LogLevel.Warn);
+                }
+                break;
             }
         }
 
