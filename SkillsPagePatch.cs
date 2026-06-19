@@ -175,65 +175,65 @@ public class SkillsPagePatch
         }
     }
 
-    static Texture2D? GetProfessionIcon(string barName)
+static Texture2D? GetProfessionIcon(string barName)
+{
+    if (_professionIconCache.TryGetValue(barName, out var cached))
+        return cached;
+
+    Monitor?.Log($"GetProfessionIcon: looking for barName={barName}", LogLevel.Info);
+
+    try
     {
-        if (_professionIconCache.TryGetValue(barName, out var cached))
-            return cached;
+        var skillsByName = AccessTools.TypeByName("SpaceCore.Skills")
+            ?.GetField("SkillsByName", BindingFlags.NonPublic | BindingFlags.Static)
+            ?.GetValue(null) as IDictionary;
 
-        Monitor?.Log($"GetProfessionIcon: looking for barName={barName}", LogLevel.Info);
-
-        try
+        if (skillsByName == null)
         {
-            var skillsByName = AccessTools.TypeByName("SpaceCore.Skills")
-                ?.GetProperty("SkillsByName", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null) as IDictionary;
+            Monitor?.Log("GetProfessionIcon: SkillsByName is null", LogLevel.Warn);
+            return null;
+        }
 
-            if (skillsByName == null)
+        Monitor?.Log($"GetProfessionIcon: SkillsByName has {skillsByName.Count} entries", LogLevel.Info);
+
+        foreach (DictionaryEntry kvp in skillsByName)
+        {
+            var skill = kvp.Value;
+            if (skill == null) continue;
+
+            var professions = skill.GetType()
+                .GetProperty("Professions", BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(skill) as IEnumerable;
+            if (professions == null) continue;
+
+            foreach (var p in professions)
             {
-                Monitor?.Log("GetProfessionIcon: SkillsByName is null", LogLevel.Warn);
-                return null;
-            }
+                string? id = p.GetType()
+                    .GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)
+                    ?.GetValue(p) as string;
 
-            Monitor?.Log($"GetProfessionIcon: SkillsByName has {skillsByName.Count} entries", LogLevel.Info);
+                Monitor?.Log($"GetProfessionIcon: found id={id}", LogLevel.Info);
 
-            foreach (DictionaryEntry kvp in skillsByName)
-            {
-                var skill = kvp.Value;
-                if (skill == null) continue;
-
-                var professions = skill.GetType()
-                    .GetProperty("Professions", BindingFlags.Public | BindingFlags.Instance)
-                    ?.GetValue(skill) as IEnumerable;
-                if (professions == null) continue;
-
-                foreach (var p in professions)
+                if ("C" + id == barName)
                 {
-                    string? id = p.GetType()
-                        .GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)
-                        ?.GetValue(p) as string;
-
-                    Monitor?.Log($"GetProfessionIcon: found profession id={id} looking for C{id} vs {barName}", LogLevel.Info);
-
-                    if ("C" + id == barName)
-                    {
-                        var icon = p.GetType()
-                            .GetProperty("Icon", BindingFlags.Public | BindingFlags.Instance)
-                            ?.GetValue(p) as Texture2D;
-                        Monitor?.Log($"GetProfessionIcon: matched! icon={icon != null}", LogLevel.Info);
-                        _professionIconCache[barName] = icon;
-                        return icon;
-                    }
+                    var icon = p.GetType()
+                        .GetProperty("Icon", BindingFlags.Public | BindingFlags.Instance)
+                        ?.GetValue(p) as Texture2D;
+                    Monitor?.Log($"GetProfessionIcon: matched! icon={icon != null}", LogLevel.Info);
+                    _professionIconCache[barName] = icon;
+                    return icon;
                 }
             }
         }
-        catch (Exception ex)
-        {
-            Monitor?.Log($"GetProfessionIcon error: {ex.Message}", LogLevel.Warn);
-        }
-
-        _professionIconCache[barName] = null;
-        return null;
     }
+    catch (Exception ex)
+    {
+        Monitor?.Log($"GetProfessionIcon error: {ex.Message}", LogLevel.Warn);
+    }
+
+    _professionIconCache[barName] = null;
+    return null;
+}
 
     public static void HoverPostfix(object __instance, int x, int y)
     {
