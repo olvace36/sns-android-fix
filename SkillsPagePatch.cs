@@ -125,8 +125,9 @@ public class SkillsPagePatch
     {
         if (_newSkillsPageType == null) return;
 
-        // reset icon ทุกครั้ง
-        _pendingIcon = null;
+        // reset icon - จะ set ใหม่ถ้าเจอ profession
+        // ไม่ reset ก่อน เพราะ DrawPostfix อาจรันก่อน HoverPostfix ใน frame เดียวกัน
+        // reset เฉพาะตอนที่ไม่มี hover
 
         int scrollOffset = (int?)_scrollOffsetField?.GetValue(__instance) ?? 0;
 
@@ -203,6 +204,25 @@ public class SkillsPagePatch
         var skillAreaIndexes = _skillAreaIndexesField?.GetValue(__instance) as Dictionary<int, int>;
         if (skillAreasList == null || skillAreaIndexes == null) return;
 
+        int pageX2 = (int?)_xField?.GetValue(__instance) ?? 0;
+        int pageY2 = (int?)_yField?.GetValue(__instance) ?? 0;
+        if (pageX2 == 0 && Game1.activeClickableMenu is GameMenu gmH)  pageX2 = gmH.xPositionOnScreen;
+        if (pageY2 == 0 && Game1.activeClickableMenu is GameMenu gmH2) pageY2 = gmH2.yPositionOnScreen;
+        int numH  = pageX2 + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8 + 800;
+        int num2H = pageY2 + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 8;
+
+        // ย้าย skillArea bounds ก่อน check containsPoint
+        for (int i = 5; i < skillAreasList.Count; i++)
+        {
+            int r    = i - 5;
+            var area = skillAreasList[i];
+            var b2   = area.bounds;
+            b2.X = numH - 128 - 48;
+            b2.Y = num2H + r * 56;
+            area.bounds = b2;
+        }
+
+        bool anyHit = false;
         foreach (var area in skillAreasList)
         {
             if (!skillAreaIndexes.TryGetValue(area.myID, out int skillIndex)) continue;
@@ -210,6 +230,7 @@ public class SkillsPagePatch
             if (!area.containsPoint(x, y)) continue;
             if (area.hoverText.Length <= 0) continue;
 
+            anyHit = true;
             Monitor?.Log($"HoverPostfix: SNS skillArea hit skillIndex={skillIndex} title='{area.name}'", LogLevel.Debug);
             _hoverTextField?.SetValue(__instance, area.hoverText);
             _hoverTitleField?.SetValue(__instance, area.name.StartsWith("C")
@@ -217,6 +238,7 @@ public class SkillsPagePatch
                 : area.name);
             return;
         }
+        if (!anyHit) _pendingIcon = null;
     }
 
     public static void DrawPostfix(object __instance, SpriteBatch b)
@@ -384,4 +406,3 @@ public class SkillsPagePatch
         }
     }
 }
-
