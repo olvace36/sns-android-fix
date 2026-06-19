@@ -154,7 +154,7 @@ public class SkillsPagePatch
         foreach (var bar in skillBars)
         {
             if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
-            if (skillIndex < 4) continue;
+            if (skillIndex < 5) continue;
 
             // เก็บ originalX ครั้งแรกเท่านั้น
             if (!_barOriginalX.ContainsKey(bar.myID))
@@ -163,12 +163,12 @@ public class SkillsPagePatch
             int originalX = _barOriginalX[bar.myID];
 
             // col = myID % 100 (0-indexed) ดังนั้น level 5 คือ col=4
-            int col = bar.myID % 100;
+            int col = (bar.myID % 100) - 1;
             int row = skillIndex - 5;
             
             // เพิ่มตรงนี้: เลเวลที่เกินคอลัมน์ 4 (ตั้งแต่เลเวล 6 ขึ้นไป) จะต้องบวกเยื้องอีก 24 พิกเซล
             int num4 = 0;
-            if (col > 4) 
+            if (col > 5) 
             {
                 num4 = 24;
             }
