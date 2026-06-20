@@ -26,11 +26,9 @@ public class SkillsPagePatch
     private static System.Reflection.MethodInfo? _getBuffAmount;
 
     private static Dictionary<int, int> _barOriginalX = new();
+    private static Dictionary<string, Texture2D?> _professionIconCache = new();
     public static int LastHoverX = 0;
     public static int LastHoverY = 0;
-
-    // cache profession icons
-    private static Dictionary<string, Texture2D?> _professionIconCache = new();
 
     public static void Apply(IModHelper helper, IMonitor monitor, Harmony harmony)
     {
@@ -75,7 +73,7 @@ public class SkillsPagePatch
             if (_newSkillsPageType == null) return;
 
             _barOriginalX.Clear();
-            _professionIconCache.Clear(); // เพิ่มบรรทัดนี้
+            _professionIconCache.Clear();
 
             var pages = typeof(GameMenu).GetField("pages",
                 BindingFlags.Public | BindingFlags.Instance)
@@ -176,65 +174,54 @@ public class SkillsPagePatch
         }
     }
 
-static Texture2D? GetProfessionIcon(string barName)
-{
-    if (_professionIconCache.TryGetValue(barName, out var cached))
-        return cached;
-
-    Monitor?.Log($"GetProfessionIcon: looking for barName={barName}", LogLevel.Info);
-
-    try
+    static Texture2D? GetProfessionIcon(string barName)
     {
-        var skillsByName = AccessTools.TypeByName("SpaceCore.Skills")
-            ?.GetField("SkillsByName", BindingFlags.NonPublic | BindingFlags.Static)
-            ?.GetValue(null) as IDictionary;
+        if (_professionIconCache.TryGetValue(barName, out var cached))
+            return cached;
 
-        if (skillsByName == null)
+        try
         {
-            Monitor?.Log("GetProfessionIcon: SkillsByName is null", LogLevel.Warn);
-            return null;
-        }
+            var skillsByName = AccessTools.TypeByName("SpaceCore.Skills")
+                ?.GetField("SkillsByName", BindingFlags.NonPublic | BindingFlags.Static)
+                ?.GetValue(null) as IDictionary;
 
-        Monitor?.Log($"GetProfessionIcon: SkillsByName has {skillsByName.Count} entries", LogLevel.Info);
+            if (skillsByName == null) return null;
 
-        foreach (DictionaryEntry kvp in skillsByName)
-        {
-            var skill = kvp.Value;
-            if (skill == null) continue;
-
-            var professions = skill.GetType()
-                .GetProperty("Professions", BindingFlags.Public | BindingFlags.Instance)
-                ?.GetValue(skill) as IEnumerable;
-            if (professions == null) continue;
-
-            foreach (var p in professions)
+            foreach (DictionaryEntry kvp in skillsByName)
             {
-                string? id = p.GetType()
-                    .GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)
-                    ?.GetValue(p) as string;
+                var skill = kvp.Value;
+                if (skill == null) continue;
 
-                Monitor?.Log($"GetProfessionIcon: found id={id}", LogLevel.Info);
+                var professions = skill.GetType()
+                    .GetProperty("Professions", BindingFlags.Public | BindingFlags.Instance)
+                    ?.GetValue(skill) as IEnumerable;
+                if (professions == null) continue;
 
-                if ("C" + id == barName)
+                foreach (var p in professions)
                 {
-                    var icon = p.GetType()
-                        .GetProperty("Icon", BindingFlags.Public | BindingFlags.Instance)
-                        ?.GetValue(p) as Texture2D;
-                    Monitor?.Log($"GetProfessionIcon: matched! icon={icon != null}", LogLevel.Info);
-                    _professionIconCache[barName] = icon;
-                    return icon;
+                    string? id = p.GetType()
+                        .GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)
+                        ?.GetValue(p) as string;
+
+                    if ("C" + id == barName)
+                    {
+                        var icon = p.GetType()
+                            .GetProperty("Icon", BindingFlags.Public | BindingFlags.Instance)
+                            ?.GetValue(p) as Texture2D;
+                        _professionIconCache[barName] = icon;
+                        return icon;
+                    }
                 }
             }
         }
-    }
-    catch (Exception ex)
-    {
-        Monitor?.Log($"GetProfessionIcon error: {ex.Message}", LogLevel.Warn);
-    }
+        catch (Exception ex)
+        {
+            Monitor?.Log($"GetProfessionIcon error: {ex.Message}", LogLevel.Warn);
+        }
 
-    _professionIconCache[barName] = null;
-    return null;
-}
+        _professionIconCache[barName] = null;
+        return null;
+    }
 
     public static void HoverPostfix(object __instance, int x, int y)
     {
@@ -307,130 +294,147 @@ static Texture2D? GetProfessionIcon(string barName)
     }
 
     public static void DrawPostfix(object __instance, SpriteBatch b)
-{
-    if (_newSkillsPageType == null) return;
-
-    var (num, num2) = CalcPositions(__instance);
-
-    var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
-        BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
-    if (visibleSkills == null || visibleSkills.Length == 0) return;
-
-    UpdateSkillAreaBounds(__instance, num, num2);
-    UpdateSkillBarBounds(__instance, num, num2);
-
-    var skillBars = _newSkillsPageType.GetField("skillBars",
-        BindingFlags.Public | BindingFlags.Instance)
-        ?.GetValue(__instance) as List<ClickableTextureComponent>;
-    var skillBarIndexes = _newSkillsPageType.GetField("skillBarSkillIndexes",
-        BindingFlags.NonPublic | BindingFlags.Instance)
-        ?.GetValue(__instance) as Dictionary<int, int>;
-
-    int skillScrollOffset = (int?)(_newSkillsPageType
-        .GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)
-        ?.GetValue(__instance)) ?? 0;
-
-    int row = 0;
-    foreach (var name in visibleSkills)
     {
-        var skill = _getSkillMethod?.Invoke(null, new object[] { name });
-        if (skill == null) { row++; continue; }
+        if (_newSkillsPageType == null) return;
 
-        var skillType = skill.GetType();
-        int num4 = 0;
-        var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
-        int levels = expCurve?.Length ?? 10;
+        var (num, num2) = CalcPositions(__instance);
 
-        int buffedLevel = (int?)_getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
-        int buffAmount = (int?)_getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
-        bool hasBuff = buffAmount != 0;
+        var visibleSkills = _newSkillsPageType.GetProperty("VisibleSkills",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) as string[];
+        if (visibleSkills == null || visibleSkills.Length == 0) return;
 
-        string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
-        var skillIcon = skillType.GetProperty("SkillsPageIcon")?.GetValue(skill) as Texture2D;
+        UpdateSkillAreaBounds(__instance, num, num2);
+        UpdateSkillBarBounds(__instance, num, num2);
 
-        if (skillName.Length > 0)
-            b.DrawString(Game1.smallFont, skillName,
-                new Vector2((float)((double)((float)num - Game1.smallFont.MeasureString(skillName).X) + 4.0 - 64.0),
-                (float)(num2 + 4 + row * 56)), Game1.textColor);
+        var skillBars = _newSkillsPageType.GetField("skillBars",
+            BindingFlags.Public | BindingFlags.Instance)
+            ?.GetValue(__instance) as List<ClickableTextureComponent>;
+        var skillBarIndexes = _newSkillsPageType.GetField("skillBarSkillIndexes",
+            BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance) as Dictionary<int, int>;
 
-        if (skillIcon != null)
+        int skillScrollOffset = (int?)(_newSkillsPageType
+            .GetField("skillScrollOffset", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(__instance)) ?? 0;
+
+        int row = 0;
+        foreach (var name in visibleSkills)
         {
-            b.Draw(skillIcon, new Vector2((float)(num - 56), (float)(num2 + row * 56)),
-                null, Color.Black * 0.3f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
-            b.Draw(skillIcon, new Vector2((float)(num - 52), (float)(num2 - 4 + row * 56)),
-                null, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
-        }
+            var skill = _getSkillMethod?.Invoke(null, new object[] { name });
+            if (skill == null) { row++; continue; }
 
-        for (int l = 0; l < levels; l++)
-        {
-            bool filled = buffedLevel > l;
+            var skillType = skill.GetType();
+            int num4 = 0;
+            var expCurve = skillType.GetProperty("ExperienceCurve")?.GetValue(skill) as int[];
+            int levels = expCurve?.Length ?? 10;
 
-            if ((l + 1) % 5 == 0)
+            int buffedLevel = (int?)_getBuffedLevel?.Invoke(null, new object[] { Game1.player, name }) ?? 0;
+            int buffAmount = (int?)_getBuffAmount?.Invoke(null, new object[] { Game1.player, name, null }) ?? 0;
+            bool hasBuff = buffAmount != 0;
+
+            string skillName = (string?)skillType.GetMethod("GetName")?.Invoke(skill, null) ?? name;
+            var skillIcon = skillType.GetProperty("SkillsPageIcon")?.GetValue(skill) as Texture2D;
+
+            if (skillName.Length > 0)
+                b.DrawString(Game1.smallFont, skillName,
+                    new Vector2((float)((double)((float)num - Game1.smallFont.MeasureString(skillName).X) + 4.0 - 64.0),
+                    (float)(num2 + 4 + row * 56)), Game1.textColor);
+
+            if (skillIcon != null)
             {
-                b.Draw(Game1.mouseCursors,
-                    new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
-                    new Rectangle(145, 338, 14, 9), Color.Black * 0.35f,
-                    0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
-                b.Draw(Game1.mouseCursors,
-                    new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
-                    new Rectangle(filled ? 159 : 145, 338, 14, 9), Color.White * (filled ? 1f : 0.65f),
-                    0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
-            }
-            else
-            {
-                b.Draw(Game1.mouseCursors,
-                    new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
-                    new Rectangle(129, 338, 8, 9), Color.Black * 0.35f,
-                    0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
-                b.Draw(Game1.mouseCursors,
-                    new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
-                    new Rectangle(129 + (filled ? 8 : 0), 338, 8, 9), Color.White * (filled ? 1f : 0.65f),
-                    0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                b.Draw(skillIcon, new Vector2((float)(num - 56), (float)(num2 + row * 56)),
+                    null, Color.Black * 0.3f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
+                b.Draw(skillIcon, new Vector2((float)(num - 52), (float)(num2 - 4 + row * 56)),
+                    null, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
             }
 
-            if (l == levels - 1)
+            for (int l = 0; l < levels; l++)
             {
-                Color levelColor = hasBuff ? Color.LightGreen : Color.SandyBrown;
-                NumberSprite.draw(buffedLevel, b,
-                    new Vector2((float)(num4 + num + (l + 2) * 36 + 12 + ((buffedLevel >= 10) ? 12 : 0)),
-                    (float)(num2 + 16 + row * 56)), Color.Black * 0.35f, 1f, 0.85f, 1f, 0, 0);
-                NumberSprite.draw(buffedLevel, b,
-                    new Vector2((float)(num4 + num + (l + 2) * 36 + 16 + ((buffedLevel >= 10) ? 12 : 0)),
-                    (float)(num2 + 12 + row * 56)), levelColor * (buffedLevel == 0 ? 0.75f : 1f),
-                    1f, 0.87f, 1f, 0, 0);
+                bool filled = buffedLevel > l;
+
+                if ((l + 1) % 5 == 0)
+                {
+                    b.Draw(Game1.mouseCursors,
+                        new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
+                        new Rectangle(145, 338, 14, 9), Color.Black * 0.35f,
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                    b.Draw(Game1.mouseCursors,
+                        new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
+                        new Rectangle(filled ? 159 : 145, 338, 14, 9), Color.White * (filled ? 1f : 0.65f),
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                }
+                else
+                {
+                    b.Draw(Game1.mouseCursors,
+                        new Vector2((float)(num4 + num - 4 + l * 36), (float)(num2 + row * 56)),
+                        new Rectangle(129, 338, 8, 9), Color.Black * 0.35f,
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
+                    b.Draw(Game1.mouseCursors,
+                        new Vector2((float)(num4 + num + l * 36), (float)(num2 - 4 + row * 56)),
+                        new Rectangle(129 + (filled ? 8 : 0), 338, 8, 9), Color.White * (filled ? 1f : 0.65f),
+                        0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+                }
+
+                if (l == levels - 1)
+                {
+                    Color levelColor = hasBuff ? Color.LightGreen : Color.SandyBrown;
+                    NumberSprite.draw(buffedLevel, b,
+                        new Vector2((float)(num4 + num + (l + 2) * 36 + 12 + ((buffedLevel >= 10) ? 12 : 0)),
+                        (float)(num2 + 16 + row * 56)), Color.Black * 0.35f, 1f, 0.85f, 1f, 0, 0);
+                    NumberSprite.draw(buffedLevel, b,
+                        new Vector2((float)(num4 + num + (l + 2) * 36 + 16 + ((buffedLevel >= 10) ? 12 : 0)),
+                        (float)(num2 + 12 + row * 56)), levelColor * (buffedLevel == 0 ? 0.75f : 1f),
+                        1f, 0.87f, 1f, 0, 0);
+                }
+
+                if ((l + 1) % 5 == 0) num4 += 24;
             }
-
-            if ((l + 1) % 5 == 0) num4 += 24;
+            row++;
         }
-        row++;
-    }
 
-    var hoverText = (string?)_newSkillsPageType.GetField("hoverText",
-        BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
-    var hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
-        BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
-
-    if (hoverText.Length > 0)
-        IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1, hoverTitle.Length > 0 ? hoverTitle : null);
-
-    // วาด icon หลัง drawHoverText เพื่อให้อยู่บนสุด
-    if (skillBars != null && skillBarIndexes != null)
-    {
-        foreach (var bar in skillBars)
+        // วาด tooltip + icon สำหรับ custom skill bars
+        if (skillBars != null && skillBarIndexes != null)
         {
-            if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
-            if (skillIndex < 5) continue;
-            if (!bar.name.StartsWith("C")) continue;
-            if (!bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56)) continue;
-            if (bar.hoverText.Length <= 0) continue;
+            foreach (var bar in skillBars)
+            {
+                if (!skillBarIndexes.TryGetValue(bar.myID, out int skillIndex)) continue;
+                if (skillIndex < 5) continue;
+                if (!bar.name.StartsWith("C")) continue;
+                if (!bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56)) continue;
+                if (bar.hoverText.Length <= 0) continue;
 
-            var icon = GetProfessionIcon(bar.name) ?? Game1.staminaRect;
-            b.Draw(icon,
-                new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
-                new Rectangle(0, 0, 16, 16),
-                Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-            break;
+                // ดึง profession name
+                string profTitle = bar.name.Substring(1);
+
+                // วาด tooltip กรอบพร้อม text โดย drawHoverText จัดการขนาดให้เอง
+                IClickableMenu.drawHoverText(b, bar.hoverText, Game1.smallFont,
+                    0, 0, -1, profTitle);
+
+                // วาด icon ทับบน tooltip
+                var icon = GetProfessionIcon(bar.name) ?? Game1.staminaRect;
+                b.Draw(icon,
+                    new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
+                    new Rectangle(0, 0, 16, 16),
+                    Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+                break;
+            }
         }
-    }
+
+        // วาด tooltip สำหรับ skill area (ชื่อสกิล)
+        var hoverText = (string?)_newSkillsPageType.GetField("hoverText",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+        var hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+
+        if (hoverText.Length > 0 && (skillBars == null || !skillBars.Any(bar =>
+            skillBarIndexes != null &&
+            skillBarIndexes.TryGetValue(bar.myID, out int si) && si >= 5 &&
+            bar.name.StartsWith("C") &&
+            bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56) &&
+            bar.hoverText.Length > 0)))
+        {
+            IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1,
+                hoverTitle.Length > 0 ? hoverTitle : null);
+        }
     }
 }
