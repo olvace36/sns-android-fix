@@ -392,6 +392,22 @@ public class SkillsPagePatch
             row++;
         }
 
+        // วาด tooltip สำหรับ skill area (ชื่อสกิล)
+        var hoverText = (string?)_newSkillsPageType.GetField("hoverText",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+        var hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
+            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
+
+        bool isBarHovered = skillBars != null && skillBarIndexes != null && skillBars.Any(bar =>
+            skillBarIndexes.TryGetValue(bar.myID, out int si) && si >= 5 &&
+            bar.name.StartsWith("C") &&
+            bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56) &&
+            bar.hoverText.Length > 0);
+
+        if (hoverText.Length > 0 && !isBarHovered)
+            IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1,
+                hoverTitle.Length > 0 ? hoverTitle : null);
+
         // วาด tooltip + icon สำหรับ custom skill bars
         if (skillBars != null && skillBarIndexes != null)
         {
@@ -403,38 +419,27 @@ public class SkillsPagePatch
                 if (!bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56)) continue;
                 if (bar.hoverText.Length <= 0) continue;
 
-                // ดึง profession name
                 string profTitle = bar.name.Substring(1);
 
-                // วาด tooltip กรอบพร้อม text โดย drawHoverText จัดการขนาดให้เอง
-                IClickableMenu.drawHoverText(b, bar.hoverText, Game1.smallFont,
-                    0, 0, -1, profTitle);
+                // วาดกรอบรอบ icon เหมือน SpaceCore
+                IClickableMenu.drawTextureBox(b,
+                    bar.bounds.X - 16 - 8,
+                    bar.bounds.Y - 16 - 16,
+                    96, 96, Color.White);
 
-                // วาด icon ทับบน tooltip
+                // วาด icon
                 var icon = GetProfessionIcon(bar.name) ?? Game1.staminaRect;
                 b.Draw(icon,
                     new Vector2(bar.bounds.X - 8, bar.bounds.Y - 32 + 16),
                     new Rectangle(0, 0, 16, 16),
                     Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+
+                // วาด tooltip กรอบ + text
+                IClickableMenu.drawHoverText(b, bar.hoverText, Game1.smallFont,
+                    0, 0, -1, profTitle);
+
                 break;
             }
-        }
-
-        // วาด tooltip สำหรับ skill area (ชื่อสกิล)
-        var hoverText = (string?)_newSkillsPageType.GetField("hoverText",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
-        var hoverTitle = (string?)_newSkillsPageType.GetField("hoverTitle",
-            BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance) ?? "";
-
-        if (hoverText.Length > 0 && (skillBars == null || !skillBars.Any(bar =>
-            skillBarIndexes != null &&
-            skillBarIndexes.TryGetValue(bar.myID, out int si) && si >= 5 &&
-            bar.name.StartsWith("C") &&
-            bar.containsPoint(LastHoverX, LastHoverY + skillScrollOffset * 56) &&
-            bar.hoverText.Length > 0)))
-        {
-            IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, -1,
-                hoverTitle.Length > 0 ? hoverTitle : null);
         }
     }
 }
