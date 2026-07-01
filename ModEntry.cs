@@ -4,8 +4,6 @@ using StardewModdingAPI.Events;
 using System.Reflection;
 using StardewValley;
 using StardewValley.Menus;
-using SpaceCore;
-using SwordAndSorcerySMAPI;
 
 namespace SnsAndroidFix;
 
@@ -44,17 +42,23 @@ public class ModEntry : Mod
         MonsterDamagePatch.Apply(harmony);
         // WeaponTooltipExtraSpacePatch.Apply ย้ายไป GameLaunched
 
-        string? rogueSkillId = null;
-        string? paladinSkillId = null;
+        object? rogueSkill = null;
+        object? paladinSkill = null;
+        MethodInfo? getBuffedLevel = null;
 
         helper.Events.GameLoop.GameLaunched += (s, e) =>
         {
-            // Resolved via direct references now (SpaceCore.dll and SwordAndSorcerySMAPI.dll
-            // are already project references) instead of reflection — GetCustomBuffedSkillLevel
-            // has a string-id overload (SpaceCore.SkillExtensions), so we only need each
-            // skill's Id once here, not the MethodInfo/Type objects from before.
-            rogueSkillId = ModSnS.RogueSkill?.Id;
-            paladinSkillId = ModTOP.PaladinSkill?.Id;
+            var skillType = AccessTools.TypeByName("SpaceCore.Skills+Skill");
+            getBuffedLevel = AccessTools.Method(
+                AccessTools.TypeByName("SpaceCore.SkillExtensions"),
+                "GetCustomBuffedSkillLevel",
+                new[] { typeof(Farmer), skillType });
+            rogueSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModSnS")
+                ?.GetProperty("RogueSkill", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+            paladinSkill = AccessTools.TypeByName("SwordAndSorcerySMAPI.ModTOP")
+                ?.GetProperty("PaladinSkill", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
             RevalidateHealthPatch.InitCache();
             SnsEquipmentMenu.InitSlotIds();
 
@@ -76,25 +80,35 @@ public class ModEntry : Mod
         int lastRogueBuffed = 0;
         int lastPaladinBuffed = 0;
 
+        // Reused across calls instead of allocating a new object[2] on every single tick.
+        // The array contents (player, skill) don't change tick-to-tick, so we build each
+        // one once as soon as its skill reference is resolved.
+        object[]? rogueArgs = null;
+        object[]? paladinArgs = null;
+
         // Checking every single tick (~60/sec) is overkill for a buff bar that only needs
         // to look responsive — every 4th tick (~15/sec) is still imperceptible and cuts the
-        // work by 75%.
+        // reflection Invoke calls by 75%.
         const int checkEveryNTicks = 4;
         uint tickCounter = 0;
 
         helper.Events.GameLoop.UpdateTicked += (s, e) =>
         {
-            if (!Context.IsWorldReady) return;
+            if (!Context.IsWorldReady || getBuffedLevel == null) return;
 
             tickCounter++;
             if (tickCounter % checkEveryNTicks != 0) return;
 
-            // Direct compiled calls now — no reflection, no per-call array allocation.
-            int rogueBuffed = rogueSkillId != null
-                ? Game1.player.GetCustomBuffedSkillLevel(rogueSkillId)
+            if (rogueSkill != null)
+                rogueArgs ??= new object[] { Game1.player, rogueSkill };
+            if (paladinSkill != null)
+                paladinArgs ??= new object[] { Game1.player, paladinSkill };
+
+            int rogueBuffed = rogueArgs != null
+                ? (int)(getBuffedLevel.Invoke(null, rogueArgs) ?? 0)
                 : 0;
-            int paladinBuffed = paladinSkillId != null
-                ? Game1.player.GetCustomBuffedSkillLevel(paladinSkillId)
+            int paladinBuffed = paladinArgs != null
+                ? (int)(getBuffedLevel.Invoke(null, paladinArgs) ?? 0)
                 : 0;
 
             if (rogueBuffed != lastRogueBuffed || paladinBuffed != lastPaladinBuffed)
@@ -116,4 +130,3 @@ public class ModEntry : Mod
         };
     }
 }
-
