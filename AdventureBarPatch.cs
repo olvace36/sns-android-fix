@@ -6,7 +6,6 @@ using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
-using SwordAndSorcerySMAPI;
 
 namespace SnsAndroidFix;
 
@@ -21,6 +20,11 @@ public class AdventureBarPatch
     // part can't be avoided the way the mana/position reads below could.
     private static Type? _adventureBarType;
     private static FieldInfo? _hideField;
+
+    private static MethodInfo? _getFarmerExtData;
+    private static FieldInfo? _manaField;
+    private static FieldInfo? _maxManaField;
+    private static PropertyInfo? _netIntValueProperty;
 
     private const int AetherBarHeight = 56;
     private const int AetherBarMargin = 16;
@@ -38,6 +42,24 @@ public class AdventureBarPatch
         _hideField = _adventureBarType.GetField("Hide",
             BindingFlags.Public | BindingFlags.Static);
 
+        var farmerExtDataType = AccessTools.TypeByName("SwordAndSorcerySMAPI.FarmerExtData");
+        var extensionsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.Extensions");
+
+        _getFarmerExtData = extensionsType?.GetMethod("GetFarmerExtData",
+            BindingFlags.Public | BindingFlags.Static,
+            null, new[] { typeof(Farmer) }, null);
+
+        if (farmerExtDataType != null)
+        {
+            _manaField = farmerExtDataType.GetField("mana",
+                BindingFlags.Public | BindingFlags.Instance);
+            _maxManaField = farmerExtDataType.GetField("maxMana",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (_manaField != null)
+                _netIntValueProperty = _manaField.FieldType
+                    .GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
+        }
+
         var drawMethod = _adventureBarType.GetMethod("draw",
             new[] { typeof(SpriteBatch) });
         if (drawMethod != null)
@@ -48,15 +70,23 @@ public class AdventureBarPatch
             Monitor?.Log("AdventureBar draw method not found!", LogLevel.Warn);
     }
 
+    private static object[]? _farmerExtDataArgs;
+
     static void DrawAetherBar(SpriteBatch b, int xPos, int yPos, int width)
     {
-        // Direct call — SwordAndSorcerySMAPI.FarmerExtData and Extensions are both public,
-        // so no reflection is needed here at all (previously: 1 MethodInfo.Invoke +
-        // 2 FieldInfo.GetValue + 2 PropertyInfo.GetValue, every single frame this bar is
-        // visible — i.e. constantly, since AetherOnly is normally left on).
-        FarmerExtData extData = Game1.player.GetFarmerExtData();
-        int mana = extData.mana.Value;
-        int maxMana = extData.maxMana.Value;
+        if (_getFarmerExtData == null) return;
+
+        // Reused across frames instead of allocating a new object[1] every single draw call.
+        _farmerExtDataArgs ??= new object[] { Game1.player };
+
+        var farmerExtData = _getFarmerExtData.Invoke(null, _farmerExtDataArgs);
+        if (farmerExtData == null) return;
+
+        var manaNetInt = _manaField?.GetValue(farmerExtData);
+        var maxManaNetInt = _maxManaField?.GetValue(farmerExtData);
+
+        int mana = (int?)_netIntValueProperty?.GetValue(manaNetInt) ?? 0;
+        int maxMana = (int?)_netIntValueProperty?.GetValue(maxManaNetInt) ?? 0;
 
         IClickableMenu.drawTextureBox(b, xPos, yPos, width, AetherBarHeight, Color.White);
 
@@ -95,3 +125,4 @@ public class AdventureBarPatch
         return false;
     }
 }
+
