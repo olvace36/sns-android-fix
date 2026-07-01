@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
+using SwordAndSorcerySMAPI;
 
 namespace SnsAndroidFix;
 
@@ -14,17 +15,12 @@ public class AdventureBarPatch
     internal static IMonitor? Monitor;
     public static bool AetherOnly = false;
 
+    // AdventureBar (SwordAndSorcerySMAPI.Framework.Menus.AdventureBar.AdventureBar) is an
+    // `internal` class in its own assembly, so we can't name it or cast to it directly from
+    // here — reflection is the only way to reach its Type and its static Hide field. This
+    // part can't be avoided the way the mana/position reads below could.
     private static Type? _adventureBarType;
     private static FieldInfo? _hideField;
-    private static FieldInfo? _xField;
-    private static FieldInfo? _yField;
-    private static FieldInfo? _heightField;
-    private static FieldInfo? _widthField;
-
-    private static MethodInfo? _getFarmerExtData;
-    private static FieldInfo? _manaField;
-    private static FieldInfo? _maxManaField;
-    private static PropertyInfo? _netIntValueProperty;
 
     private const int AetherBarHeight = 56;
     private const int AetherBarMargin = 16;
@@ -41,32 +37,6 @@ public class AdventureBarPatch
 
         _hideField = _adventureBarType.GetField("Hide",
             BindingFlags.Public | BindingFlags.Static);
-        _xField = typeof(IClickableMenu).GetField("xPositionOnScreen",
-            BindingFlags.Public | BindingFlags.Instance);
-        _yField = typeof(IClickableMenu).GetField("yPositionOnScreen",
-            BindingFlags.Public | BindingFlags.Instance);
-        _heightField = typeof(IClickableMenu).GetField("height",
-            BindingFlags.Public | BindingFlags.Instance);
-        _widthField = typeof(IClickableMenu).GetField("width",
-            BindingFlags.Public | BindingFlags.Instance);
-
-        var farmerExtDataType = AccessTools.TypeByName("SwordAndSorcerySMAPI.FarmerExtData");
-        var extensionsType = AccessTools.TypeByName("SwordAndSorcerySMAPI.Extensions");
-
-        _getFarmerExtData = extensionsType?.GetMethod("GetFarmerExtData",
-            BindingFlags.Public | BindingFlags.Static,
-            null, new[] { typeof(Farmer) }, null);
-
-        if (farmerExtDataType != null)
-        {
-            _manaField = farmerExtDataType.GetField("mana",
-                BindingFlags.Public | BindingFlags.Instance);
-            _maxManaField = farmerExtDataType.GetField("maxMana",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (_manaField != null)
-                _netIntValueProperty = _manaField.FieldType
-                    .GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
-        }
 
         var drawMethod = _adventureBarType.GetMethod("draw",
             new[] { typeof(SpriteBatch) });
@@ -78,27 +48,15 @@ public class AdventureBarPatch
             Monitor?.Log("AdventureBar draw method not found!", LogLevel.Warn);
     }
 
-    static (int x, int y, int w, int h) GetBounds(object instance)
-    {
-        int x = (int?)_xField?.GetValue(instance) ?? 0;
-        int y = (int?)_yField?.GetValue(instance) ?? 0;
-        int w = (int?)_widthField?.GetValue(instance) ?? 0;
-        int h = (int?)_heightField?.GetValue(instance) ?? 0;
-        return (x, y, w, h);
-    }
-
     static void DrawAetherBar(SpriteBatch b, int xPos, int yPos, int width)
     {
-        if (_getFarmerExtData == null) return;
-
-        var farmerExtData = _getFarmerExtData.Invoke(null, new object[] { Game1.player });
-        if (farmerExtData == null) return;
-
-        var manaNetInt = _manaField?.GetValue(farmerExtData);
-        var maxManaNetInt = _maxManaField?.GetValue(farmerExtData);
-
-        int mana = (int?)_netIntValueProperty?.GetValue(manaNetInt) ?? 0;
-        int maxMana = (int?)_netIntValueProperty?.GetValue(maxManaNetInt) ?? 0;
+        // Direct call — SwordAndSorcerySMAPI.FarmerExtData and Extensions are both public,
+        // so no reflection is needed here at all (previously: 1 MethodInfo.Invoke +
+        // 2 FieldInfo.GetValue + 2 PropertyInfo.GetValue, every single frame this bar is
+        // visible — i.e. constantly, since AetherOnly is normally left on).
+        FarmerExtData extData = Game1.player.GetFarmerExtData();
+        int mana = extData.mana.Value;
+        int maxMana = extData.maxMana.Value;
 
         IClickableMenu.drawTextureBox(b, xPos, yPos, width, AetherBarHeight, Color.White);
 
@@ -114,7 +72,11 @@ public class AdventureBarPatch
             (float)(yPos + 10)), Color.Black);
     }
 
-    public static bool DrawPrefix(object __instance, SpriteBatch b)
+    // __instance is declared as IClickableMenu (the public base class AdventureBar inherits
+    // from) instead of `object` — Harmony matches this fine since the real instance IS an
+    // IClickableMenu, and it lets us read xPositionOnScreen/width/etc as normal public
+    // fields instead of via reflection.
+    public static bool DrawPrefix(IClickableMenu __instance, SpriteBatch b)
     {
         if (_adventureBarType == null) return true;
 
@@ -124,7 +86,7 @@ public class AdventureBarPatch
 
         if (!AetherOnly) return true;
 
-        var (xPos, yPos, width, height) = GetBounds(__instance);
+        int width = __instance.width;
         int vh = Game1.uiViewport.Height;
         int aetherX = AetherBarMargin;
         int aetherY = vh - AetherBarHeight - AetherBarMargin;
