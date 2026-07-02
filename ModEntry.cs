@@ -80,24 +80,17 @@ public class ModEntry : Mod
         int lastRogueBuffed = 0;
         int lastPaladinBuffed = 0;
 
-        // Reused across calls instead of allocating a new object[2] on every single tick.
-        // The array contents (player, skill) don't change tick-to-tick, so we build each
-        // one once as soon as its skill reference is resolved.
+        // Reused across calls instead of allocating a new object[2] every check.
         object[]? rogueArgs = null;
         object[]? paladinArgs = null;
 
-        // Checking every single tick (~60/sec) is overkill for a buff bar that only needs
-        // to look responsive — every 4th tick (~15/sec) is still imperceptible and cuts the
-        // reflection Invoke calls by 75%.
-        const int checkEveryNTicks = 4;
-        uint tickCounter = 0;
-
-        helper.Events.GameLoop.UpdateTicked += (s, e) =>
+        // OneSecondUpdateTicked is a SMAPI event that fires once per real second instead of
+        // every tick (~60/sec). A buffed-skill display doesn't need faster than that — buffs
+        // come from potions/abilities the player just used, so a ~1s delay before the HP bar
+        // catches up is unnoticeable. This is a much bigger cut than polling every few ticks.
+        helper.Events.GameLoop.OneSecondUpdateTicked += (s, e) =>
         {
             if (!Context.IsWorldReady || getBuffedLevel == null) return;
-
-            tickCounter++;
-            if (tickCounter % checkEveryNTicks != 0) return;
 
             if (rogueSkill != null)
                 rogueArgs ??= new object[] { Game1.player, rogueSkill };
@@ -130,3 +123,4 @@ public class ModEntry : Mod
         };
     }
 }
+
