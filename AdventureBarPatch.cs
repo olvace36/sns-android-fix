@@ -73,7 +73,7 @@ public class AdventureBarPatch
     private static object[]? _farmerExtDataArgs;
     private static int _cachedMana;
     private static int _cachedMaxMana;
-    private static int _framesSinceManaRead = int.MaxValue; // force a read on the first call
+    private static int _framesSinceManaRead = RefreshEveryNFrames; // force a read on the first call
 
     // Mana only changes when the player casts something or regenerates over time — it doesn't
     // need to be re-read via reflection on every single draw call. Refreshing every 6 frames
