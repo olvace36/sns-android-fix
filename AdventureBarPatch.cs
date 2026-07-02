@@ -71,22 +71,41 @@ public class AdventureBarPatch
     }
 
     private static object[]? _farmerExtDataArgs;
+    private static int _cachedMana;
+    private static int _cachedMaxMana;
+    private static int _framesSinceManaRead = int.MaxValue; // force a read on the first call
+
+    // Mana only changes when the player casts something or regenerates over time — it doesn't
+    // need to be re-read via reflection on every single draw call. Refreshing every 6 frames
+    // (~4x/sec even at 24fps) is still visually smooth for a bar that fills gradually, and
+    // cuts the reflection calls here by ~85%.
+    private const int RefreshEveryNFrames = 6;
 
     static void DrawAetherBar(SpriteBatch b, int xPos, int yPos, int width)
     {
         if (_getFarmerExtData == null) return;
 
-        // Reused across frames instead of allocating a new object[1] every single draw call.
-        _farmerExtDataArgs ??= new object[] { Game1.player };
+        _framesSinceManaRead++;
+        if (_framesSinceManaRead >= RefreshEveryNFrames)
+        {
+            _framesSinceManaRead = 0;
 
-        var farmerExtData = _getFarmerExtData.Invoke(null, _farmerExtDataArgs);
-        if (farmerExtData == null) return;
+            // Reused across frames instead of allocating a new object[1] every single draw call.
+            _farmerExtDataArgs ??= new object[] { Game1.player };
 
-        var manaNetInt = _manaField?.GetValue(farmerExtData);
-        var maxManaNetInt = _maxManaField?.GetValue(farmerExtData);
+            var farmerExtData = _getFarmerExtData.Invoke(null, _farmerExtDataArgs);
+            if (farmerExtData != null)
+            {
+                var manaNetInt = _manaField?.GetValue(farmerExtData);
+                var maxManaNetInt = _maxManaField?.GetValue(farmerExtData);
 
-        int mana = (int?)_netIntValueProperty?.GetValue(manaNetInt) ?? 0;
-        int maxMana = (int?)_netIntValueProperty?.GetValue(maxManaNetInt) ?? 0;
+                _cachedMana = (int?)_netIntValueProperty?.GetValue(manaNetInt) ?? 0;
+                _cachedMaxMana = (int?)_netIntValueProperty?.GetValue(maxManaNetInt) ?? 0;
+            }
+        }
+
+        int mana = _cachedMana;
+        int maxMana = _cachedMaxMana;
 
         IClickableMenu.drawTextureBox(b, xPos, yPos, width, AetherBarHeight, Color.White);
 
@@ -125,4 +144,3 @@ public class AdventureBarPatch
         return false;
     }
 }
-
